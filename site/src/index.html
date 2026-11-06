@@ -74,6 +74,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .header .social svg { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.18)) drop-shadow(0 3px 10px rgba(0,0,0,.18)); }
 .header .burger span { box-shadow: 0 1px 4px rgba(0,0,0,.28); }
 .menu-open .header .logo, .header.is-solid .logo { text-shadow: none; }
+/* logo "verification": letters cycle through symbols and lock in left to right */
+.lg-ch { display: inline-block; text-align: center; transition: color .35s ease; }
+.lg-ch.is-scr { color: var(--mist); }
 .social { display: flex; justify-content: flex-end; gap: 18px; align-items: center; }
 .social a { display: grid; place-items: center; width: 22px; height: 22px; transition: opacity .5s var(--smooth); }
 .social a:hover { opacity: .6; }
@@ -556,6 +559,50 @@ p { margin: 0 0 14px; max-width: 62ch; }
       }
     });
   });
+
+  /* logo: "verification" decode, on load, hover, focus and tap */
+  (function () {
+    var logo = document.querySelector(".header .logo");
+    var word = logo.textContent.trim();
+    var pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#/_+=<>ЖФЯИЦ";
+    logo.textContent = "";
+    var spans = word.split("").map(function (c) {
+      var s = document.createElement("span"); s.className = "lg-ch"; s.textContent = c; s.setAttribute("aria-hidden", "true");
+      logo.appendChild(s); return s;
+    });
+    var running = false, delay = 220, step = 75, tickMs = 55;
+    function lockWidths() {
+      if (running) return;
+      spans.forEach(function (s) { s.style.width = ""; });
+      spans.forEach(function (s) { s.style.width = s.getBoundingClientRect().width + "px"; });
+    }
+    function run() {
+      if (reduce || running) return;
+      running = true;
+      var start = performance.now(), last = 0, end = delay + spans.length * step;
+      (function frame(now) {
+        var el = now - start;
+        if (el >= end) {
+          spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); });
+          running = false; return;
+        }
+        if (now - last >= tickMs) {
+          last = now;
+          spans.forEach(function (s, i) {
+            if (el < delay + i * step) { s.textContent = pool[(Math.random() * pool.length) | 0]; s.classList.add("is-scr"); }
+            else { s.textContent = word[i]; s.classList.remove("is-scr"); }
+          });
+        }
+        requestAnimationFrame(frame);
+      })(start);
+    }
+    var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    ready.then(function () { lockWidths(); run(); });
+    window.addEventListener("resize", lockWidths);
+    logo.addEventListener("pointerenter", run);
+    logo.addEventListener("focus", run);
+    logo.addEventListener("click", run);
+  })();
 
   show();
 })();
