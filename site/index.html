@@ -578,7 +578,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
       var s = document.createElement("span"); s.className = "lg-ch"; s.textContent = c; s.setAttribute("aria-hidden", "true");
       logo.appendChild(s); return s;
     });
-    var running = false, delay = 220, step = 75, tickMs = 55;
+    var running = false, delay = 70, step = 30, tickMs = 35;
     function current() { return spans.map(function (s) { return s.textContent; }).join(""); }
     function jitter(k) {
       var r = Math.random, st = logo.style;
@@ -601,7 +601,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
       var start = performance.now(), last = 0;
       (function f(now) {
         if (now - start >= ms) { spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); }); calm(); return; }
-        if (now - last >= 45) {
+        if (now - last >= 30) {
           last = now;
           spans.forEach(function (s, i) {
             if (swap && Math.random() < .14) { s.textContent = pool[(Math.random() * pool.length) | 0]; s.classList.add("is-scr"); }
@@ -625,7 +625,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
         var el = now - start;
         if (el >= end) {
           spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); });
-          running = false; calm(); burst(180, false); return;
+          running = false; calm(); burst(90, false); return;
         }
         if (now - last >= tickMs) {
           last = now;
@@ -646,7 +646,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
     logo.addEventListener("click", run);
     /* now and then the logo catches a little interference by itself */
     (function idle() {
-      setTimeout(function () { if (document.visibilityState === "visible") burst(160 + Math.random() * 120, true); idle(); }, 7000 + Math.random() * 7000);
+      setTimeout(function () { if (document.visibilityState === "visible") burst(70 + Math.random() * 60, true); idle(); }, 7000 + Math.random() * 7000);
     })();
   })();
 
