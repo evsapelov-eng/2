@@ -92,12 +92,12 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .menu-open .menu { visibility: visible; opacity: 1; }
 .menu nav { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; justify-content: center; transform: translateY(20px); transition: transform .6s var(--ease); }
 .menu-open .menu nav { transform: none; }
-.menu nav a { font-size: clamp(2rem, 9vw, 2.6rem); line-height: 1.5; font-weight: 400; opacity: 0; transform: translateY(14px); transition: opacity .5s var(--smooth), transform .8s var(--smooth); }
+.menu nav a { font-size: clamp(1.15rem, min(4.6vw, 3.2vh), 1.5rem); line-height: 2; letter-spacing: .06em; font-weight: 400; opacity: 0; transform: translateY(14px); transition: opacity .5s var(--smooth), transform .8s var(--smooth); }
 .menu-open .menu nav a { opacity: 1; transform: none; }
 .menu-open .menu nav a:nth-child(2) { transition-delay: .04s; } .menu-open .menu nav a:nth-child(3) { transition-delay: .08s; } .menu-open .menu nav a:nth-child(4) { transition-delay: .12s; } .menu-open .menu nav a:nth-child(5) { transition-delay: .16s; } .menu-open .menu nav a:nth-child(6) { transition-delay: .2s; }
-.menu .social { justify-content: center; gap: 30px; }
-.menu .social a { width: 30px; height: 30px; }
-.menu .social svg { width: 28px; height: 28px; }
+.menu .social { justify-content: center; gap: 26px; }
+.menu .social a { width: 24px; height: 24px; }
+.menu .social svg { width: 22px; height: 22px; }
 
 /* ---------- views ---------- */
 .view { display: none; }
