@@ -741,7 +741,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
       for (var i = 0; i < a.length; i += 4) {
         var v = (r() + r() + r()) / 3 * 255;          /* soft, film-like distribution */
         a[i] = v; a[i + 1] = v * .95; a[i + 2] = v * .86; /* a touch of warmth */
-        a[i + 3] = 7 + r() * 6;
+        a[i + 3] = 3 + r() * 3;
       }
       x.putImageData(d, 0, 0);
       tiles.push(ctx.createPattern(c, "repeat"));
@@ -753,7 +753,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
       var w = cv.width, h = cv.height;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h);
       var ox = r() * T | 0, oy = r() * T | 0;
-      ctx.globalAlpha = .82 + r() * .18;                 /* projector flicker */
+      ctx.globalAlpha = .9 + r() * .1;                   /* projector flicker */
       ctx.translate(-ox, -oy); ctx.fillStyle = tiles[r() * tiles.length | 0]; ctx.fillRect(0, 0, w + T, h + T);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
