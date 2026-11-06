@@ -167,7 +167,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   /* tall screens: the photo spans the width and starts at 100svh - 150vw; heads begin about 26% down it.
      The tagline sits just under the header and is sized so its last line ends above the heads. */
   .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 66px);
-    width: clamp(150px, calc((100svh - 111vw - 66px - env(safe-area-inset-top, 0px) - 8px) * 1.4472), 74vw); }
+    width: clamp(130px, calc((100svh - 111vw - 66px - env(safe-area-inset-top, 0px) - 8px) * 1.4472 * .75), 56vw); }
 }
 
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
