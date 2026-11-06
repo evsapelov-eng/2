@@ -128,14 +128,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .hero.show-video video { opacity: 1; }
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
 .hero.show-video::after { background: linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,.55)); }
-.hero-sound {
-  position: absolute; z-index: 2;
-  right: max(var(--gutter), env(safe-area-inset-right, 0px));
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
-  text-transform: uppercase; font-size: 13px; letter-spacing: .08em; line-height: 1; opacity: .8;
-}
-.hero-sound:hover { opacity: 1; }
-.hero:not(.video-ready) .hero-sound { visibility: hidden; }
 
 .page {
   position: relative; min-height: 100vh; min-height: 100svh;
@@ -296,7 +288,6 @@ p { margin: 0 0 14px; max-width: 62ch; }
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="assets/hero.mp4" type="video/mp4">
     </video>
-    <button class="hero-sound" id="hero-pause" aria-pressed="false">Пауза</button>
   </section>
 
   <section class="view page" id="view-about">
@@ -412,7 +403,6 @@ p { margin: 0 0 14px; max-width: 62ch; }
   var burger = document.getElementById("burger");
   var menu = document.getElementById("menu");
   var video = document.getElementById("hero-video");
-  var pauseBtn = document.getElementById("hero-pause");
 
   function setMenu(open) {
     root.classList.toggle("menu-open", open);
@@ -450,7 +440,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
     setMenu(false);
     window.scrollTo(0, 0);
     if (forcePhoto) hero.classList.remove("show-video", "video-ready");
-    if (video) { if (name === "home" && !forcePhoto && pauseBtn.getAttribute("aria-pressed") === "false") { var p = video.play(); if (p && p.catch) p.catch(function () {}); } else video.pause(); }
+    if (video) { if (name === "home" && !forcePhoto && !reduce) { var p = video.play(); if (p && p.catch) p.catch(function () {}); } else video.pause(); }
     document.title = name === "home" ? "VERIFICATION" : document.querySelector('#view-' + name + ' h1').textContent + " — VERIFICATION";
     onScroll();
   }
@@ -469,14 +459,8 @@ p { margin: 0 0 14px; max-width: 62ch; }
   video.addEventListener("error", heroFail);
   video.querySelector("source").addEventListener("error", heroFail);
 
-  pauseBtn.addEventListener("click", function () {
-    var paused = pauseBtn.getAttribute("aria-pressed") === "true";
-    if (paused) { var pp = video.play(); if (pp && pp.catch) pp.catch(heroFail); pauseBtn.textContent = "Пауза"; } else { video.pause(); pauseBtn.textContent = "Смотреть"; }
-    pauseBtn.setAttribute("aria-pressed", String(!paused));
-  });
-  if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    video.removeAttribute("autoplay"); video.pause(); pauseBtn.textContent = "Смотреть"; pauseBtn.setAttribute("aria-pressed", "true");
-  }
+  /* with reduced motion the still photo stays and the video never starts */
+  if (reduce) { video.removeAttribute("autoplay"); video.pause(); }
 
   /* media grid + lightbox */
   var grid = document.getElementById("grid");
