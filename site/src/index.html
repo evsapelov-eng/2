@@ -147,8 +147,34 @@ p { margin: 0 0 14px; max-width: 62ch; }
 .acc[open] summary svg { transform: rotate(180deg); }
 .acc .acc-body { padding-top: 26px; }
 .acc + .acc { margin-top: 28px; }
-.album { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
-.album img { width: min(100%, 460px); height: auto; aspect-ratio: 1; object-fit: cover; }
+/* vinyl: sleeve with the record peeking out; hover slides it out and spins it */
+.release { display: grid; gap: 22px; width: min(100%, 540px); }
+.vinyl { position: relative; display: block; width: 100%; aspect-ratio: 1 / .76; max-width: 100%; }
+.sleeve { position: absolute; left: 0; top: 0; width: 76%; aspect-ratio: 1; z-index: 2; overflow: hidden; background: #0d0d0d; box-shadow: 0 34px 60px -24px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.06); transition: transform .9s var(--ease); }
+.sleeve img { width: 100%; height: 100%; object-fit: cover; }
+.sleeve::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 40.5%, rgba(255,255,255,.07) 41%, transparent 42.5%),
+    linear-gradient(118deg, rgba(255,255,255,.10), rgba(255,255,255,0) 38%, rgba(0,0,0,0) 70%, rgba(0,0,0,.25)); }
+.disc { position: absolute; top: 2%; left: 2%; width: 72%; aspect-ratio: 1; border-radius: 50%; z-index: 1; transform: translateX(18%); box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 24px 50px -20px rgba(0,0,0,.9); transition: transform 1s var(--ease); }
+.disc-spin { position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 0 15.5%, #0c0c0c 15.5% 17.5%, transparent 17.5% 95.5%, #2c2c2c 95.5% 96.5%, #0e0e0e 96.5%),
+    repeating-radial-gradient(circle, #121212 0 1.3px, #232323 1.3px 2.6px);
+  animation: spin 5s linear infinite; animation-play-state: paused; }
+.disc-label { position: absolute; inset: 33.5%; border-radius: 50%; background: #111 url("assets/album.jpg") center / 260% no-repeat; box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
+.disc-label::after { content: ""; position: absolute; inset: 46%; border-radius: 50%; background: var(--ink); box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.disc::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 20deg, rgba(255,255,255,0) 0deg, rgba(255,255,255,.16) 28deg, rgba(255,255,255,0) 60deg, rgba(255,255,255,0) 180deg, rgba(255,255,255,.12) 208deg, rgba(255,255,255,0) 240deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 33.5%, #000 34%); mask: radial-gradient(circle, transparent 0 33.5%, #000 34%); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.release:hover .disc, .release:focus-visible .disc { transform: translateX(34%); }
+.release:hover .sleeve, .release:focus-visible .sleeve { transform: translateX(-2%); }
+.release:hover .disc-spin, .release:focus-visible .disc-spin { animation-play-state: running; }
+@media (hover: none) { .disc-spin { animation-duration: 9s; animation-play-state: running; } }
+.release-cta { display: flex; align-items: center; gap: 12px; text-transform: uppercase; font-size: 13px; letter-spacing: .08em; line-height: 1; }
+.release-cta svg { width: 26px; height: 10px; stroke: var(--paper); fill: none; stroke-width: 1.2; transition: transform .5s var(--ease); }
+.release:hover .release-cta svg { transform: translateX(6px); }
 .tracklist { counter-reset: t; margin: 0; padding: 0; list-style: none; }
 .meta-row { display: flex; flex-wrap: wrap; gap: 6px 26px; text-transform: uppercase; font-size: 13px; letter-spacing: .08em; color: var(--mist); margin-bottom: 20px; }
 
@@ -273,16 +299,20 @@ p { margin: 0 0 14px; max-width: 62ch; }
   <section class="view page" id="view-music">
     <h1>Музыка</h1>
     <div class="cols">
-      <div class="album">
-        <img src="assets/album.jpg" alt="Обложка альбома VERIFICATION: лицо из светящихся точек и красные буквы на чёрном" width="900" height="900">
-      </div>
+      <a class="release" href="https://band.link/ejuVc" target="_blank" rel="noopener">
+        <span class="vinyl">
+          <span class="disc" aria-hidden="true"><span class="disc-spin"><span class="disc-label"></span></span></span>
+          <span class="sleeve"><img src="assets/album.jpg" alt="Обложка альбома VERIFICATION: лицо из светящихся точек и красные буквы на чёрном" width="900" height="900"></span>
+        </span>
+        <span class="release-cta">Слушать альбом <svg viewBox="0 0 26 10" aria-hidden="true"><path d="M0 5h24M20 1l4 4-4 4"/></svg></span>
+      </a>
       <div>
         <div class="meta-row"><span>Альбом</span><span>12 треков</span><span>Сентябрь 2026</span></div>
         <details class="acc" open>
           <summary><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 4.5l6 6 6-6"/></svg>Дебютный альбом VERIFICATION</summary>
           <div class="acc-body">
             <p>В сентябре 2026 года вышел дебютный полноформатный альбом VERIFICATION. В нём 12 треков, и все они собраны в единый сюжет и концепцию.</p>
-            <p>Альбом можно послушать на всех цифровых площадках: <a class="link" href="https://band.link/verification" target="_blank" rel="noopener"><b>слушать</b></a></p>
+            <p>Альбом можно послушать на всех цифровых площадках: <a class="link" href="https://band.link/ejuVc" target="_blank" rel="noopener"><b>слушать</b></a></p>
           </div>
         </details>
         <details class="acc">

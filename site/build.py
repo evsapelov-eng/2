@@ -11,7 +11,7 @@ ICONS = {
     "ВКонтакте": ("https://vk.ru/verification.project", ROOT / "src/icons/vk.svg"),
     "Instagram": ("https://instagram.com/verification.official", ROOT / "src/icons/instagram.svg"),
     "YouTube": ("https://youtube.com/@verification_sound", ROOT / "src/icons/youtube.svg"),
-    "Слушать альбом": ("https://band.link/verification", ROOT / "src/icons/listen.svg"),
+    "Слушать альбом": ("https://band.link/ejuVc", ROOT / "src/icons/listen.svg"),
 }
 
 
