@@ -137,8 +137,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
   background: var(--ink);
 }
-.page::before { content: ""; position: fixed; inset: 0; z-index: 0; background: var(--ink) url("assets/bg-grain.jpg") right center / cover no-repeat; pointer-events: none; }
-@media (max-aspect-ratio: 3/4) { .page::before { background-image: url("assets/bg-grain-tall.jpg"); background-position: center bottom; } }
+.page::before { content: ""; position: fixed; inset: 0; z-index: 0; background: var(--ink) url("assets/bg-photo.jpg") right center / cover no-repeat; pointer-events: none; }
+@media (max-aspect-ratio: 3/4) { .page::before { background-image: url("assets/bg-photo-tall.jpg"); background-position: center bottom; } }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
 h4 { font-size: var(--h4); font-weight: 700; line-height: 1.4; text-transform: uppercase; margin: 0 0 18px; letter-spacing: .01em; }
