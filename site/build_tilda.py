@@ -39,6 +39,7 @@ def main() -> None:
         s = s.replace(k, v)
     for name in ("bg-dark.jpg", "bg-dark-tall.jpg", "home-photo.jpg"):
         s = s.replace("assets/" + name, GH + name)
+    s = re.sub(r'"assets/(hand/w\d+\.png)"', lambda m: '"' + GH + m.group(1) + '"', s)
     urls = ",".join('"https://static.tildacdn.com/' + p + '"' for p in PHOTOS)
     s = s.replace("  var PHOTOS = 16;", "  var PHOTOS = 16;\n  var PHOTO_URLS = [" + urls + "];", 1)
     s = s.replace("""src="assets/media/' + n + '-thumb.jpg\"""", """src="' + PHOTO_URLS[i - 1] + '\"""")

@@ -140,6 +140,22 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 .hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.4s var(--smooth); }
 .hero.show-video video { opacity: 1; }
+/* handwriting on the home photo: each word is "drawn" left to right with a soft pencil edge, one after another */
+@property --wp { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+.hand { position: absolute; z-index: 1; pointer-events: none; left: 7.94%; top: 28.54%;
+  width: max(30vw, min(42.17vw, calc(100vw - 66.6svh - 12vw))); aspect-ratio: 1.4472; max-width: 100%;
+  transition: opacity .8s var(--smooth); }
+.hand img { position: absolute; max-width: none; --wp: 0%;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(var(--wp) - 5%), transparent var(--wp));
+  mask-image: linear-gradient(to right, #000 calc(var(--wp) - 5%), transparent var(--wp)); }
+.hand.is-writing img { animation: hand-write var(--dur) linear var(--delay) forwards; }
+.hand.is-done img { --wp: 106%; }
+@keyframes hand-write { 0% { --wp: 0%; } 28% { --wp: 33%; } 52% { --wp: 50%; } 78% { --wp: 82%; } 100% { --wp: 106%; } }
+.hero.show-video .hand { opacity: 0; }
+@media (max-aspect-ratio: 3/4) {
+  .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 96px); width: min(74vw, 36svh); }
+}
+
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
 .hero.show-video::after { background: linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,.55)); }
 
@@ -159,8 +175,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b8efe6db0e0d8eabaa5c48b11722389ed5bf1ab9/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b8efe6db0e0d8eabaa5c48b11722389ed5bf1ab9/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -324,7 +340,15 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b8efe6db0e0d8eabaa5c48b11722389ed5bf1ab9/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hand" id="hand" role="img" aria-label="проект на стыке неоклассики и электроники">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/hand/w1.png" alt="" style="left:0.0%;top:0.0%;width:38.02%;height:17.84%;--dur:1.15s;--delay:0.0s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/hand/w2.png" alt="" style="left:40.54%;top:12.56%;width:14.93%;height:10.55%;--dur:0.45s;--delay:1.43s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/hand/w3.png" alt="" style="left:59.72%;top:17.71%;width:37.59%;height:12.31%;--dur:1.14s;--delay:2.16s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/hand/w4.png" alt="" style="left:2.52%;top:42.71%;width:75.09%;height:16.33%;--dur:2.28s;--delay:3.58s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/hand/w5.png" alt="" style="left:57.12%;top:63.19%;width:11.55%;height:9.05%;--dur:0.35s;--delay:6.14s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@9cb975f01413fe7051cc3ba870603f86e7aa7c8c/site/assets/hand/w6.png" alt="" style="left:20.49%;top:73.87%;width:79.51%;height:26.13%;--dur:2.41s;--delay:6.77s">
+    </div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
     </video>
@@ -485,6 +509,15 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
       activate(next, name);
     }
   }
+  var hand = document.getElementById("hand"), handTimer = null;
+  function writeHand(delay) {
+    clearTimeout(handTimer); hand.classList.remove("is-writing", "is-done");
+    if (reduce) { hand.classList.add("is-done"); return; }
+    handTimer = setTimeout(function () {
+      if (hero.classList.contains("show-video")) return;   /* the video is playing: no handwriting over it */
+      void hand.offsetWidth; hand.classList.add("is-writing");
+    }, delay);
+  }
   function activate(next, name) {
     current = next;
     next.classList.add("is-active");
@@ -496,6 +529,7 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
     if (next.classList.contains("page")) next.scrollTop = 0;
     root.classList.toggle("on-page", name !== "home");
     if (forcePhoto) hero.classList.remove("show-video", "video-ready");
+    if (name === "home") writeHand(forcePhoto ? 700 : 1600); else { clearTimeout(handTimer); hand.classList.remove("is-writing"); }
     if (video) { if (name === "home" && !forcePhoto && !reduce) { var p = video.play(); if (p && p.catch) p.catch(function () {}); } else video.pause(); }
     document.title = name === "home" ? "VERIFICATION" : document.querySelector('#view-' + name + ' h1').textContent + " — VERIFICATION";
     onScroll();
