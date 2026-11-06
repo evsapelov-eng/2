@@ -63,14 +63,15 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px;
   transition: background .3s ease-in-out, padding .14s ease-in-out;
 }
-/* on scroll: no bar. Letters and icons get a soft dark halo of their own, so they read over any photo,
-   and the header slides away while scrolling down, back as soon as you scroll up. */
+/* on scroll: no bar. The header inverts against whatever is under it (white over dark, dark over light)
+   and slides away while scrolling down, back as soon as you scroll up. */
 .header { transition: transform .55s var(--smooth), padding .14s ease-in-out; }
-.header.is-solid .nav a, .header.is-solid .logo { text-shadow: 0 0 2px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.45), 0 0 22px rgba(0,0,0,.55); }
-.header.is-solid .social svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)) drop-shadow(0 0 12px rgba(0,0,0,.55)); }
-.header.is-solid .burger span { box-shadow: 0 0 3px rgba(0,0,0,.55), 0 0 12px rgba(0,0,0,.45); }
+.header.is-solid { mix-blend-mode: difference; }
+.header.is-solid .nav a, .header.is-solid .logo { text-shadow: none; }
+.header.is-solid .social svg { filter: none; }
+.header.is-solid .burger span { box-shadow: none; }
 .header.is-hidden { transform: translateY(calc(-100% - 10px)); }
-.menu-open .header { transform: none; }
+.menu-open .header { mix-blend-mode: normal; transform: none; }
 .nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .nav a, .menu a { text-transform: uppercase; }
 .nav a { font-size: var(--body); line-height: 1.2; letter-spacing: .01em; opacity: 1; transition: opacity .5s var(--smooth); }
