@@ -126,7 +126,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .view { display: none; }
 .view.is-active { display: block; animation: fade .8s var(--smooth); transition: opacity .3s ease; }
 .view.is-leaving { opacity: 0; }
-.page.is-active > * { animation: rise .9s var(--smooth) both; }
+.page.is-active > * { animation: rise .9s var(--smooth) backwards; }
 .page.is-active > :nth-child(2) { animation-delay: .06s; }
 .page.is-active > :nth-child(3) { animation-delay: .12s; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -479,6 +479,26 @@ p { margin: 0 0 14px; max-width: 62ch; }
   }
   window.addEventListener("hashchange", show);
   window.addEventListener("scroll", onScroll, { passive: true });
+
+  /* content dissolves as it slides under the header and comes back below it, so nothing ever overlaps the title */
+  var FADE_SEL = ".page h1, .page h4, .page p, .page .person, .page .genres, .page .meta-row, .page .acc summary, .page .release, .page .grid button, .page .show, .page .person-photo, .page .label";
+  var fadeQueued = false;
+  function fadeUnderHeader() {
+    fadeQueued = false;
+    if (!current || current.id === "view-home") return;
+    var hidden = header.classList.contains("is-hidden") || window.scrollY < 2;
+    var edge = hidden ? -9999 : header.getBoundingClientRect().bottom;
+    current.querySelectorAll(FADE_SEL).forEach(function (el) {
+      if (hidden) { if (el.style.opacity) el.style.opacity = ""; return; }
+      var top = el.getBoundingClientRect().top;
+      var o = Math.max(0, Math.min(1, (top - edge + 6) / 46));
+      el.style.opacity = o >= 1 ? "" : o.toFixed(3);
+    });
+  }
+  function queueFade() { if (!fadeQueued) { fadeQueued = true; requestAnimationFrame(fadeUnderHeader); } }
+  window.addEventListener("scroll", queueFade, { passive: true });
+  window.addEventListener("resize", queueFade);
+  header.addEventListener("transitionend", queueFade);
 
   /* video fallback: keep the photo unless the video really plays */
   var hero = document.getElementById("view-home");
