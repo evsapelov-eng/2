@@ -1,0 +1,779 @@
+<!-- VERIFICATION: вставьте весь этот код в блок T123 «HTML-код» -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;subset=cyrillic,latin&amp;display=swap">
+<style>
+/* Layout: fixed transparent header over full-bleed media; inner views are black with a faint grained still from the live video, bold grotesk headings, content in columns. */
+:root {
+  color-scheme: dark;
+  --ink: #000000;          /* page ground */
+  --paper: #ffffff;        /* text, icons */
+  --mist: #a8a6a2;         /* warm grey for secondary text */
+  --smoke: #393a3b;        /* hairlines, inactive dots */
+  --glow: #9fc6cf;         /* the cold stage light from the video, used for focus only */
+  --font: "Inter", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --gutter: clamp(20px, 7.6vw, 110px);
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --smooth: cubic-bezier(.22, 1, .36, 1);
+  --h1: 26px; /* a step below the 30px logo */
+  --h4: clamp(1.05rem, .4vw + .9rem, 1.3rem);
+  --body: 15px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font: 400 var(--body)/1.8 var(--font);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: transparent; }
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 1px solid var(--glow); outline-offset: 4px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* grain over everything, like film stock */
+/* film grain: a canvas redrawn 24 times a second with fresh grain and a slight flicker */
+/* sits under all content: above the backgrounds (and the home video), below text, photos and the header */
+.grain { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+.grain canvas { width: 100%; height: 100%; display: block; }
+/* channel-switch interference between sections: a burst of static and a bright band, black and white only */
+.tv { position: fixed; inset: 0; z-index: 35; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+  background:
+    linear-gradient(to bottom, transparent var(--bt, 40%), rgba(255,255,255,.12) var(--bt, 40%), rgba(255,255,255,.12) calc(var(--bt, 40%) + var(--bh, 6%)), transparent calc(var(--bt, 40%) + var(--bh, 6%))),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 2 -0.5'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>") var(--tx, 0) var(--ty, 0) / 120px 120px; }
+.tv.on { opacity: var(--to, .45); }
+
+/* ---------- header ---------- */
+.header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 26px);
+  padding-bottom: 26px;
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px;
+  transition: background .3s ease-in-out, padding .14s ease-in-out;
+}
+/* on scroll: no bar. The header inverts against whatever is under it (white over dark, dark over light)
+   and slides away while scrolling down, back as soon as you scroll up. */
+.header { transition: transform .55s var(--smooth), padding .14s ease-in-out; }
+.header.is-solid { mix-blend-mode: difference; }
+.header.is-solid .nav a, .header.is-solid .logo { text-shadow: none; }
+.header.is-solid .social svg { filter: none; }
+.header.is-solid .burger span { box-shadow: none; }
+.header.is-hidden { transform: translateY(calc(-100% - 10px)); }
+.menu-open .header { mix-blend-mode: normal; transform: none; }
+.nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.nav a, .menu a { text-transform: uppercase; }
+.nav a { font-size: var(--body); line-height: 1.2; letter-spacing: .01em; opacity: 1; transition: opacity .5s var(--smooth); }
+.nav a:hover { opacity: .6; }
+.nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
+.logo { font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
+.header .nav a, .header .logo { text-shadow: 0 1px 2px rgba(0,0,0,.16), 0 3px 16px rgba(0,0,0,.20); }
+.header .social svg { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.18)) drop-shadow(0 3px 10px rgba(0,0,0,.18)); }
+.header .burger span { box-shadow: 0 1px 4px rgba(0,0,0,.28); }
+.menu-open .header .logo, .header.is-solid .logo { text-shadow: none; }
+/* logo "verification": letters cycle through symbols and lock in left to right */
+.lg-ch { display: inline-block; text-align: center; transition: color .35s ease; }
+.lg-ch.is-scr { color: var(--mist); }
+/* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
+.header .logo { position: relative; display: inline-block; }
+.header .logo::before, .header .logo::after { content: attr(data-text); position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; opacity: 0; text-shadow: none; }
+.header .logo::before { color: var(--paper); clip-path: inset(var(--c1t, 0) 0 var(--c1b, 100%) 0); transform: translateX(var(--gx1, 0)); }
+.header .logo::after { color: transparent; background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 2.2 -0.6'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>") var(--nx, 0) var(--ny, 0) / 90px 90px; -webkit-background-clip: text; background-clip: text; clip-path: inset(var(--c2t, 0) 0 var(--c2b, 0) 0); transform: translateX(var(--gx2, 0)); }
+.header .logo.is-glitch { transform: translateX(var(--sx, 0)) skewX(var(--sk, 0)); }
+.header .logo.is-glitch::before { opacity: .55; }
+.header .logo.is-glitch::after { opacity: var(--flick, .6); }
+.social { display: flex; justify-content: flex-end; gap: 18px; align-items: center; }
+.social a { display: grid; place-items: center; width: 22px; height: 22px; transition: opacity .5s var(--smooth); }
+.social a:hover { opacity: .6; }
+.social svg { width: 20px; height: 20px; fill: var(--paper); }
+.burger { display: none; width: 44px; height: 44px; position: relative; justify-self: end; }
+.burger span { position: absolute; left: 4px; right: 4px; height: 1px; background: var(--paper); transition: transform .45s var(--ease), top .45s var(--ease); }
+.burger .l1 { top: 17px; }
+.burger .l2 { top: 27px; }
+.menu-open .burger .l1 { top: 22px; transform: rotate(45deg); }
+.menu-open .burger .l2 { top: 22px; transform: rotate(-45deg); }
+
+/* full-screen mobile menu */
+.menu {
+  position: fixed; inset: 0; z-index: 15; background: var(--ink);
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 110px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 40px) max(16px, env(safe-area-inset-left, 0px));
+  visibility: hidden; opacity: 0;
+  transition: visibility .6s var(--ease), opacity .4s var(--ease);
+}
+.menu-open .menu { visibility: visible; opacity: 1; }
+.menu nav { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; justify-content: center; transform: translateY(20px); transition: transform .6s var(--ease); }
+.menu-open .menu nav { transform: none; }
+.menu nav a { font-size: clamp(1.15rem, min(4.6vw, 3.2vh), 1.5rem); line-height: 2; letter-spacing: .06em; font-weight: 400; opacity: 0; transform: translateY(14px); transition: opacity .5s var(--smooth), transform .8s var(--smooth); }
+.menu-open .menu nav a { opacity: 1; transform: none; }
+.menu-open .menu nav a:nth-child(2) { transition-delay: .04s; } .menu-open .menu nav a:nth-child(3) { transition-delay: .08s; } .menu-open .menu nav a:nth-child(4) { transition-delay: .12s; } .menu-open .menu nav a:nth-child(5) { transition-delay: .16s; } .menu-open .menu nav a:nth-child(6) { transition-delay: .2s; }
+.menu .social { justify-content: center; gap: 26px; }
+.menu .social a { width: 24px; height: 24px; }
+.menu .social svg { width: 22px; height: 22px; }
+
+/* ---------- views ---------- */
+.view { display: none; }
+.view.is-active { display: block; animation: fade .8s var(--smooth); transition: opacity .3s ease; }
+.view.is-leaving { opacity: 0; }
+.page.is-active > * { animation: rise .9s var(--smooth) backwards; }
+.page.is-active > :nth-child(2) { animation-delay: .06s; }
+.page.is-active > :nth-child(3) { animation-delay: .12s; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+.hero { position: relative; height: 100vh; height: 100svh; min-height: 480px; overflow: hidden; background: var(--ink); }
+/* photo is always underneath; the video fades in over it only once it is actually playing */
+/* wide screens: photo full height on the right; the wall continues to the left under the menu */
+.hero-photo { position: absolute; inset: 0; background: linear-gradient(to bottom, #b5b5b5 0%, #bebebe 10%, #c7c7c7 20%, #cdcdcd 30%, #d0d0d0 40%, #d3d3d3 50%, #d4d4d4 60%, #d6d6d6 70%, #d6d6d6 90%, #d2d2d2 100%); }
+.hero-photo img { position: absolute; top: 0; right: 0; height: 100%; width: auto; max-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 6%); mask-image: linear-gradient(to right, transparent 0, #000 6%); }
+@media (max-aspect-ratio: 3/4) {
+  /* tall screens: whole photo across the width, its top fading into the same grey */
+  .hero-photo img { inset: auto 0 0 0; width: 100%; height: auto; object-fit: contain;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%); mask-image: linear-gradient(to bottom, transparent 0, #000 12%); }
+}
+.hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.4s var(--smooth); }
+.hero.show-video video { opacity: 1; }
+.hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
+.hero.show-video::after { background: linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,.55)); }
+
+/* each inner view is its own scroll area; a mask at its top edge dissolves whatever slides under the header,
+   pixel by pixel, on the compositor. The mask slides away together with the header when it hides. */
+@property --fade-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+:root { --hdr: 96px; --fade-top: var(--hdr); transition: --fade-top .55s var(--smooth); }
+:root.hdr-hidden { --fade-top: -70px; }
+.page {
+  position: fixed; inset: 0; z-index: 2;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 150px);
+  padding-bottom: 120px;
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
+  mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
+}
+.page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b8efe6db0e0d8eabaa5c48b11722389ed5bf1ab9/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b8efe6db0e0d8eabaa5c48b11722389ed5bf1ab9/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+.on-page .page-bg { opacity: 1; }
+.page > * { position: relative; z-index: 1; }
+h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
+h4 { font-size: var(--h4); font-weight: 700; line-height: 1.4; text-transform: uppercase; margin: 0 0 18px; letter-spacing: .01em; }
+p { margin: 0 0 14px; max-width: 62ch; }
+.muted { color: var(--mist); }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 64px; }
+.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cols > * { min-width: 0; }
+.link { font-style: italic; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; padding-bottom: 2px; transition: background-size .6s var(--smooth); }
+.link:hover, .link:focus-visible { background-size: 100% 1px; }
+.link b { font-weight: 700; }
+
+/* about */
+.lead { font-size: var(--body); line-height: 1.8; max-width: 62ch; margin: 0 0 14px; }
+.person { display: grid; gap: 2px; }
+.person + .person { margin-top: 28px; }
+.genres { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 20px; text-transform: uppercase; font-size: 13px; letter-spacing: .08em; color: var(--mist); }
+
+/* accordion (music) */
+.acc { border: 0; }
+.acc summary { list-style: none; display: flex; align-items: center; gap: 14px; cursor: pointer; text-transform: uppercase; line-height: 1.2; padding: 4px 0; }
+.acc summary::-webkit-details-marker { display: none; }
+.acc summary svg { width: 14px; height: 14px; stroke: var(--paper); fill: none; stroke-width: 1.2; transition: transform .6s var(--smooth); flex: none; }
+.acc.is-closing summary svg { transform: none !important; }
+.acc[open] summary svg { transform: rotate(180deg); }
+.acc .acc-body { overflow: hidden; }
+.acc .acc-body > :first-child { margin-top: 26px; }
+.acc + .acc { margin-top: 28px; }
+/* vinyl: sleeve with the record peeking out; hover slides it out and spins it */
+.release { display: grid; gap: 22px; width: min(100%, 380px); }
+.vinyl { position: relative; display: block; width: 100%; aspect-ratio: 1 / .76; max-width: 100%; }
+.sleeve { position: absolute; left: 0; top: 0; width: 76%; aspect-ratio: 1; z-index: 2; overflow: hidden; background: #000; box-shadow: 0 34px 60px -24px rgba(0,0,0,.9); transition: transform 1.2s var(--smooth); }
+.sleeve img { width: 100%; height: 100%; object-fit: cover; }
+.disc { position: absolute; top: 2%; left: 2%; width: 72%; aspect-ratio: 1; border-radius: 50%; z-index: 1; transform: translateX(18%); box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 24px 50px -20px rgba(0,0,0,.9); transition: transform 1.2s var(--smooth); will-change: transform; }
+.disc-spin { position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 0 15.5%, #0c0c0c 15.5% 17.5%, transparent 17.5% 95.5%, #2c2c2c 95.5% 96.5%, #0e0e0e 96.5%),
+    repeating-radial-gradient(circle, #121212 0 1.3px, #232323 1.3px 2.6px);
+  will-change: transform; }
+.disc-label { position: absolute; inset: 33.5%; border-radius: 50%; background: #111 url("https://static.tildacdn.com/tild3664-3834-4236-b333-323933393335/noroot.png") center / 260% no-repeat; box-shadow: 0 0 0 1px rgba(0,0,0,.6); }
+.disc-label::after { content: ""; position: absolute; inset: 46%; border-radius: 50%; background: var(--ink); box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+.disc::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 20deg, rgba(255,255,255,0) 0deg, rgba(255,255,255,.16) 28deg, rgba(255,255,255,0) 60deg, rgba(255,255,255,0) 180deg, rgba(255,255,255,.12) 208deg, rgba(255,255,255,0) 240deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 33.5%, #000 34%); mask: radial-gradient(circle, transparent 0 33.5%, #000 34%); }
+.release:hover .disc, .release:focus-visible .disc { transform: translateX(34%); }
+.release:hover .sleeve, .release:focus-visible .sleeve { transform: translateX(-2%); }
+.release-cta { display: flex; align-items: center; gap: 12px; text-transform: uppercase; font-size: 13px; letter-spacing: .08em; line-height: 1; }
+.release-cta svg { width: 26px; height: 10px; stroke: var(--paper); fill: none; stroke-width: 1.2; transition: transform .8s var(--smooth); }
+.release:hover .release-cta svg { transform: translateX(6px); }
+.tracklist { counter-reset: t; margin: 0; padding: 0; list-style: none; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 6px 26px; text-transform: uppercase; font-size: 13px; letter-spacing: .08em; color: var(--mist); margin-bottom: 20px; }
+
+/* media */
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.grid button { position: relative; overflow: hidden; aspect-ratio: 3 / 2; background: #111; }
+.grid img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(.15) contrast(1.02); transition: transform 1.2s var(--smooth), filter .8s var(--smooth); }
+.grid button:hover img { transform: scale(1.03); filter: none; }
+/* photos develop top to bottom the first time they come into view, with a scan line running down */
+.grid.reveal img { clip-path: inset(0 0 100% 0); filter: grayscale(1) brightness(1.7); transition: clip-path .9s var(--smooth) var(--d, 0ms), filter 1.3s var(--smooth) var(--d, 0ms), transform 1.2s var(--smooth); }
+.grid.reveal button.is-in img { clip-path: inset(0 0 0 0); filter: grayscale(.15) contrast(1.02); }
+.grid.reveal button.is-in:hover img { filter: none; }
+.grid button::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(255,255,255,.75); opacity: 0; pointer-events: none; }
+.grid.reveal button.is-in::after { animation: scan .9s var(--smooth) var(--d, 0ms) both; }
+@keyframes scan { 0% { top: 0; opacity: .9; } 90% { opacity: .5; } 100% { top: 100%; opacity: 0; } }
+.lightbox {
+  position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.96);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 70px) max(8px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 50px) max(8px, env(safe-area-inset-left, 0px));
+}
+.lightbox[hidden] { display: none; }
+.lightbox { opacity: 0; transition: opacity .5s var(--smooth); }
+.lightbox.is-open { opacity: 1; }
+.lightbox img { max-height: calc(100svh - 160px); margin: auto; object-fit: contain; transition: opacity .35s ease, transform .6s var(--smooth); }
+.lightbox:not(.is-open) img { transform: scale(.98); }
+.lightbox img.is-swapping { opacity: 0; }
+.lb-btn { width: 56px; height: 56px; display: grid; place-items: center; }
+.lb-btn svg { width: 22px; height: 22px; stroke: var(--paper); fill: none; stroke-width: 1.2; }
+.lb-close { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: max(14px, env(safe-area-inset-right, 0px)); }
+.lb-count { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); text-align: center; font-size: 13px; letter-spacing: .08em; color: var(--mist); font-variant-numeric: tabular-nums; }
+
+/* live */
+.shows { display: grid; gap: 0; max-width: 1100px; }
+.show { display: grid; grid-template-columns: 9.5em minmax(0, 1.4fr) minmax(0, 1.4fr) 8em; gap: 12px 32px; padding: 22px 0; border-top: 1px solid var(--smoke); align-items: baseline; font-variant-numeric: tabular-nums; }
+.show:last-child { border-bottom: 1px solid var(--smoke); }
+.show .date { font-weight: 700; }
+.show .name { text-transform: uppercase; font-weight: 500; }
+.show .time { text-align: right; }
+.show.is-past { color: var(--mist); }
+.live-note { margin-bottom: 64px; }
+.live-head { margin-top: 0; }
+
+/* contacts */
+.contact .person-photo { width: 92px; height: 92px; border-radius: 50%; object-fit: cover; filter: grayscale(1); margin-bottom: 18px; }
+.contact p { margin-bottom: 6px; }
+.contact .label { color: var(--mist); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; display: block; line-height: 1.6; margin-top: 12px; }
+/* contacts: copyright line pinned to the very bottom, set apart by a hairline */
+#view-contacts.is-active { display: flex; flex-direction: column; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
+#view-contacts .cols { margin-bottom: 96px; }
+.copy { margin: auto 0 0; padding-top: 0; max-width: none; color: var(--mist); font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 1240px) {
+  .nav, .header > .social { display: none; }
+  .header { grid-template-columns: 1fr auto; }
+  .logo { font-size: 23px; justify-self: start; }
+  :root { --h1: 20px; } /* a step below the 23px logo */
+  .burger { display: block; }
+}
+@media (max-width: 800px) {
+  .cols, .cols-3 { grid-template-columns: minmax(0, 1fr); gap: 44px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .show { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; }
+  .show .venue { grid-column: 1 / -1; }
+  .show .time { grid-row: 1; grid-column: 2; }
+  .page { padding-top: calc(env(safe-area-inset-top, 0px) + 120px); }
+  h1 { margin-bottom: 40px; }
+  .lightbox { grid-template-columns: minmax(0, 1fr); }
+  .lb-prev, .lb-next { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 4px); }
+  .lb-prev { left: max(8px, env(safe-area-inset-left, 0px)); }
+  .lb-next { right: max(8px, env(safe-area-inset-right, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* soft edges: no filter (Safari draws colour bands with it); only a very faint edge softening in text-shadow */
+.header .logo { text-shadow: 0 0 .7px rgba(255,255,255,.36), 0 0 9px rgba(255,255,255,.048), 0 1px 2px rgba(0,0,0,.16), 0 3px 16px rgba(0,0,0,.20); }
+.header.is-solid .logo { text-shadow: none; }
+.menu-open .header .logo { text-shadow: 0 0 .7px rgba(255,255,255,.36), 0 0 9px rgba(255,255,255,.048); }
+h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.042); }
+</style>
+<div class="grain" aria-hidden="true"></div>
+<div class="tv" aria-hidden="true"></div>
+
+<header class="header" id="header">
+  <nav class="nav" aria-label="Разделы">
+    <a href="#about">О проекте</a>
+    <a href="#music">Музыка</a>
+    <a href="#media">Медиа</a>
+    <a href="#live">Афиша</a>
+    <a href="#contacts">Контакты</a>
+  </nav>
+  <a class="logo" href="#home" aria-label="VERIFICATION — на главную">VERIFICATION</a>
+  <div class="social"><a href="https://t.me/verification_project" target="_blank" rel="noopener" aria-label="Telegram"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></a><a href="https://vk.ru/verification.project" target="_blank" rel="noopener" aria-label="ВКонтакте"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m9.489.004.729-.003h3.564l.73.003.914.01.433.007.418.011.403.014.388.016.374.021.36.025.345.03.333.033c1.74.196 2.933.616 3.833 1.516.9.9 1.32 2.092 1.516 3.833l.034.333.029.346.025.36.02.373.025.588.012.41.013.644.009.915.004.98-.001 3.313-.003.73-.01.914-.007.433-.011.418-.014.403-.016.388-.021.374-.025.36-.03.345-.033.333c-.196 1.74-.616 2.933-1.516 3.833-.9.9-2.092 1.32-3.833 1.516l-.333.034-.346.029-.36.025-.373.02-.588.025-.41.012-.644.013-.915.009-.98.004-3.313-.001-.73-.003-.914-.01-.433-.007-.418-.011-.403-.014-.388-.016-.374-.021-.36-.025-.345-.03-.333-.033c-1.74-.196-2.933-.616-3.833-1.516-.9-.9-1.32-2.092-1.516-3.833l-.034-.333-.029-.346-.025-.36-.02-.373-.025-.588-.012-.41-.013-.644-.009-.915-.004-.98.001-3.313.003-.73.01-.914.007-.433.011-.418.014-.403.016-.388.021-.374.025-.36.03-.345.033-.333c.196-1.74.616-2.933 1.516-3.833.9-.9 2.092-1.32 3.833-1.516l.333-.034.346-.029.36-.025.373-.02.588-.025.41-.012.644-.013.915-.009ZM6.79 7.3H4.05c.13 6.24 3.25 9.99 8.72 9.99h.31v-3.57c2.01.2 3.53 1.67 4.14 3.57h2.84c-.78-2.84-2.83-4.41-4.11-5.01 1.28-.74 3.08-2.54 3.51-4.98h-2.58c-.56 1.98-2.22 3.78-3.8 3.95V7.3H10.5v6.92c-1.6-.4-3.62-2.34-3.71-6.92Z"/></svg></a><a href="https://instagram.com/verification.official" target="_blank" rel="noopener" aria-label="Instagram"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077"/></svg></a><a href="https://youtube.com/@verification_sound" target="_blank" rel="noopener" aria-label="YouTube"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a><a href="https://band.link/ejuVc" target="_blank" rel="noopener" aria-label="Слушать альбом"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 2v13.2a3.8 3.8 0 1 1-2-3.35V6.3L9 8v9.2a3.8 3.8 0 1 1-2-3.35V3.6L19 1z"/></svg></a></div>
+  <button class="burger" id="burger" aria-expanded="false" aria-controls="menu"><span class="l1"></span><span class="l2"></span><b class="vh">Меню</b></button>
+</header>
+
+<div class="menu" id="menu" aria-hidden="true">
+  <nav aria-label="Разделы">
+    <a href="#home">Главная</a>
+    <a href="#about">О проекте</a>
+    <a href="#music">Музыка</a>
+    <a href="#media">Медиа</a>
+    <a href="#live">Афиша</a>
+    <a href="#contacts">Контакты</a>
+  </nav>
+  <div class="social"><a href="https://t.me/verification_project" target="_blank" rel="noopener" aria-label="Telegram"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></a><a href="https://vk.ru/verification.project" target="_blank" rel="noopener" aria-label="ВКонтакте"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m9.489.004.729-.003h3.564l.73.003.914.01.433.007.418.011.403.014.388.016.374.021.36.025.345.03.333.033c1.74.196 2.933.616 3.833 1.516.9.9 1.32 2.092 1.516 3.833l.034.333.029.346.025.36.02.373.025.588.012.41.013.644.009.915.004.98-.001 3.313-.003.73-.01.914-.007.433-.011.418-.014.403-.016.388-.021.374-.025.36-.03.345-.033.333c-.196 1.74-.616 2.933-1.516 3.833-.9.9-2.092 1.32-3.833 1.516l-.333.034-.346.029-.36.025-.373.02-.588.025-.41.012-.644.013-.915.009-.98.004-3.313-.001-.73-.003-.914-.01-.433-.007-.418-.011-.403-.014-.388-.016-.374-.021-.36-.025-.345-.03-.333-.033c-1.74-.196-2.933-.616-3.833-1.516-.9-.9-1.32-2.092-1.516-3.833l-.034-.333-.029-.346-.025-.36-.02-.373-.025-.588-.012-.41-.013-.644-.009-.915-.004-.98.001-3.313.003-.73.01-.914.007-.433.011-.418.014-.403.016-.388.021-.374.025-.36.03-.345.033-.333c.196-1.74.616-2.933 1.516-3.833.9-.9 2.092-1.32 3.833-1.516l.333-.034.346-.029.36-.025.373-.02.588-.025.41-.012.644-.013.915-.009ZM6.79 7.3H4.05c.13 6.24 3.25 9.99 8.72 9.99h.31v-3.57c2.01.2 3.53 1.67 4.14 3.57h2.84c-.78-2.84-2.83-4.41-4.11-5.01 1.28-.74 3.08-2.54 3.51-4.98h-2.58c-.56 1.98-2.22 3.78-3.8 3.95V7.3H10.5v6.92c-1.6-.4-3.62-2.34-3.71-6.92Z"/></svg></a><a href="https://instagram.com/verification.official" target="_blank" rel="noopener" aria-label="Instagram"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077"/></svg></a><a href="https://youtube.com/@verification_sound" target="_blank" rel="noopener" aria-label="YouTube"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a><a href="https://band.link/ejuVc" target="_blank" rel="noopener" aria-label="Слушать альбом"><svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 2v13.2a3.8 3.8 0 1 1-2-3.35V6.3L9 8v9.2a3.8 3.8 0 1 1-2-3.35V3.6L19 1z"/></svg></a></div>
+</div>
+
+<div class="page-bg" aria-hidden="true"></div>
+<main>
+  <section class="view hero" id="view-home" aria-label="VERIFICATION">
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b8efe6db0e0d8eabaa5c48b11722389ed5bf1ab9/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
+      <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
+    </video>
+  </section>
+
+  <section class="view page" id="view-about">
+    <h1>О проекте</h1>
+    <div class="cols">
+      <div>
+        <p class="lead">Музыкальный проект из Москвы на стыке неоклассики, электроники, эмбиента и минимал-техно.</p>
+        <p>Звучание сочетает оркестровые и электронные текстуры: от привычных струнных и рояля до экспериментальных решений. Музыканты предпочитают экспериментировать и показывают разные грани музыкальных решений.</p>
+        <div class="genres"><span>Неоклассика</span><span>Электроника</span><span>Эмбиент</span><span>Минимал-техно</span></div>
+      </div>
+      <div>
+        <h4>Основатели</h4>
+        <div class="person">
+          <strong>Евгений Сапелов</strong>
+          <span class="muted">Композитор, саунд-дизайнер, электронный продюсер</span>
+        </div>
+        <div class="person">
+          <strong>Иван Нужин</strong>
+          <span class="muted">Дирижёр, композитор, художественный руководитель камерного оркестра NEOrchestra</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view page" id="view-music">
+    <h1>Музыка</h1>
+    <div class="cols">
+      <a class="release" href="https://band.link/ejuVc" target="_blank" rel="noopener">
+        <span class="vinyl">
+          <span class="disc" aria-hidden="true"><span class="disc-spin"><span class="disc-label"></span></span></span>
+          <span class="sleeve"><img src="https://static.tildacdn.com/tild3664-3834-4236-b333-323933393335/noroot.png" alt="Обложка альбома VERIFICATION: лицо из светящихся точек и красные буквы на чёрном" width="900" height="900"></span>
+        </span>
+        <span class="release-cta">Слушать альбом <svg viewBox="0 0 26 10" aria-hidden="true"><path d="M0 5h24M20 1l4 4-4 4"/></svg></span>
+      </a>
+      <div>
+        <div class="meta-row"><span>Альбом</span><span>12 треков</span><span>Сентябрь 2026</span></div>
+        <details class="acc" open>
+          <summary><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 4.5l6 6 6-6"/></svg>Дебютный альбом VERIFICATION</summary>
+          <div class="acc-body">
+            <p>В сентябре 2026 года вышел дебютный полноформатный альбом VERIFICATION. В нём 12 треков, и все они собраны в единый сюжет и концепцию.</p>
+            <p>Альбом можно послушать на всех цифровых площадках: <a class="link" href="https://band.link/ejuVc" target="_blank" rel="noopener"><b>слушать</b></a></p>
+          </div>
+        </details>
+        <details class="acc">
+          <summary><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 4.5l6 6 6-6"/></svg>Премьера</summary>
+          <div class="acc-body">
+            <p>3 октября 2026 года в Московском Международном Доме Музыки состоялся дебютный показ альбома.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="view page" id="view-media">
+    <h1>Медиа</h1>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="view page" id="view-live">
+    <h1>Афиша</h1>
+    <div id="upcoming"></div>
+    <div id="past"></div>
+  </section>
+
+  <section class="view page contact" id="view-contacts">
+    <h1>Контакты</h1>
+    <div class="cols cols-3">
+      <div>
+        <h4>Менеджер проекта</h4>
+        <img class="person-photo" src="https://static.tildacdn.com/tild6330-6135-4631-b264-633237333865/15203e87-5c51-411c-a.jpg" alt="Екатерина, менеджер проекта" width="92" height="92">
+        <p><strong>Екатерина</strong></p>
+        <span class="label">Телефон</span>
+        <p><a href="tel:+79669803348">+7 (966) 980-33-48</a></p>
+        <span class="label">Email</span>
+        <p><a href="mailto:ekaterina.verification@mail.ru">ekaterina.verification@mail.ru</a></p>
+      </div>
+      <div>
+        <h4>Райдер</h4>
+        <p>Технический райдер для организаторов.</p>
+        <p><a class="link" href="https://drive.google.com/file/d/1FlNhNVAdQO77zT7cebJRWzhid_e9cPLT/view?usp=sharing" target="_blank" rel="noopener"><b>Открыть райдер</b></a></p>
+      </div>
+      <div>
+        <h4>Соцсети</h4>
+        <p><a class="link" href="https://t.me/verification_project" target="_blank" rel="noopener">Telegram</a></p>
+        <p><a class="link" href="https://vk.ru/verification.project" target="_blank" rel="noopener">ВКонтакте</a></p>
+        <p><a class="link" href="https://instagram.com/verification.official" target="_blank" rel="noopener">Instagram</a></p>
+        <p><a class="link" href="https://youtube.com/@verification_sound" target="_blank" rel="noopener">YouTube</a></p>
+      </div>
+    </div>
+    <p class="copy">© VERIFICATION 2026. Все материалы принадлежат их правообладателям.</p>
+  </section>
+</main>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Фотография">
+  <button class="lb-btn lb-prev" id="lb-prev" aria-label="Предыдущая фотография"><svg viewBox="0 0 22 22"><path d="M14 3L6 11l8 8"/></svg></button>
+  <img id="lb-img" alt="">
+  <button class="lb-btn lb-next" id="lb-next" aria-label="Следующая фотография"><svg viewBox="0 0 22 22"><path d="M8 3l8 8-8 8"/></svg></button>
+  <button class="lb-btn lb-close" id="lb-close" aria-label="Закрыть"><svg viewBox="0 0 22 22"><path d="M3 3l16 16M19 3L3 19"/></svg></button>
+  <div class="lb-count" id="lb-count"></div>
+</div>
+
+<script>
+(function () {
+  /* Концерты: добавляйте новые строки сюда. Дата в формате ГГГГ-ММ-ДД. */
+  var SHOWS = [
+    { date: "2026-10-24", name: "Chain Fest 2026", venue: "Музей-заповедник «Царицыно», Казаковский зал", city: "Москва", time: "13:40 – 14:40" }
+  ];
+  var PHOTOS = 16;
+  var PHOTO_URLS = ["https://static.tildacdn.com/tild3037-3663-4364-a134-656461633638/71f0a3d2-25c1-4409-9.jpg","https://static.tildacdn.com/tild3462-3836-4734-b435-356335393330/6ad40d8e-1a0f-4556-b.jpg","https://static.tildacdn.com/tild6366-3565-4530-b737-376533303632/150b0ca8-0974-4feb-8.jpg","https://static.tildacdn.com/tild3535-3334-4335-b739-623736666234/337785e8-fe11-4489-a.jpg","https://static.tildacdn.com/tild6361-3061-4237-a462-343735623134/a5395259-27ab-44a1-b.jpg","https://static.tildacdn.com/tild6164-6262-4637-b864-343734346436/d8b752d6-cdc9-4bfe-b.jpg","https://static.tildacdn.com/tild3637-3435-4664-b931-343566356232/f8c75026-1e34-4d31-a.jpg","https://static.tildacdn.com/tild3631-6335-4336-a436-643938646137/c356eb61-733f-49cf-a.jpg","https://static.tildacdn.com/tild3862-6236-4164-b338-343666306232/76722e2c-bb9d-44ab-9.jpg","https://static.tildacdn.com/tild6430-6233-4366-a638-373361396130/a65398cc-3445-4222-8.jpg","https://static.tildacdn.com/tild6430-3064-4132-a238-393063353839/d9ae9161-174e-47cf-9.jpg","https://static.tildacdn.com/tild3139-3036-4765-b135-306539316137/f4d67967-76c3-4805-9.jpg","https://static.tildacdn.com/tild3063-3035-4632-a137-346438323665/5a1dfd25-985a-436b-9.jpg","https://static.tildacdn.com/tild3466-3662-4562-a265-306538613066/38a9b959-1f92-41c0-9.jpg","https://static.tildacdn.com/tild3539-3761-4662-a230-643965303932/51ddaea4-e2c3-430a-a.jpg","https://static.tildacdn.com/tild3136-3561-4239-a366-663830343263/65bb0c3e-3dd3-498a-8.jpg"];
+
+  var views = ["home", "about", "music", "media", "live", "contacts"];
+  var header = document.getElementById("header");
+  var root = document.documentElement;
+  var burger = document.getElementById("burger");
+  var menu = document.getElementById("menu");
+  var video = document.getElementById("hero-video");
+
+  function setMenu(open) {
+    root.classList.toggle("menu-open", open);
+    burger.setAttribute("aria-expanded", String(open));
+    menu.setAttribute("aria-hidden", String(!open));
+    document.body.style.overflow = open ? "hidden" : "";
+  }
+  burger.addEventListener("click", function () { setMenu(!root.classList.contains("menu-open")); });
+
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var current = null, swapTimer = null, forcePhoto = false;
+  var tv = document.querySelector(".tv");
+  function tvFlash() {
+    if (reduce) return;
+    var n = 0, r = Math.random;
+    (function f() {
+      tv.style.setProperty("--bt", (r() * 85).toFixed(1) + "%");
+      tv.style.setProperty("--bh", (2 + r() * 9).toFixed(1) + "%");
+      tv.style.setProperty("--tx", (r() * 120 | 0) + "px"); tv.style.setProperty("--ty", (r() * 120 | 0) + "px");
+      tv.style.setProperty("--to", (.03 + r() * .03).toFixed(3));
+      tv.classList.add("on");
+      if (++n < 2) setTimeout(f, 40); else setTimeout(function () { tv.classList.remove("on"); }, 40);
+    })();
+  }
+  function show() {
+    var name = (location.hash || "#home").slice(1);
+    forcePhoto = name === "photo";
+    if (forcePhoto) name = "home";
+    if (views.indexOf(name) < 0) name = "home";
+    var next = document.getElementById("view-" + name);
+    clearTimeout(swapTimer);
+    if (current && current !== next && !reduce) {
+      var prev = current;
+      prev.classList.add("is-leaving");
+      setMenu(false);
+      swapTimer = setTimeout(function () { tvFlash(); prev.classList.remove("is-active", "is-leaving"); activate(next, name); }, 300);
+    } else {
+      views.forEach(function (v) { document.getElementById("view-" + v).classList.remove("is-active", "is-leaving"); });
+      activate(next, name);
+    }
+  }
+  function activate(next, name) {
+    current = next;
+    next.classList.add("is-active");
+    document.querySelectorAll(".nav a").forEach(function (a) {
+      if (a.getAttribute("href") === "#" + name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    setMenu(false);
+    window.scrollTo(0, 0);
+    if (next.classList.contains("page")) next.scrollTop = 0;
+    root.classList.toggle("on-page", name !== "home");
+    if (forcePhoto) hero.classList.remove("show-video", "video-ready");
+    if (video) { if (name === "home" && !forcePhoto && !reduce) { var p = video.play(); if (p && p.catch) p.catch(function () {}); } else video.pause(); }
+    document.title = name === "home" ? "VERIFICATION" : document.querySelector('#view-' + name + ' h1').textContent + " — VERIFICATION";
+    onScroll();
+  }
+  var lastY = 0;
+  function onScroll() {
+    var onHome = (location.hash || "#home") === "#home";
+    var y = current && current.classList.contains("page") ? current.scrollTop : window.scrollY;
+    header.classList.toggle("is-solid", !onHome && y > 40);
+    if (y < 120 || root.classList.contains("menu-open")) header.classList.remove("is-hidden");
+    else if (y > lastY + 6) header.classList.add("is-hidden");
+    else if (y < lastY - 6) header.classList.remove("is-hidden");
+    if (Math.abs(y - lastY) > 6 || y < 120) lastY = y;
+    root.classList.toggle("hdr-hidden", header.classList.contains("is-hidden") || y < 8); /* no fade at rest */
+  }
+  function setHdr() { root.style.setProperty("--hdr", header.offsetHeight + "px"); }
+  setHdr(); window.addEventListener("resize", setHdr);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(setHdr);
+  window.addEventListener("hashchange", show);
+  /* handle our own section links, so a host page's anchor scripts (e.g. Tilda) can't hijack them */
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a) return;
+    var h = a.getAttribute("href");
+    if (h.length < 2) return;
+    e.preventDefault();
+    if (location.hash === h) show(); else location.hash = h;
+  }, true);
+  document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+
+
+  /* video fallback: keep the photo unless the video really plays */
+  var hero = document.getElementById("view-home");
+  function heroFail() { hero.classList.remove("show-video", "video-ready"); }
+  video.addEventListener("playing", function () { if (!forcePhoto) hero.classList.add("show-video", "video-ready"); });
+  video.addEventListener("canplay", function () { if (!forcePhoto) hero.classList.add("video-ready"); });
+  video.addEventListener("error", heroFail);
+  video.querySelector("source").addEventListener("error", heroFail);
+
+  /* with reduced motion the still photo stays and the video never starts */
+  if (reduce) { video.removeAttribute("autoplay"); video.pause(); }
+
+  /* media grid + lightbox */
+  var grid = document.getElementById("grid");
+  for (var i = 1; i <= PHOTOS; i++) {
+    var n = (i < 10 ? "0" : "") + i;
+    var b = document.createElement("button");
+    b.setAttribute("aria-label", "Открыть фотографию " + i + " из " + PHOTOS);
+    b.dataset.i = i;
+    b.innerHTML = '<img loading="lazy" src="' + PHOTO_URLS[i - 1] + '" alt="VERIFICATION, фотосессия, кадр ' + i + '">';
+    grid.appendChild(b);
+  }
+  if (!reduce && "IntersectionObserver" in window) {
+    grid.classList.add("reveal");
+    var io = new IntersectionObserver(function (entries) {
+      var cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length || 1;
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var idx = Array.prototype.indexOf.call(grid.children, en.target);
+        en.target.style.setProperty("--d", (idx % cols) * 90 + "ms");
+        en.target.classList.add("is-in");
+        io.unobserve(en.target);
+      });
+    }, { threshold: .15 });
+    Array.prototype.forEach.call(grid.children, function (b) { io.observe(b); });
+  }
+  var lb = document.getElementById("lightbox"), lbImg = document.getElementById("lb-img"), lbCount = document.getElementById("lb-count"), cur = 1, opener = null;
+  function lbShow(k) {
+    cur = (k - 1 + PHOTOS) % PHOTOS + 1;
+    var n = (cur < 10 ? "0" : "") + cur;
+    var src = PHOTO_URLS[cur - 1], alt = "VERIFICATION, фотосессия, кадр " + cur;
+    if (lb.hidden || reduce) { lbImg.src = src; lbImg.alt = alt; }
+    else {
+      lbImg.classList.add("is-swapping");
+      var pre = new Image(); pre.src = src;
+      var swap = function () { lbImg.src = src; lbImg.alt = alt; requestAnimationFrame(function () { lbImg.classList.remove("is-swapping"); }); };
+      setTimeout(function () { if (pre.complete) swap(); else { pre.onload = swap; pre.onerror = swap; } }, 200);
+    }
+    lbCount.textContent = cur + " / " + PHOTOS;
+  }
+  grid.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    opener = b; lbShow(+b.dataset.i); lb.hidden = false; requestAnimationFrame(function () { requestAnimationFrame(function () { lb.classList.add("is-open"); }); }); document.body.style.overflow = "hidden"; document.getElementById("lb-close").focus();
+  });
+  function lbClose() { lb.classList.remove("is-open"); setTimeout(function () { if (!lb.classList.contains("is-open")) lb.hidden = true; }, reduce ? 0 : 500); document.body.style.overflow = ""; if (opener) opener.focus(); }
+  document.getElementById("lb-close").onclick = lbClose;
+  document.getElementById("lb-prev").onclick = function () { lbShow(cur - 1); };
+  document.getElementById("lb-next").onclick = function () { lbShow(cur + 1); };
+  lb.addEventListener("click", function (e) { if (e.target === lb) lbClose(); });
+  var tx = null;
+  lb.addEventListener("touchstart", function (e) { tx = e.touches[0].clientX; }, { passive: true });
+  lb.addEventListener("touchend", function (e) { if (tx === null) return; var dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 50) lbShow(cur + (dx < 0 ? 1 : -1)); tx = null; });
+  document.addEventListener("keydown", function (e) {
+    if (!lb.hidden) { if (e.key === "Escape") lbClose(); if (e.key === "ArrowLeft") lbShow(cur - 1); if (e.key === "ArrowRight") lbShow(cur + 1); }
+    else if (e.key === "Escape" && root.classList.contains("menu-open")) setMenu(false);
+  });
+
+  /* shows: split by today's date */
+  var months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  function fmt(d) { var p = d.split("-"); return +p[2] + " " + months[+p[1] - 1] + " " + p[0]; }
+  function row(s, past) {
+    return '<div class="show' + (past ? ' is-past' : '') + '"><span class="date">' + fmt(s.date) + '</span><span class="name">' + s.name + '</span><span class="venue">' + s.venue + ', ' + s.city + '</span><span class="time">' + s.time + '</span></div>';
+  }
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var up = SHOWS.filter(function (s) { return new Date(s.date + "T00:00:00") >= today; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  var past = SHOWS.filter(function (s) { return new Date(s.date + "T00:00:00") < today; }).sort(function (a, b) { return a.date > b.date ? -1 : 1; });
+  document.getElementById("upcoming").innerHTML = up.length
+    ? '<div class="shows">' + up.map(function (s) { return row(s, false); }).join("") + '</div>'
+    : '<p class="live-note">Новых концертов пока нет. Следите за анонсами в <a class="link" href="https://t.me/verification_project" target="_blank" rel="noopener">Telegram</a>.</p>';
+  document.getElementById("past").innerHTML = past.length
+    ? '<h4 class="live-head">Прошедшие</h4><div class="shows">' + past.map(function (s) { return row(s, true); }).join("") + '</div>' : "";
+
+  /* vinyl: rotation eases up and down instead of starting and stopping abruptly */
+  var spinEl = document.querySelector(".disc-spin"), rel = document.querySelector(".release");
+  var canHover = window.matchMedia && matchMedia("(hover: hover)").matches;
+  var idle = reduce ? 0 : (canHover ? 0 : 30), fast = reduce ? 0 : 80; /* degrees per second */
+  var angle = 0, vel = idle, target = idle, last = 0;
+  function on() { target = fast; } function off() { target = idle; }
+  rel.addEventListener("pointerenter", on); rel.addEventListener("pointerleave", off);
+  rel.addEventListener("focus", on); rel.addEventListener("blur", off);
+  (function tick(ts) {
+    var dt = last ? Math.min((ts - last) / 1000, .05) : 0; last = ts;
+    vel += (target - vel) * Math.min(1, dt * 1.8);
+    if (Math.abs(vel) > .05) { angle = (angle + vel * dt) % 360; spinEl.style.transform = "rotate(" + angle.toFixed(2) + "deg)"; }
+    requestAnimationFrame(tick);
+  })(0);
+
+  /* accordion: animate height on open and close */
+  document.querySelectorAll(".acc").forEach(function (d) {
+    var s = d.querySelector("summary"), body = d.querySelector(".acc-body"), anim = null;
+    s.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (reduce || !body.animate) { d.open = !d.open; return; }
+      if (anim) anim.cancel();
+      var opts = { duration: 600, easing: "cubic-bezier(.22, 1, .36, 1)" };
+      if (d.open) {
+        d.classList.add("is-closing");
+        anim = body.animate([{ height: body.offsetHeight + "px", opacity: 1 }, { height: "0px", opacity: 0 }], opts);
+        anim.onfinish = function () { d.open = false; d.classList.remove("is-closing"); anim = null; };
+      } else {
+        d.open = true;
+        anim = body.animate([{ height: "0px", opacity: 0 }, { height: body.offsetHeight + "px", opacity: 1 }], opts);
+        anim.onfinish = function () { anim = null; };
+      }
+    });
+  });
+
+  /* logo: "verification" decode, on load, hover, focus and tap */
+  (function () {
+    var logo = document.querySelector(".header .logo");
+    var word = logo.textContent.trim();
+    var pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#/_+=<>ЖФЯИЦ";
+    logo.textContent = "";
+    var spans = word.split("").map(function (c) {
+      var s = document.createElement("span"); s.className = "lg-ch"; s.textContent = c; s.setAttribute("aria-hidden", "true");
+      logo.appendChild(s); return s;
+    });
+    var running = false, delay = 50, step = 24, tickMs = 30;
+    function current() { return spans.map(function (s) { return s.textContent; }).join(""); }
+    function jitter(k) {
+      var r = Math.random, st = logo.style;
+      var t1 = r() * 75, h1 = 6 + r() * 26, t2 = r() * 60, h2 = 20 + r() * 50;
+      st.setProperty("--c1t", t1 + "%"); st.setProperty("--c1b", Math.max(0, 100 - t1 - h1) + "%");
+      st.setProperty("--c2t", t2 + "%"); st.setProperty("--c2b", Math.max(0, 100 - t2 - h2) + "%");
+      st.setProperty("--gx1", ((r() - .5) * 14 * k).toFixed(1) + "px");
+      st.setProperty("--gx2", ((r() - .5) * 6 * k).toFixed(1) + "px");
+      st.setProperty("--nx", (r() * 90 | 0) + "px"); st.setProperty("--ny", (r() * 90 | 0) + "px");
+      st.setProperty("--flick", (.35 + r() * .55).toFixed(2));
+      st.setProperty("--sx", (r() < .3 ? (r() - .5) * 4 * k : 0).toFixed(1) + "px");
+      st.setProperty("--sk", (r() < .25 ? (r() - .5) * 8 * k : 0).toFixed(1) + "deg");
+      logo.dataset.text = current();
+      logo.classList.add("is-glitch");
+    }
+    function calm() { logo.classList.remove("is-glitch"); logo.dataset.text = word; }
+    /* a short burst of interference without changing the letters */
+    function burst(ms, swap) {
+      if (reduce || running) return;
+      var start = performance.now(), last = 0;
+      (function f(now) {
+        if (now - start >= ms) { spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); }); calm(); return; }
+        if (now - last >= 30) {
+          last = now;
+          spans.forEach(function (s, i) {
+            if (swap && Math.random() < .14) { s.textContent = pool[(Math.random() * pool.length) | 0]; s.classList.add("is-scr"); }
+            else { s.textContent = word[i]; s.classList.remove("is-scr"); }
+          });
+          jitter(1);
+        }
+        requestAnimationFrame(f);
+      })(start);
+    }
+    function lockWidths() {
+      if (running) return;
+      spans.forEach(function (s) { s.style.width = ""; });
+      spans.forEach(function (s) { s.style.width = s.getBoundingClientRect().width + "px"; });
+    }
+    function run() {
+      if (reduce || running) return;
+      running = true;
+      var start = performance.now(), last = 0, end = delay + spans.length * step;
+      (function frame(now) {
+        var el = now - start;
+        if (el >= end) {
+          spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); });
+          running = false; calm(); burst(70, false); return;
+        }
+        if (now - last >= tickMs) {
+          last = now;
+          spans.forEach(function (s, i) {
+            if (el < delay + i * step) { s.textContent = pool[(Math.random() * pool.length) | 0]; s.classList.add("is-scr"); }
+            else { s.textContent = word[i]; s.classList.remove("is-scr"); }
+          });
+          jitter(1.4 - el / end);
+        }
+        requestAnimationFrame(frame);
+      })(start);
+    }
+    var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    ready.then(function () { lockWidths(); run(); });
+    window.addEventListener("resize", lockWidths);
+    logo.addEventListener("pointerenter", run);
+    logo.addEventListener("focus", run);
+    logo.addEventListener("click", run);
+    /* now and then the logo catches a little interference by itself */
+    (function idle() {
+      /* 2.5-8 s apart, uneven; sometimes a double twitch */
+      setTimeout(function () {
+        if (document.visibilityState === "visible") {
+          burst(55 + Math.random() * 45, true);
+          if (Math.random() < .3) setTimeout(function () { burst(40 + Math.random() * 40, Math.random() < .5); }, 130 + Math.random() * 160);
+        }
+        idle();
+      }, 2500 + Math.pow(Math.random(), 1.4) * 5500);
+    })();
+  })();
+
+  /* film grain, 24 fps */
+  (function () {
+    var host = document.querySelector(".grain");
+    var cv = document.createElement("canvas"), ctx = cv.getContext("2d");
+    host.appendChild(cv);
+    var SCALE = 3, T = 160, tiles = [], r = Math.random;
+    for (var k = 0; k < 10; k++) {
+      var c = document.createElement("canvas"); c.width = c.height = T;
+      var x = c.getContext("2d"), d = x.createImageData(T, T), a = d.data;
+      for (var i = 0; i < a.length; i += 4) {
+        var v = (r() + r() + r()) / 3 * 255;          /* soft, film-like distribution */
+        a[i] = v; a[i + 1] = v * .95; a[i + 2] = v * .86; /* a touch of warmth */
+        a[i + 3] = 2 + r() * 2.5;
+      }
+      x.putImageData(d, 0, 0);
+      tiles.push(ctx.createPattern(c, "repeat"));
+    }
+    function size() { cv.width = Math.ceil(innerWidth / SCALE); cv.height = Math.ceil(innerHeight / SCALE); }
+    size(); window.addEventListener("resize", size);
+    var last = 0;
+    function frame() {
+      var w = cv.width, h = cv.height;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h);
+      var ox = r() * T | 0, oy = r() * T | 0;
+      ctx.globalAlpha = .9 + r() * .1;                   /* projector flicker */
+      /* the light home photo needs more grain to read the same as the dark pages */
+      var heroEl = document.getElementById("view-home");
+      var passes = heroEl.classList.contains("is-active") && !heroEl.classList.contains("show-video") ? 5 : 1;
+      for (var q = 0; q < passes; q++) {
+        ctx.setTransform(1, 0, 0, 1, -(q ? r() * T | 0 : ox), -(q ? r() * T | 0 : oy));
+        ctx.fillStyle = tiles[r() * tiles.length | 0]; ctx.fillRect(0, 0, w + T, h + T);
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+    }
+    if (reduce) { frame(); return; }
+    (function loop(now) {
+      if (now - last >= 1000 / 24) { last = now; frame(); }
+      requestAnimationFrame(loop);
+    })(0);
+  })();
+
+  show();
+})();
+</script>

@@ -527,6 +527,15 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
   setHdr(); window.addEventListener("resize", setHdr);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(setHdr);
   window.addEventListener("hashchange", show);
+  /* handle our own section links, so a host page's anchor scripts (e.g. Tilda) can't hijack them */
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a) return;
+    var h = a.getAttribute("href");
+    if (h.length < 2) return;
+    e.preventDefault();
+    if (location.hash === h) show(); else location.hash = h;
+  }, true);
   document.addEventListener("scroll", onScroll, { capture: true, passive: true });
 
 
