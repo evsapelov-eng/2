@@ -646,7 +646,14 @@ p { margin: 0 0 14px; max-width: 62ch; }
     logo.addEventListener("click", run);
     /* now and then the logo catches a little interference by itself */
     (function idle() {
-      setTimeout(function () { if (document.visibilityState === "visible") burst(55 + Math.random() * 45, true); idle(); }, 7000 + Math.random() * 7000);
+      /* 2.5-8 s apart, uneven; sometimes a double twitch */
+      setTimeout(function () {
+        if (document.visibilityState === "visible") {
+          burst(55 + Math.random() * 45, true);
+          if (Math.random() < .3) setTimeout(function () { burst(40 + Math.random() * 40, Math.random() < .5); }, 130 + Math.random() * 160);
+        }
+        idle();
+      }, 2500 + Math.pow(Math.random(), 1.4) * 5500);
     })();
   })();
 
