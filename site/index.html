@@ -164,7 +164,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 @keyframes hand-write { 0% { --wp: 0%; } 28% { --wp: 33%; } 52% { --wp: 50%; } 78% { --wp: 82%; } 100% { --wp: 106%; } }
 .hero.show-video .hand { opacity: 0; }
 @media (max-aspect-ratio: 3/4) {
-  .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 96px); width: min(74vw, 36svh); }
+  /* tall screens: the photo spans the width and starts at 100svh - 150vw; heads begin about 26% down it.
+     The tagline sits just under the header and is sized so its last line ends above the heads. */
+  .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 66px);
+    width: clamp(150px, calc((100svh - 111vw - 66px - env(safe-area-inset-top, 0px) - 8px) * 1.4472), 74vw); }
 }
 
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
