@@ -754,7 +754,13 @@ p { margin: 0 0 14px; max-width: 62ch; }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h);
       var ox = r() * T | 0, oy = r() * T | 0;
       ctx.globalAlpha = .9 + r() * .1;                   /* projector flicker */
-      ctx.translate(-ox, -oy); ctx.fillStyle = tiles[r() * tiles.length | 0]; ctx.fillRect(0, 0, w + T, h + T);
+      /* the light home photo needs more grain to read the same as the dark pages */
+      var heroEl = document.getElementById("view-home");
+      var passes = heroEl.classList.contains("is-active") && !heroEl.classList.contains("show-video") ? 5 : 1;
+      for (var q = 0; q < passes; q++) {
+        ctx.setTransform(1, 0, 0, 1, -(q ? r() * T | 0 : ox), -(q ? r() * T | 0 : oy));
+        ctx.fillStyle = tiles[r() * tiles.length | 0]; ctx.fillRect(0, 0, w + T, h + T);
+      }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
     }
