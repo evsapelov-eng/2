@@ -156,7 +156,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   /* tall screens: the photo spans the width and starts at 100svh - 150vw; heads begin about 26% down it.
      The tagline sits just under the header and is sized so its last line ends above the heads. */
   .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 66px);
-    width: clamp(150px, calc((100svh - 111vw - 66px - env(safe-area-inset-top, 0px) - 8px) * 1.4472), 74vw); }
+    width: clamp(130px, calc((100svh - 111vw - 66px - env(safe-area-inset-top, 0px) - 8px) * 1.4472 * .75), 56vw); }
 }
 
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
@@ -178,8 +178,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -343,14 +343,14 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <div class="hand" id="hand" role="img" aria-label="проект на стыке неоклассики и электроники">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/hand/w1.png" alt="" style="left:0.0%;top:0.0%;width:38.02%;height:17.84%;--dur:1.15s;--delay:0.0s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/hand/w2.png" alt="" style="left:40.54%;top:12.56%;width:14.93%;height:10.55%;--dur:0.45s;--delay:1.43s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/hand/w3.png" alt="" style="left:59.72%;top:17.71%;width:37.59%;height:12.31%;--dur:1.14s;--delay:2.16s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/hand/w4.png" alt="" style="left:2.52%;top:42.71%;width:75.09%;height:16.33%;--dur:2.28s;--delay:3.58s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/hand/w5.png" alt="" style="left:57.12%;top:63.19%;width:11.55%;height:9.05%;--dur:0.35s;--delay:6.14s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@a2f44242e72a7d7305422322215b602c3585aad6/site/assets/hand/w6.png" alt="" style="left:20.49%;top:73.87%;width:79.51%;height:26.13%;--dur:2.41s;--delay:6.77s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/hand/w1.png" alt="" style="left:0.0%;top:0.0%;width:38.02%;height:17.84%;--dur:1.15s;--delay:0.0s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/hand/w2.png" alt="" style="left:40.54%;top:12.56%;width:14.93%;height:10.55%;--dur:0.45s;--delay:1.43s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/hand/w3.png" alt="" style="left:59.72%;top:17.71%;width:37.59%;height:12.31%;--dur:1.14s;--delay:2.16s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/hand/w4.png" alt="" style="left:2.52%;top:42.71%;width:75.09%;height:16.33%;--dur:2.28s;--delay:3.58s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/hand/w5.png" alt="" style="left:57.12%;top:63.19%;width:11.55%;height:9.05%;--dur:0.35s;--delay:6.14s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@858044c426857cc8cfad3cc724ea9ef3a55a90df/site/assets/hand/w6.png" alt="" style="left:20.49%;top:73.87%;width:79.51%;height:26.13%;--dur:2.41s;--delay:6.77s">
     </div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
