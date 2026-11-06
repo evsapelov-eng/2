@@ -734,7 +734,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
     var host = document.querySelector(".grain");
     var cv = document.createElement("canvas"), ctx = cv.getContext("2d");
     host.appendChild(cv);
-    var SCALE = 2, T = 160, tiles = [], r = Math.random;
+    var SCALE = 3, T = 160, tiles = [], r = Math.random;
     for (var k = 0; k < 10; k++) {
       var c = document.createElement("canvas"); c.width = c.height = T;
       var x = c.getContext("2d"), d = x.createImageData(T, T), a = d.data;
