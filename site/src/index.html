@@ -578,7 +578,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
       var s = document.createElement("span"); s.className = "lg-ch"; s.textContent = c; s.setAttribute("aria-hidden", "true");
       logo.appendChild(s); return s;
     });
-    var running = false, delay = 70, step = 30, tickMs = 35;
+    var running = false, delay = 50, step = 24, tickMs = 30;
     function current() { return spans.map(function (s) { return s.textContent; }).join(""); }
     function jitter(k) {
       var r = Math.random, st = logo.style;
@@ -625,7 +625,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
         var el = now - start;
         if (el >= end) {
           spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); });
-          running = false; calm(); burst(90, false); return;
+          running = false; calm(); burst(70, false); return;
         }
         if (now - last >= tickMs) {
           last = now;
@@ -646,7 +646,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
     logo.addEventListener("click", run);
     /* now and then the logo catches a little interference by itself */
     (function idle() {
-      setTimeout(function () { if (document.visibilityState === "visible") burst(70 + Math.random() * 60, true); idle(); }, 7000 + Math.random() * 7000);
+      setTimeout(function () { if (document.visibilityState === "visible") burst(55 + Math.random() * 45, true); idle(); }, 7000 + Math.random() * 7000);
     })();
   })();
 
