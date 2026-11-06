@@ -26,7 +26,7 @@
   --gutter: clamp(20px, 7.6vw, 110px);
   --ease: cubic-bezier(.4, 0, .2, 1);
   --smooth: cubic-bezier(.22, 1, .36, 1);
-  --h1: clamp(1.5rem, 1.2vw + 1.1rem, 2.25rem);
+  --h1: 26px; /* a step below the 30px logo */
   --h4: clamp(1.05rem, .4vw + .9rem, 1.3rem);
   --body: 15px;
 }
@@ -223,6 +223,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
   .nav, .header > .social { display: none; }
   .header { grid-template-columns: 1fr auto; }
   .logo { font-size: 23px; justify-self: start; }
+  :root { --h1: 20px; } /* a step below the 23px logo */
   .burger { display: block; }
 }
 @media (max-width: 800px) {
