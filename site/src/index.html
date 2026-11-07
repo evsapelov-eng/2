@@ -154,7 +154,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* handwriting on the home photo: each word is "drawn" left to right with a soft pencil edge, one after another */
 @property --wp { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
 .hand { position: absolute; z-index: 1; pointer-events: none; left: 7.94%; top: 28.54%;
-  width: max(30vw, min(42.17vw, calc(100vw - 66.6svh - 12vw))); aspect-ratio: 1.4472; max-width: 100%;
+  width: min(max(30vw, min(42.17vw, calc(100vw - 66.6svh - 12vw))), calc(54svh * 1.4472)); /* short landscape phones: keep the last line on screen */ aspect-ratio: 1.4472; max-width: 100%;
   transition: opacity .8s var(--smooth); }
 .hand img { position: absolute; max-width: none; --wp: 0%;
   -webkit-mask-image: linear-gradient(to right, #000 calc(var(--wp) - 5%), transparent var(--wp));
@@ -312,6 +312,14 @@ p { margin: 0 0 14px; max-width: 62ch; }
   .lb-prev, .lb-next { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 4px); }
   .lb-prev { left: max(8px, env(safe-area-inset-left, 0px)); }
   .lb-next { right: max(8px, env(safe-area-inset-right, 0px)); }
+}
+/* short screens (phones held sideways): a tighter menu so the icons don't touch the last item */
+@media (max-height: 520px) {
+  .menu { padding-top: calc(env(safe-area-inset-top, 0px) + 74px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); }
+  .menu nav a { font-size: 1rem; line-height: 1.7; }
+  .menu .social { gap: 22px; }
+  .menu .social a { width: 22px; height: 22px; }
+  .menu .social svg { width: 19px; height: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
