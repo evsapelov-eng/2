@@ -281,7 +281,8 @@ p { margin: 0 0 14px; max-width: 62ch; }
 .show .time { text-align: right; }
 .show.is-past { color: var(--mist); }
 .live-note { margin-bottom: 64px; }
-.live-head { margin-top: 0; }
+.live-head { margin-top: 56px; }
+#upcoming:empty + #past .live-head { margin-top: 0; }
 
 /* contacts */
 .contact .person-photo { width: 92px; height: 92px; border-radius: 50%; object-fit: cover; filter: grayscale(1); margin-bottom: 18px; }
@@ -473,6 +474,7 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
 (function () {
   /* Концерты: добавляйте новые строки сюда. Дата в формате ГГГГ-ММ-ДД. */
   var SHOWS = [
+    { date: "2027-04-24", name: "Концерт VERIFICATION", venue: "Центр современной культуры «Рельсы»", city: "Тверь", time: "19:00" },
     { date: "2026-10-24", name: "Chain Fest 2026", venue: "Музей-заповедник «Царицыно», Казаковский зал", city: "Москва", time: "13:40 – 14:40" }
   ];
   var PHOTOS = 16;
