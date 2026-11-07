@@ -12,17 +12,24 @@ const ROOT = path.join(__dirname, '..');
 const CORE = [
   'src/engine/util.js',
   'src/harmony/scale_library.js',
+  'src/harmony/historical_modes.js',
   'src/harmony/harmonic_engine.js',
+  'src/harmony/harmony_library.js',
+  'src/harmony/frame.js',
   'src/engine/roles.js',
   'src/engine/melodic.js',
   'src/engine/rhythmic.js',
+  'src/engine/hybrid.js',
+  'src/engine/experimental.js',
   'src/engine/generator.js',
   'src/evolution/similarity.js',
   'src/evolution/evolution.js',
   'src/midi/midi_engine.js',
-  'src/midi/smf.js'
+  'src/midi/smf.js',
+  'src/midi/midi_capture.js',
+  'src/hardware/apc40.js'
 ];
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 function read(f) { return fs.readFileSync(path.join(ROOT, f), 'utf8'); }
 
@@ -110,9 +117,25 @@ function numbox(name, short, prect, init, min, max, unit) {
   }, {}, IO.numbox);
 }
 
+function slider(name, short, prect, init, min, max, unit) {
+  return liveParam('live.slider', name, short, prect, {
+    parameter_type: 0, parameter_mmin: min, parameter_mmax: max, parameter_initial_enable: 1,
+    parameter_initial: [init], parameter_unitstyle: unit
+  }, { orientation: 1, showname: 0, shownumber: 1 }, [1, 2, ['', 'float']]);
+}
+
+const PUSH_BANKS = [
+  ['Organism', ['Generator', 'Evolution', 'Speed', 'Mutation Amount', 'Mutation Probability', 'Stability', 'Complexity', 'Variation']],
+  ['Harmony', ['Key', 'Scale', 'System', 'Variant', 'Length', 'Density', 'Library', 'Progression']],
+  ['Actions', ['Mutate', 'Freeze', 'Revert', 'Reset DNA', 'Capture', 'Harmony Length', 'Micro', 'Free']],
+  ['Voices', ['Voice 1', 'Voice 2', 'Voice 3', 'Voice 4', 'V1 Density', 'V2 Density', 'V3 Density', 'V4 Density']],
+  ['Voice Mut', ['V1 Mutation', 'V2 Mutation', 'V3 Mutation', 'V4 Mutation', 'V1 Channel', 'V2 Channel', 'V3 Channel', 'V4 Channel']],
+  ['Ranges', ['V1 Low', 'V1 High', 'V2 Low', 'V2 High', 'V3 Low', 'V3 High', 'V4 Low', 'V4 High']]
+];
+
 function buildPatcher() {
   // ---- engine and timing
-  const js = obj('js organism.js', 40, 300, 1, 4, ['', '', '', '']);
+  const js = obj('js organism.js', 40, 300, 1, 5, ['', '', '', '', '']);
   const thisdev = obj('live.thisdevice', 40, 20, 1, 3, ['bang', 'int', 'int']);
   const initMsg = msg('init', 40, 60);
   wire(thisdev, 0, initMsg, 0);
@@ -137,7 +160,7 @@ function buildPatcher() {
   wire(js, 0, iter, 0);
   wire(iter, 0, midiout, 0);
 
-  // ---- persistence: DNA is stored with the Live Set in a hidden blob parameter
+  // ---- persistence: DNA, slots, captures, user progressions in a hidden blob parameter
   const pattr = box('newobj', [520, 370, 120, 22], {
     text: 'pattr gostate @parameter_enable 1', numinlets: 1, numoutlets: 3, outlettype: ['', '', ''],
     parameter_enable: 1, varname: 'gostate',
@@ -145,8 +168,7 @@ function buildPatcher() {
       parameter_type: 3, parameter_invisible: 1, parameter_initial_enable: 0 } }
   });
   const preRestore = obj('prepend restore', 520, 400, 1, 1, ['']);
-  // js emits "set <chunks>"; a list starting with "set" sets pattr silently
-  wire(js, 1, pattr, 0);
+  wire(js, 1, pattr, 0);                     // js emits "set <chunks>": stored without output
   wire(pattr, 0, preRestore, 0);
   wire(preRestore, 0, js, 0);
 
@@ -155,12 +177,26 @@ function buildPatcher() {
   wire(js, 3, defer, 0);
   wire(defer, 0, js, 0);
 
-  // ---- status line
-  const status = box('comment', [700, 360, 400, 20], {
-    text: 'GENERATIVE ORGANISM', numinlets: 1, numoutlets: 0, presentation: 1,
-    presentation_rect: [6, 150, 500, 16], fontsize: 9.5, varname: 'status'
-  });
-  wire(js, 2, status, 0);   // js sends "set <text>"
+  // ---- EXPORT: file dialog
+  const dialog = obj('savedialog Midi', 640, 330, 1, 3, ['', '', 'bang']);
+  const preExport = obj('prepend exportmidi', 640, 370, 1, 1, ['']);
+  wire(js, 4, dialog, 0);
+  wire(dialog, 0, preExport, 0);
+  wire(preExport, 0, js, 0);
+
+  // ---- displays
+  const route = obj('route status sys harm edit', 760, 300, 1, 5, ['', '', '', '', '']);
+  wire(js, 2, route, 0);
+  const disp = (rect, i, x) => {
+    const c = box('comment', [x, 400, 300, 20], { text: '', numinlets: 1, numoutlets: 0, presentation: 1,
+      presentation_rect: rect, fontsize: 9.0, fontname: 'Arial', textcolor: [0.75, 0.75, 0.75, 1] });
+    const ps = obj('prepend set', x, 360, 1, 1, ['']);
+    wire(route, i, ps, 0);
+    wire(ps, 0, c, 0);
+  };
+  disp([416, 122, 250, 14], 0, 760);
+  disp([6, 138, 660, 14], 1, 900);
+  disp([6, 152, 660, 14], 2, 1040);
 
   // ---- UI
   function toJs(id, prefix) {
@@ -169,72 +205,107 @@ function buildPatcher() {
     boxes.find(x => x.box.id === p).box.patching_rect = [b.patching_rect[0], b.patching_rect[1] + 50, 110, 22];
     wire(id, 0, p, 0);
     wire(p, 0, js, 0);
+    return id;
   }
 
   comment('GENERATIVE ORGANISM', [6, 2, 200, 16], { fontsize: 10.5, fontface: 1, textcolor: [0.85, 0.85, 0.85, 1] });
-  comment('GENERATOR', [6, 20, 96, 14]);
-  comment('HARMONIC FOUNDATION', [112, 20, 130, 14]);
-  comment('EVOLUTION', [252, 20, 120, 14]);
-  comment('VOICES', [506, 20, 60, 14]);
+  comment('GENERATOR', [6, 18, 96, 14]);
+  comment('HARMONIC FOUNDATION', [108, 18, 140, 14]);
+  comment('HARMONY LIBRARY', [258, 18, 150, 14]);
+  comment('EVOLUTION', [416, 18, 120, 14]);
+  comment('VOICES', [674, 18, 60, 14]);
 
-  toJs(tab('Generator', 'Gen', [6, 34, 96, 34], ['MELODIC', 'RHYTHMIC'], 0, 2), 'param gen');
+  // generator
+  toJs(tab('Generator', 'Gen', [6, 32, 96, 64], ['MELODIC', 'RHYTHMIC', 'HYBRID', 'EXPERIMENTAL'], 0, 4), 'param gen');
+  toJs(text('Micro', 'Micro', [6, 100, 46, 16], 'MICRO', true, 1), 'param micro');
+  toJs(text('Free', 'Free', [56, 100, 46, 16], 'FREE', true, 0), 'param free');
 
-  comment('Key', [112, 34, 34, 14]);
-  toJs(menu('Key', 'Key', [150, 34, 92, 15], GO.Scales.KEYS, 0), 'param key');
-  comment('Mode', [112, 52, 34, 14]);
-  toJs(menu('Scale', 'Scale', [150, 52, 92, 15], GO.Scales.names(), 1), 'param scale');
-  comment('Bars', [112, 70, 34, 14]);
-  toJs(tab('Length', 'Bars', [150, 70, 92, 15], ['1', '2', '4', '8'], 1), 'param bars');
-  toJs(dial('Density', 'Density', [150, 92, 44, 48], 75, 0, 100, 5), 'param density');
+  // harmonic foundation
+  const row = (label, y) => comment(label, [108, y, 38, 14]);
+  row('Key', 32); toJs(menu('Key', 'Key', [146, 32, 104, 15], GO.Scales.KEYS, 0), 'param key');
+  row('Mode', 50); toJs(menu('Scale', 'Mode', [146, 50, 104, 15], GO.Scales.names(), 1), 'param scale');
+  row('System', 68); toJs(menu('System', 'System', [146, 68, 104, 15], GO.Systems.categoryNames(), 0), 'param syscat');
+  row('Variant', 86); toJs(numbox('Variant', 'Var', [146, 86, 40, 15], 1, 1, 12, 0), 'param sysvar');
+  row('Bars', 104); toJs(tab('Length', 'Bars', [146, 104, 104, 15], ['1', '2', '4', '8'], 1), 'param bars');
+  row('Density', 122); toJs(slider('Density', 'Density', [146, 122, 104, 15], 75, 0, 100, 5), 'param density');
 
-  toJs(tab('Evolution', 'Evo', [252, 34, 150, 15], ['MANUAL', 'AUTO', 'HYBRID'], 0), 'param evo');
-  comment('Every', [252, 52, 40, 14]);
-  toJs(tab('Speed', 'Every', [292, 52, 110, 15], ['1 bar', '2', '4', '8'], 1), 'param every');
+  // harmony library
+  toJs(menu('Library', 'Library', [258, 32, 150, 15], GO.Library.categoryNames(), 0), 'param lib');
+  comment('No.', [258, 50, 26, 14]);
+  toJs(numbox('Progression', 'Prog', [286, 50, 40, 15], 1, 1, 12, 0), 'param prog');
+  comment('Len', [332, 50, 26, 14]);
+  toJs(tab('Harmony Length', 'HLen', [358, 50, 50, 15], ['1/2', '1', '2'], 1), 'param hlen');
+  const edit = box('textedit', [258, 420, 150, 32], { numinlets: 1, numoutlets: 4, outlettype: ['', 'int', '', ''],
+    presentation: 1, presentation_rect: [258, 68, 150, 32], keymode: 1, lines: 2, fontsize: 9.5,
+    text: 'ii7 V7 Imaj7', varname: 'progedit' });
+  const preCustom = obj('prepend custom', 258, 470, 1, 1, ['']);
+  wire(edit, 0, preCustom, 0);
+  wire(preCustom, 0, js, 0);
+  const preEdit = obj('prepend set', 1180, 360, 1, 1, ['']);
+  wire(route, 3, preEdit, 0);
+  wire(preEdit, 0, edit, 0);
+  comment('type chords + Enter = User slot', [258, 102, 150, 14], { fontsize: 8.5 });
+
+  // evolution
+  toJs(tab('Evolution', 'Evo', [416, 32, 150, 15], ['MANUAL', 'AUTO', 'HYBRID'], 0), 'param evo');
+  comment('Every', [416, 50, 40, 14]);
+  toJs(tab('Speed', 'Every', [456, 50, 110, 15], ['1 bar', '2', '4', '8'], 1), 'param every');
   const dials = [['Mutation Amount', 'Amount', 'amount'], ['Mutation Probability', 'Prob', 'prob'],
     ['Stability', 'Stability', 'stability'], ['Complexity', 'Complex', 'complexity'], ['Variation', 'Variation', 'variation']];
-  dials.forEach((d, i) => toJs(dial(d[0], d[1], [252 + i * 50, 92, 46, 48], 50, 0, 100, 5), 'param ' + d[2]));
+  dials.forEach((d, i) => toJs(dial(d[0], d[1], [416 + i * 50, 70, 46, 48], 50, 0, 100, 5), 'param ' + d[2]));
 
   // voices
-  const cols = [['Ch', 566], ['Low', 600], ['High', 642], ['Dens', 684], ['Mut', 724]];
-  cols.forEach(c => comment(c[0], [c[1], 34, 40, 14]));
+  const cols = [['Ch', 734], ['Low', 768], ['High', 810], ['Dens', 852], ['Mut', 892]];
+  cols.forEach(c => comment(c[0], [c[1], 32, 32, 14]));
   for (let i = 0; i < 4; i++) {
-    const y = 50 + i * 20, r = GO.Roles[i], n = i + 1;
-    toJs(text('Voice ' + n, 'V' + n, [506, y, 56, 16], n + ' ' + r.name, true, 1), 'voice ' + i + ' on');
-    toJs(numbox('V' + n + ' Channel', 'Ch' + n, [566, y, 30, 16], n, 1, 16, 0), 'voice ' + i + ' ch');
-    toJs(numbox('V' + n + ' Low', 'Lo' + n, [600, y, 38, 16], r.lo, 0, 127, 8), 'voice ' + i + ' lo');
-    toJs(numbox('V' + n + ' High', 'Hi' + n, [642, y, 38, 16], r.hi, 0, 127, 8), 'voice ' + i + ' hi');
-    toJs(numbox('V' + n + ' Density', 'Dn' + n, [684, y, 36, 16], 0, -50, 50, 5), 'voice ' + i + ' dens');
-    toJs(numbox('V' + n + ' Mutation', 'Mu' + n, [724, y, 36, 16], 100, 0, 100, 5), 'voice ' + i + ' mut');
+    const y = 48 + i * 18, r = GO.Roles[i], n = i + 1;
+    toJs(text('Voice ' + n, 'V' + n, [674, y, 56, 16], n + ' ' + r.name, true, 1), 'voice ' + i + ' on');
+    toJs(numbox('V' + n + ' Channel', 'Ch' + n, [734, y, 30, 16], n, 1, 16, 0), 'voice ' + i + ' ch');
+    toJs(numbox('V' + n + ' Low', 'Lo' + n, [768, y, 38, 16], r.lo, 0, 127, 8), 'voice ' + i + ' lo');
+    toJs(numbox('V' + n + ' High', 'Hi' + n, [810, y, 38, 16], r.hi, 0, 127, 8), 'voice ' + i + ' hi');
+    toJs(numbox('V' + n + ' Density', 'Dn' + n, [852, y, 36, 16], 0, -50, 50, 5), 'voice ' + i + ' dens');
+    toJs(numbox('V' + n + ' Mutation', 'Mu' + n, [892, y, 36, 16], 100, 0, 100, 5), 'voice ' + i + ' mut');
   }
+  toJs(text('APC40', 'APC40', [674, 122, 56, 16], 'APC40', true, 0), 'param apc');
 
-  toJs(text('Mutate', 'Mutate', [770, 34, 74, 20], 'MUTATE', false), 'btn mutate');
-  toJs(text('Freeze', 'Freeze', [770, 58, 74, 20], 'FREEZE', true, 0), 'param freeze');
-  toJs(text('Revert', 'Revert', [770, 82, 74, 20], 'REVERT', false), 'btn revert');
-  toJs(text('Reset DNA', 'Reset', [770, 106, 74, 20], 'RESET DNA', false), 'btn reset');
+  // actions
+  toJs(text('Mutate', 'Mutate', [940, 32, 74, 18], 'MUTATE', false), 'btn mutate');
+  toJs(text('Freeze', 'Freeze', [940, 52, 74, 18], 'FREEZE', true, 0), 'param freeze');
+  toJs(text('Revert', 'Revert', [940, 72, 74, 18], 'REVERT', false), 'btn revert');
+  toJs(text('Reset DNA', 'Reset', [940, 92, 74, 18], 'RESET DNA', false), 'btn reset');
+  toJs(text('Capture', 'Capture', [940, 112, 74, 18], 'CAPTURE', false), 'btn capture');
+  toJs(text('Export', 'Export', [940, 132, 74, 18], 'EXPORT .MID', false), 'btn export');
+
+  // Push 2 banks
+  const parameters = {};
+  for (const b of boxes) {
+    if (!b.box.parameter_enable) continue;
+    const v = b.box.saved_attribute_attributes.valueof;
+    parameters[b.box.id] = [v.parameter_longname, v.parameter_shortname, 0];
+  }
+  parameters.parameterbanks = {};
+  PUSH_BANKS.forEach((bk, i) => { parameters.parameterbanks[String(i)] = { index: i, name: bk[0], parameters: bk[1] }; });
+  parameters.inherited_shortname = 1;
 
   return {
     patcher: {
       fileversion: 1,
       appversion: { major: 8, minor: 6, revision: 0, architecture: 'x64', modernui: 1 },
       classnamespace: 'box',
-      rect: [100, 100, 1240, 760],
+      rect: [100, 100, 1300, 800],
       openinpresentation: 1,
       default_fontsize: 10.0,
       default_fontname: 'Arial Bold',
       gridsize: [8, 8],
       boxes,
       lines,
+      parameters,
       dependency_cache: [{ name: 'organism.js', bootpath: '.', type: 'TEXT', implicit: 1 }],
       latency: 0,
       is_mpe: 0,
       minimum_live_version: '',
       minimum_max_version: '',
       platform_compatibility: 0,
-      project: { version: 1, creationdate: 3590052493, modificationdate: 3590052493,
-                 viewrect: [0, 0, 300, 500], autoorganize: 1, hideprojectwindow: 1, showdependencies: 1,
-                 autolocalize: 0, contents: { patchers: {}, code: {} }, layout: {}, searchpath: {},
-                 detailsvisible: 0, amxdtype: 1835887981, readonly: 0, devpathtype: 0, devpath: '.',
-                 sortmode: 0, viewmode: 0, includepackages: 0 },
       autosave: 0
     }
   };

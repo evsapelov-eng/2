@@ -10,12 +10,20 @@
 // Layer: { n, k, rot, kx, shift[n], drops[32], w[32], tones[], oct, vel,
 //          accEvery, accOff, durPat[], legato }
 // Voice: { type:'rhythmic', role, layers[], chord: notes per hit (1-3) }
+//
+// Traditions with their own rhythmic cycles (Arabic iqa'at, Hindustani talas,
+// Persian reng/zarbi, Greek poetic feet) seed the main layer with that cycle:
+// { pat[n] onsets, accs[n] strong strokes (dum, tali, sam), soft[n] khali }.
+// Such a layer keeps its cycle under mutation (no pulse/rotation/meter
+// changes); only breaks, syncopation, tones and articulation vary.
 
 GO.Rhythmic = (function () {
-  var U = GO.util, S = GO.Scales, H = GO.Harmony;
+  var U = GO.util, H = GO.Harmony;
   var ODD = [3, 5, 6, 7, 9, 12];
 
   function hit(i, k, n, rot) { return U.mod((i + rot) * k, n) < k; }
+  function layerHit(L, li, k) { return L.pat ? L.pat[li] === 1 : hit(li, k, L.n, L.rot); }
+  function mask(n, list) { var a = [], i; for (i = 0; i < n; i++) a.push(0); for (i = 0; i < list.length; i++) a[list[i]] = 1; return a; }
 
   function arr(rng, len, f) { var a = [], i; for (i = 0; i < len; i++) a.push(f(rng)); return a; }
 
@@ -29,15 +37,19 @@ GO.Rhythmic = (function () {
       drops: arr(rng, 32, function (r) { return r.chance(0.04 + 0.14 * P.variation) ? 1 : 0; }),
       w: arr(rng, 32, function (r) { return r.next(); })
     };
-    var i, ps = 0.08 + 0.18 * P.variation + 0.1 * P.complexity;
-    for (i = 0; i < n; i++) if (hit(i, L.k, n, L.rot) && i > 0 && rng.chance(ps)) L.shift[i] = rng.chance(0.65) ? -1 : 1;
+    if (spec.cyc) {
+      L.pat = mask(n, spec.cyc.on); L.accs = mask(n, spec.cyc.acc); L.soft = mask(n, spec.cyc.soft);
+      L.cyc = spec.cyc.name; L.k = spec.cyc.on.length; L.rot = 0;
+    }
+    var i, ps = (spec.cyc ? 0.04 : 0.08) + 0.18 * P.variation + 0.1 * P.complexity;
+    for (i = 0; i < n; i++) if (layerHit(L, i, L.k) && i > 0 && rng.chance(ps)) L.shift[i] = rng.chance(0.65) ? -1 : 1;
     return L;
   }
 
   function toneSeq(rng, len, pool) { var a = [], i; for (i = 0; i < len; i++) a.push(rng.pick(pool)); a[0] = pool[0]; return a; }
 
-  function generate(rng, role, P) {
-    var layers = [], c = P.complexity, chord = 1, base;
+  function generate(rng, role, P, frame) {
+    var layers = [], c = P.complexity, chord = 1, base, rules = frame.rules;
     if (role === 'bass') {
       base = { n: 16, k: rng.pick([2, 3, 4, 5]), rot: rng.pick([0, 0, 0, 3]),
                tones: rng.chance(0.5) ? [0] : toneSeq(rng, rng.pick([2, 4]), [0, 0, 2, 3]), vel: 98 };
@@ -54,6 +66,10 @@ GO.Rhythmic = (function () {
                              : { n: rng.pick(ODD), k: 0, rot: 0, tones: toneSeq(rng, 3, [1, 2, 3, 4]), vel: 68 };
       if (!base.k) base.k = rng.int(2, Math.max(2, Math.floor(base.n / 2)));
     }
+    if (rules.rhythms && rng.chance(role === 'harmony' ? 0.5 : 0.8)) {
+      var cy = rng.pick(rules.rhythms);
+      base.cyc = cy; base.n = cy.n;
+    }
     layers.push(newLayer(rng, P, base));
     var extra = (rng.chance(c) ? 1 : 0) + (c > 0.8 && rng.chance(c - 0.5) ? 1 : 0);
     if (role === 'harmony') extra = Math.min(extra, 1);
@@ -69,26 +85,18 @@ GO.Rhythmic = (function () {
              oct: role === 'bass' ? 0 : rng.pick([0, 1]), vel: role === 'bass' ? 84 : 72 };
   }
 
-  function fold(scale, key, D, lo, hi) {
-    var n = scale.steps.length, p = S.pitch(scale, key, D);
-    while (p > hi) { D -= n; p = S.pitch(scale, key, D); }
-    while (p < lo) { D += n; p = S.pitch(scale, key, D); }
-    while (p > hi && D > -100) { D -= 1; p = S.pitch(scale, key, D); }
-    return D;
-  }
-
   function renderLayer(L, g, ctx, len, base, notes) {
-    var scale = ctx.scale, n = scale.steps.length, dens = ctx.density;
+    var F = ctx.frame, n = F.n, dens = ctx.density;
     var k = L.k + (dens > 0.75 ? Math.round((dens - 0.75) * 4 * L.kx) : 0);
     k = Math.min(k, L.n);
     var on = [], t, occ = 0;
     for (t = 0; t < len; t++) {
       var li = t % L.n;
-      if (!hit(li, k, L.n, L.rot)) continue;
+      if (!layerHit(L, li, k)) continue;
       var o = occ++;
       if (L.drops[o % 32] || L.w[o % 32] >= dens / 0.75) continue;
       var tt = U.clamp(t + (L.shift[li] || 0), 0, len - 1);
-      on.push({ t: tt, o: o });
+      on.push({ t: tt, o: o, li: li });
     }
     var ev = [], i, j;
     for (i = 0; i < on.length; i++) {
@@ -96,23 +104,26 @@ GO.Rhythmic = (function () {
       if (next <= x.t) continue;
       var gap = next - x.t;
       var d = Math.max(1, Math.round(gap * L.legato * L.durPat[x.o % L.durPat.length]));
-      var chord = H.chordAt(ctx.harmony, scale, x.t, ctx.spb, ctx.bars);
+      var chord = F.chordAt(x.t);
+      // traditions without chords: bass and harmony layers play the drone tones
+      if (F.kind === 'static' && (g.role === 'bass' || g.role === 'harmony')) chord = { root: 0, tones: F.drone() };
       var ti = L.tones[x.o % L.tones.length];
-      var acc = U.mod(x.o - L.accOff, L.accEvery) === 0 ? 18 : 0;
-      var down = x.t % ctx.spb === 0 ? 6 : 0;
+      var acc, down;
+      if (L.pat) { acc = L.accs[x.li] ? 18 : 0; down = L.soft[x.li] ? -14 : 0; }
+      else { acc = U.mod(x.o - L.accOff, L.accEvery) === 0 ? 18 : 0; down = x.t % ctx.spb === 0 ? 6 : 0; }
       var v = U.clamp(Math.round(L.vel * ctx.vel / 90) + acc + down - 6, 20, 127);
       for (j = 0; j < notes; j++) {
-        var D = fold(scale, ctx.key, base + L.oct * n + H.toneDegree(chord, ti + j, n), ctx.lo, ctx.hi);
-        ev.push({ t: x.t, d: Math.min(d, len - x.t), p: S.pitch(scale, ctx.key, D), v: v });
+        var D = F.fold(base + L.oct * n + H.toneDegree(chord, ti + j, n), x.t, ctx.lo, ctx.hi);
+        ev.push(F.event(x.t, Math.min(d, len - x.t), F.pitch(D, x.t), v));
       }
     }
     return ev;
   }
 
   function render(g, ctx) {
-    var len = ctx.bars * ctx.spb, center = Math.round((ctx.lo + ctx.hi) / 2);
-    var base = S.tonicBelow(ctx.scale, ctx.key, center);
-    if (g.role === 'bass' || g.role === 'harmony') base = S.tonicBelow(ctx.scale, ctx.key, ctx.lo + 5);
+    var F = ctx.frame, len = ctx.len, center = Math.round((ctx.lo + ctx.hi) / 2);
+    var base = F.tonicBelow(center);
+    if (g.role === 'bass' || g.role === 'harmony') base = F.tonicBelow(ctx.lo + 5);
     var ev = [], i;
     // only the main layer is voiced as a chord; added layers are single tones
     for (i = 0; i < g.layers.length; i++) ev = ev.concat(renderLayer(g.layers[i], g, ctx, len, base, i === 0 ? g.chord : 1));
@@ -134,11 +145,12 @@ GO.Rhythmic = (function () {
   function anyLayer(g, rng) { return g.layers[rng.int(0, g.layers.length - 1)]; }
 
   var OPS = {
-    pulses: function (g, rng) { var L = anyLayer(g, rng); L.k = U.clamp(L.k + rng.sign(), 1, L.n - 1); },
-    rotate: function (g, rng, P) { var L = anyLayer(g, rng); L.rot = U.mod(L.rot + rng.sign() * rng.int(1, 1 + Math.round(P.amount * 2)), L.n); },
+    pulses: function (g, rng) { var L = anyLayer(g, rng); if (!L.pat) L.k = U.clamp(L.k + rng.sign(), 1, L.n - 1); },
+    rotate: function (g, rng, P) { var L = anyLayer(g, rng); if (!L.pat) L.rot = U.mod(L.rot + rng.sign() * rng.int(1, 1 + Math.round(P.amount * 2)), L.n); },
     meter: function (g, rng, P) {
       if (P.complexity < 0.4) return;
       var L = anyLayer(g, rng), opts = [3, 4, 5, 6, 7, 8, 9, 12, 16], i = opts.indexOf(L.n);
+      if (L.pat) return;
       var n = opts[U.clamp((i < 0 ? 7 : i) + rng.sign(), 0, opts.length - 1)];
       var sh = [], j;
       for (j = 0; j < n; j++) sh.push(L.shift[j] || 0);
@@ -147,7 +159,7 @@ GO.Rhythmic = (function () {
     sync: function (g, rng, P) {
       var L = anyLayer(g, rng), i;
       for (i = 1; i < L.n; i++) {
-        if (hit(i, L.k, L.n, L.rot) && rng.chance(P.prob * 0.6)) L.shift[i] = L.shift[i] ? 0 : (rng.chance(0.65) ? -1 : 1);
+        if (layerHit(L, i, L.k) && rng.chance(P.prob * 0.6)) L.shift[i] = L.shift[i] ? 0 : (rng.chance(0.65) ? -1 : 1);
       }
     },
     drops: function (g, rng, P) {

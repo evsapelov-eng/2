@@ -9,13 +9,21 @@
 //  - ignores a repeated step (no duplicated events) and treats any jump in
 //    position (relocation, loop brace) by releasing all notes first;
 //  - retriggers a note that is still held by sending its note-off first;
-//  - stop()/allOff() release everything that is held (no hanging notes).
+//  - stop()/allOff() release everything that is held (no hanging notes);
+//  - with micro on, sends a pitch bend before a note whose pitch has cents
+//    (quarter tones, moria) and re-centres it for the next plain note or on stop
+//    Bend is per channel, so microtones are exact for single-line voices.
 // Four voices share one MIDI output, separated by MIDI channel.
 
 GO.Player = (function () {
   var U = GO.util;
 
-  function Player() { this.cur = null; this.pending = null; this.held = {}; this.last = null; }
+  function Player() { this.cur = null; this.pending = null; this.held = {}; this.last = null; this.micro = true; this.bend = {}; }
+
+  function bendMsg(ch, cents) {
+    var v = U.clamp(Math.round(8192 + cents / 200 * 8192), 0, 16383);
+    return [0xE0 | ch, v & 127, (v >> 7) & 127];
+  }
 
   function compile(pattern) {
     var by = {}, i, j;
@@ -25,7 +33,7 @@ GO.Player = (function () {
       var ch = U.clamp(v.ch | 0, 1, 16) - 1;
       for (j = 0; j < v.ev.length; j++) {
         var e = v.ev[j];
-        (by[e.t] = by[e.t] || []).push({ ch: ch, p: U.clamp(e.p, 0, 127), v: U.clamp(e.v, 1, 127), d: Math.max(1, e.d) });
+        (by[e.t] = by[e.t] || []).push({ ch: ch, p: U.clamp(e.p, 0, 127), v: U.clamp(e.v, 1, 127), d: Math.max(1, e.d), c: e.c || 0 });
       }
     }
     return { len: pattern.len, spb: pattern.spb, by: by };
@@ -54,6 +62,8 @@ GO.Player = (function () {
     for (i = 0; i < list.length; i++) {
       var e = list[i], key = e.ch * 128 + e.p;
       if (this.held[key]) out.push([0x80 | e.ch, e.p, 0]);
+      var c = this.micro ? e.c : 0;
+      if ((this.bend[e.ch] || 0) !== c) { out.push(bendMsg(e.ch, c)); this.bend[e.ch] = c; }
       out.push([0x90 | e.ch, e.p, e.v]);
       this.held[key] = { ch: e.ch, p: e.p, end: abs + e.d };
     }
@@ -64,6 +74,7 @@ GO.Player = (function () {
     var out = [], k;
     for (k in this.held) out.push([0x80 | this.held[k].ch, this.held[k].p, 0]);
     this.held = {};
+    for (k in this.bend) if (this.bend[k]) { out.push(bendMsg(+k, 0)); this.bend[k] = 0; }
     return out;
   };
 

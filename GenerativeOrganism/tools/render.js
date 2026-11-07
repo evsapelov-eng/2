@@ -12,12 +12,22 @@ const SCENARIOS = [
     p: { gen: 'melodic', key: 2, scale: 1, bars: 2, stability: 0.8, amount: 0.4 } },
   { file: 'melodic_D_dorian_wild.mid', seed: 7, bars: 32, every: 2,
     p: { gen: 'melodic', key: 2, scale: 1, bars: 2, stability: 0.1, amount: 0.9, variation: 0.8 } },
-  { file: 'melodic_A_minor_4bars.mid', seed: 21, bars: 32, every: 4,
-    p: { gen: 'melodic', key: 9, scale: 5, bars: 4, stability: 0.6, complexity: 0.4 } },
   { file: 'rhythmic_E_phrygian.mid', seed: 3, bars: 32, every: 2,
     p: { gen: 'rhythmic', key: 4, scale: 2, bars: 2, complexity: 0.8, stability: 0.6 } },
-  { file: 'rhythmic_F_lydian_simple.mid', seed: 12, bars: 32, every: 4,
-    p: { gen: 'rhythmic', key: 5, scale: 3, bars: 1, complexity: 0.2, variation: 0.3 } }
+  { file: 'hybrid_jazz_ii-V-I.mid', seed: 4, bars: 32, every: 4,
+    p: { gen: 'hybrid', key: 5, lib: 6, prog: 1, bars: 4, stability: 0.6 } },
+  { file: 'hybrid_baroque_pachelbel.mid', seed: 9, bars: 32, every: 8,
+    p: { gen: 'hybrid', key: 2, lib: 2, prog: 1, bars: 8, stability: 0.7 } },
+  { file: 'hybrid_gregorian_mode1_organum.mid', seed: 5, bars: 32, every: 4,
+    p: { gen: 'hybrid', key: 2, sysCat: 1, sysVar: 1, bars: 4, stability: 0.7, complexity: 0.3 } },
+  { file: 'melodic_maqam_rast_microtonal.mid', seed: 6, bars: 32, every: 4,
+    p: { gen: 'melodic', key: 0, sysCat: 4, sysVar: 1, bars: 4, stability: 0.7 } },
+  { file: 'rhythmic_raga_yaman_teentaal.mid', seed: 8, bars: 32, every: 4,
+    p: { gen: 'rhythmic', key: 1, sysCat: 6, sysVar: 1, bars: 4, stability: 0.7 } },
+  { file: 'experimental_scale.mid', seed: 11, bars: 32, every: 4,
+    p: { gen: 'experimental', key: 0, scale: 13, bars: 4, variation: 0.7 } },
+  { file: 'experimental_free.mid', seed: 11, bars: 32, every: 4,
+    p: { gen: 'experimental', free: true, bars: 4, variation: 0.9, complexity: 0.8 } }
 ];
 
 function run(sc) {
@@ -28,6 +38,7 @@ function run(sc) {
   player.load(org.pattern(), true);
   const tracks = [0, 1, 2, 3].map(i => ({ name: 'Voice ' + (i + 1) + ' ' + GO.Roles[i].name, events: [] }));
   const spb = params.spb, total = sc.bars * spb;
+  if (org.libError) throw new Error(org.libError);
   for (let abs = 0; abs <= total; abs++) {
     const msgs = abs === total ? player.stop() : player.tick(abs);
     for (const m of msgs) tracks[m[0] & 15].events.push({ tick: abs * 120, msg: m });

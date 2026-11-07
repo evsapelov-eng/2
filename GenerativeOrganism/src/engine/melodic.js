@@ -13,12 +13,14 @@
 //   legato      articulation
 //   imit        (texture voice only) canon imitation of the melody voice
 //
-// render() turns genotype + harmony + settings into note events. The phrase is
-// always built from the motif, so mutations of a gene show up as a coherent
-// variation of the whole phrase instead of scattered random notes.
+// The tradition's rules come from the frame: characteristic formulas seed the
+// motif, poetic feet give durations, cadences go to the final (approached as
+// the tradition requires, with musica ficta where it applies), half cadences
+// to the repercussa / ghammaz / vadi / mese, the melody stays in the mode's
+// ambitus, ragas skip the degrees their aroha/avaroha omit.
 
 GO.Melodic = (function () {
-  var U = GO.util, S = GO.Scales, H = GO.Harmony;
+  var U = GO.util, H = GO.Harmony;
 
   var PALETTE = {
     bass:    [[4, 4], [8, 3], [2, 1], [6, 1]],
@@ -38,7 +40,7 @@ GO.Melodic = (function () {
     var src = PALETTE[role], out = [], i;
     for (i = 0; i < src.length; i++) {
       var d = src[i][0], w = src[i][1];
-      if ((d === 1 || d === 3) && c < 0.35) continue;          // simple: no 16ths/dotted
+      if ((d === 1 || d === 3) && c < 0.35) continue;
       if (d === 1 || d === 3) w = w * (0.5 + 2 * c);
       out.push([d, w]);
     }
@@ -56,11 +58,10 @@ GO.Melodic = (function () {
     return out;
   }
 
-  function chooseInterval(rng, role, P, prevIv, cum, n) {
-    // after a leap, fill the gap stepwise in the opposite direction
+  function chooseInterval(rng, role, P, prevIv, cum, n, contour) {
     if (Math.abs(prevIv) >= 3 && rng.chance(0.75 - 0.45 * P.variation)) return -U.sign(prevIv);
     var size = rng.table(intervalTable(role, P));
-    var dir = rng.sign();
+    var dir = rng.chance(contour < 0 ? 0.62 : 0.5) ? -1 : 1;
     if (cum + dir * size > n + 1 || cum + dir * size < -(n - 1)) dir = -dir;
     return dir * size;
   }
@@ -77,8 +78,8 @@ GO.Melodic = (function () {
     }
   }
 
-  function genOp(rng, P, slot, n) {
-    if (slot % 2 === 0) {     // even slots return towards the theme
+  function genOp(rng, P, slot) {
+    if (slot % 2 === 0) {
       return rng.table([[{ t: 'stmt' }, 0.5], [{ t: 'var', i: rng.int(1, 7), k: rng.sign() }, 0.3],
                         [{ t: 'seq', k: rng.pick([1, -1, 2]) }, 0.2]]);
     }
@@ -94,28 +95,51 @@ GO.Melodic = (function () {
     ]);
   }
 
-  function generate(rng, role, P, n) {
+  // durations of a motif from poetic feet (Greek): long = 4, short = 2 steps
+  function feetDurations(rng, feet, motifSteps) {
+    var f = rng.pick(feet), out = [], t = 0, i = 0;
+    while (t < motifSteps) {
+      var d = f.pat.charAt(i % f.pat.length) === 'L' ? 4 : 2;
+      if (t + d > motifSteps) d = motifSteps - t;
+      out.push(d); t += d; i++;
+      if (i % f.pat.length === 0 && rng.chance(0.3)) f = rng.pick(feet);
+    }
+    return out;
+  }
+
+  function generate(rng, role, P, frame) {
+    var n = frame.n, rules = frame.rules;
     var motifSteps = rng.chance(0.4) ? 8 : 16;
     if (role === 'bass' || role === 'harmony') motifSteps = 16;
-    var pal = palette(role, P.complexity), cells = [], t = 0;
-    while (t < motifSteps) {
-      var d = rng.table(pal);
-      if (t + d > motifSteps) d = motifSteps - t;
-      cells.push(newCell(rng, d, 0));
-      t += d;
+    var durs = [], t = 0, i;
+    if (rules.feet && role !== 'bass') durs = feetDurations(rng, rules.feet, motifSteps);
+    else {
+      var pal = palette(role, P.complexity);
+      while (t < motifSteps) {
+        var d = rng.table(pal);
+        if (t + d > motifSteps) d = motifSteps - t;
+        durs.push(d); t += d;
+      }
     }
-    var cum = 0, prev = 0, i;
+    var cells = [];
+    for (i = 0; i < durs.length; i++) cells.push(newCell(rng, durs[i], 0));
+    var anchor = rng.pick(n >= 7 ? [0, 0, 2, 4] : [0, 0, 2, 3]);
+    if (rules.half !== undefined && rng.chance(0.3)) anchor = rules.half;
+    var formula = null;
+    if (rules.formulas && role !== 'bass' && rng.chance(0.75)) formula = rng.pick(rules.formulas);
+    var cum = 0, prev = 0;
     for (i = 1; i < cells.length; i++) {
-      cells[i].iv = chooseInterval(rng, role, P, prev, cum, n);
+      if (formula && i < formula.length) cells[i].iv = formula[i] - formula[i - 1];
+      else cells[i].iv = chooseInterval(rng, role, P, prev, cum, n, rules.contour || 0);
       cum += cells[i].iv; prev = cells[i].iv;
-      cells[i].rest = rng.chance(0.06 + 0.14 * P.variation) && cells[i].d <= 4;
+      cells[i].rest = !(formula && i < formula.length) && rng.chance(0.06 + 0.14 * P.variation) && cells[i].d <= 4;
     }
+    if (formula) anchor = formula[0];
     cells[0].acc = 1;
     var ops = [];
-    for (i = 1; i <= 15; i++) ops.push(genOp(rng, P, i, n));
+    for (i = 1; i <= 15; i++) ops.push(genOp(rng, P, i));
     var g = {
-      type: 'melodic', role: role, motifSteps: motifSteps, cells: cells,
-      anchor: rng.pick(n >= 7 ? [0, 0, 2, 4] : [0, 0, 2, 3]), reg: 0,
+      type: 'melodic', role: role, motifSteps: motifSteps, cells: cells, anchor: anchor, reg: 0,
       ops: ops, cad: { k: rng.pick([0, 0, 1, -1]) }, period: rng.chance(0.6),
       affinity: U.clamp(AFFINITY[role] + (rng.next() - 0.5) * 0.2, 0, 1),
       legato: role === 'harmony' ? 0.95 : 0.6 + rng.next() * 0.35,
@@ -131,7 +155,6 @@ GO.Melodic = (function () {
     return { delay: rng.pick([2, 4, 6, 8]), shift: rng.pick([n, 4, n + 2]), w: w };
   }
 
-  // degrees of one motif slot after applying a phrase operation
   function slotNotes(g, op) {
     var cells = g.cells, rel = [], cum = 0, i, t = 0, out = [];
     for (i = 0; i < cells.length; i++) { if (i > 0) cum += cells[i].iv; rel.push(cum); }
@@ -140,10 +163,7 @@ GO.Melodic = (function () {
     if (op.t === 'seq') for (i = 0; i < degs.length; i++) degs[i] += op.k;
     else if (op.t === 'inv') for (i = 0; i < degs.length; i++) degs[i] = -rel[i];
     else if (op.t === 'retro') degs.reverse();
-    else if (op.t === 'var' && degs.length > 1) {
-      var idx = 1 + (op.i - 1) % (degs.length - 1);
-      degs[idx] += op.k;
-    }
+    else if (op.t === 'var' && degs.length > 1) degs[1 + (op.i - 1) % (degs.length - 1)] += op.k;
     for (i = 0; i < cells.length; i++) {
       var rest = rests[i] || op.t === 'rest' || (op.t === 'frag' && t >= g.motifSteps / 2);
       out.push({ t: t, d: cells[i].d, rel: degs[i] + (op.t === 'frag' ? op.k : 0), rest: rest, ci: i });
@@ -152,59 +172,56 @@ GO.Melodic = (function () {
     return out;
   }
 
-  function nearestClass(D, cls, n) {
-    var best = D, k;
-    for (k = 0; k < n; k++) {
-      if (U.mod(D - k, n) === cls) { best = D - k; break; }
-      if (U.mod(D + k, n) === cls) { best = D + k; break; }
-    }
-    return best;
-  }
+  function inList(x, list) { var i; for (i = 0; i < list.length; i++) if (list[i] === x) return true; return false; }
 
-  function fold(scale, key, D, lo, hi) {
-    var n = scale.steps.length, p = S.pitch(scale, key, D);
-    while (p > hi) { D -= n; p = S.pitch(scale, key, D); }
-    while (p < lo) { D += n; p = S.pitch(scale, key, D); }
-    while (p > hi && D > -100) { D -= 1; p = S.pitch(scale, key, D); }   // range under an octave
-    return D;
-  }
-
-  // ctx: { scale, key, harmony, bars, spb, lo, hi, density, vel }
-  function render(g, ctx, srcEvents) {
-    if (g.imit && srcEvents) return renderImitation(g, ctx, srcEvents);
-    var scale = ctx.scale, n = scale.steps.length, len = ctx.bars * ctx.spb;
+  // ctx: { frame, len, spb, lo, hi, density, vel }
+  function render(g, ctx, others) {
+    if (g.imit && others && others[2]) return renderImitation(g, ctx, others[2]);
+    var F = ctx.frame, rules = F.rules, n = F.n, len = ctx.len;
     var center = Math.round((ctx.lo + ctx.hi) / 2);
-    var base = S.tonicBelow(scale, ctx.key, center) + g.anchor + g.reg * n;
-    var N = Math.max(1, Math.ceil(len / g.motifSteps));   // odd meters: last slot is cut
+    var finalD = F.tonicBelow(center), amb = null;
+    if (rules.ambitus && (g.role === 'melody' || g.role === 'texture')) {
+      var mid = (rules.ambitus[0] + rules.ambitus[1]) / 2;
+      finalD = n * Math.round((F.degreeOf(center, 0) - mid) / n);
+      amb = [finalD + rules.ambitus[0], finalD + rules.ambitus[1]];
+    }
+    var base = finalD + g.anchor + g.reg * n;
+    var N = Math.max(1, Math.ceil(len / g.motifSteps));
     var notes = [], s, i;
+    var halfTarget = rules.half !== undefined ? U.mod(rules.half, n) : (n >= 7 ? 4 : 3);
     for (s = 0; s < N; s++) {
       var op = s === 0 ? { t: 'stmt' } : g.ops[(s - 1) % g.ops.length];
       var last = s === N - 1;
       if (last && N > 1) op = { t: g.cad.k ? 'seq' : 'stmt', k: g.cad.k };
       var sn = slotNotes(g, op), off = s * g.motifSteps;
       var half = g.period && N >= 4 && s === N / 2 - 1;
-      var target = last ? 0 : (half ? scale.dom : -1);
+      var target = last ? 0 : (half ? halfTarget : -1);
       var lastIdx = -1;
       for (i = 0; i < sn.length; i++) if (!sn[i].rest) lastIdx = i;
       for (i = 0; i < sn.length; i++) {
         var x = sn[i];
         notes.push({ t: off + x.t, d: x.d, D: base + x.rel, rest: x.rest, ci: x.ci,
-                     cad: i === lastIdx && target >= 0, target: target, first: s === 0 && i === 0 });
+                     cad: i === lastIdx && target >= 0, target: target, first: s === 0 && i === 0, alt: 0 });
       }
     }
-    // cadences, chord affinity, bass roots
-    var prevD = base;
+    // cadences (with the tradition's approach to the final), affinity, bass roots
+    var prevD = base, prevNote = null;
     for (i = 0; i < notes.length; i++) {
       var no = notes[i];
       if (no.rest) continue;
       var cell = g.cells[no.ci];
-      if (no.cad) no.D = nearestClass(no.D, no.target, n);
-      else if (no.t % 4 === 0 && cell.fx < g.affinity) {
-        var ch = H.chordAt(ctx.harmony, scale, no.t, ctx.spb, ctx.bars);
-        if (g.role === 'bass' && no.t % ctx.spb === 0) no.D = nearestClass(no.D, ch.root, n);
+      if (no.cad) {
+        no.D = H.nearestClass(no.D, no.target, n);
+        if (no.target === 0 && prevNote && !prevNote.cad) {
+          if (rules.cad) prevNote.D = no.D + rules.cad;
+          if (rules.ficta && U.mod(prevNote.D, n) === n - 1 && Math.abs(F.steps[n - 1] - 10) < 0.01) prevNote.alt = 1;
+        }
+      } else if (no.t % 4 === 0 && cell.fx < g.affinity) {
+        var ch = F.chordAt(no.t);
+        if (g.role === 'bass' && no.t % ctx.spb === 0) no.D = H.nearestClass(no.D, ch.root, n);
         else no.D = H.nearestChordTone(no.D, ch, n, U.sign(no.D - prevD) || 1);
       }
-      prevD = no.D;
+      prevD = no.D; prevNote = no;
     }
     // density: thin below 75%, add passing notes above
     var dens = ctx.density, kept = [], prev = null;
@@ -216,7 +233,7 @@ GO.Melodic = (function () {
         else prev = null;
         continue;
       }
-      prev = { t: m.t, d: m.d, D: m.D, ci: m.ci };
+      prev = { t: m.t, d: m.d, D: m.D, ci: m.ci, alt: m.alt };
       kept.push(prev);
     }
     var out = [];
@@ -225,31 +242,37 @@ GO.Melodic = (function () {
       if (dens > 0.75 && k.d >= 2 && gc.sp < (dens - 0.75) * 4) {
         var nextD = i + 1 < kept.length ? kept[i + 1].D : k.D;
         var d1 = Math.ceil(k.d / 2);
-        out.push({ t: k.t, d: d1, D: k.D, acc: gc.acc });
-        out.push({ t: k.t + d1, d: k.d - d1, D: k.D + (U.sign(nextD - k.D) || 1), acc: 0 });
-      } else out.push({ t: k.t, d: k.d, D: k.D, acc: gc.acc });
+        out.push({ t: k.t, d: d1, D: k.D, acc: gc.acc, alt: 0 });
+        out.push({ t: k.t + d1, d: k.d - d1, D: k.D + (U.sign(nextD - k.D) || 1), acc: 0, alt: k.alt });
+      } else out.push({ t: k.t, d: k.d, D: k.D, acc: gc.acc, alt: k.alt });
     }
-    var ev = [];
+    // ambitus, raga ascent/descent rules, register
+    var ev = [], lastD = null;
     for (i = 0; i < out.length; i++) {
       var o = out[i];
       if (o.t >= len) break;
-      var D = fold(scale, ctx.key, o.D, ctx.lo, ctx.hi);
-      var dur = Math.max(1, Math.round(o.d * g.legato));
-      dur = Math.min(dur, len - o.t);
+      var D = o.D;
+      if (amb) { while (D > amb[1]) D -= n; while (D < amb[0]) D += n; }
+      D = F.fold(D, o.t, ctx.lo, ctx.hi);
+      var dir = lastD === null ? 0 : U.sign(D - lastD);
+      if (dir > 0 && inList(U.mod(D, n), rules.upAvoid || [])) D += 1;
+      else if (dir < 0 && inList(U.mod(D, n), rules.downAvoid || [])) D -= 1;
+      lastD = D;
+      var dur = Math.min(Math.max(1, Math.round(o.d * g.legato)), len - o.t);
       var accent = o.t % ctx.spb === 0 ? 8 : (o.t % 4 === 0 ? 4 : 0);
-      var vel = U.clamp(Math.round(ctx.vel + (o.acc - 0.5) * 24 + accent), 20, 127);
-      ev.push({ t: o.t, d: dur, p: S.pitch(scale, ctx.key, D), v: vel });
+      var vel = ctx.vel + (o.acc - 0.5) * 24 + accent;
+      ev.push(F.event(o.t, dur, F.pitch(D, o.t, o.alt, dir), vel));
     }
     return ev;
   }
 
   function renderImitation(g, ctx, src) {
-    var scale = ctx.scale, len = ctx.bars * ctx.spb, im = g.imit, ev = [], i;
+    var F = ctx.frame, len = ctx.len, im = g.imit, ev = [], i;
     for (i = 0; i < src.length; i++) {
       if (im.w[i % 16] >= ctx.density / 0.75) continue;
       var t = (src[i].t + im.delay) % len;
-      var D = fold(scale, ctx.key, S.degreeOf(scale, ctx.key, src[i].p) + im.shift, ctx.lo, ctx.hi);
-      ev.push({ t: t, d: src[i].d, p: S.pitch(scale, ctx.key, D), v: U.clamp(src[i].v - 10, 20, 127) });
+      var D = F.fold(F.degreeOf(GO.Frame.fpitch(src[i]), src[i].t) + im.shift, t, ctx.lo, ctx.hi);
+      ev.push(F.event(t, src[i].d, F.pitch(D, t), src[i].v - 10));
     }
     ev.sort(function (a, b) { return a.t - b.t; });
     var mono = [];
@@ -285,7 +308,7 @@ GO.Melodic = (function () {
     },
     rhythm: function (g, rng, P) {
       var maxCells = 4 + Math.round(P.complexity * 10), c = g.cells, i, r = rng.next();
-      if (r < 0.4 && c.length < maxCells) {                     // split a note
+      if (r < 0.4 && c.length < maxCells) {
         var cand = [];
         for (i = 0; i < c.length; i++) if (c[i].d >= 2) cand.push(i);
         if (!cand.length) return;
@@ -294,14 +317,14 @@ GO.Melodic = (function () {
         var nc = newCell(rng, c[i].d - d1, rng.sign());
         c[i].d = d1;
         c.splice(i + 1, 0, nc);
-        if (c[i + 2]) c[i + 2].iv -= nc.iv;                      // later pitches stay put
-      } else if (r < 0.75 && c.length > 2) {                    // merge two notes
+        if (c[i + 2]) c[i + 2].iv -= nc.iv;
+      } else if (r < 0.75 && c.length > 2) {
         i = rng.int(1, c.length - 2);
         c[i].d += c[i + 1].d;
         var removed = c[i + 1].iv;
         c.splice(i + 1, 1);
         if (c[i + 1]) c[i + 1].iv += removed;
-      } else if (c.length > 1) {                                 // shift a boundary
+      } else if (c.length > 1) {
         i = rng.int(0, c.length - 2);
         var dir = rng.sign();
         if (dir < 0 && c[i].d > 1) { c[i].d -= 1; c[i + 1].d += 1; }
@@ -313,11 +336,11 @@ GO.Melodic = (function () {
       var c = g.cells[rng.int(1, g.cells.length - 1)];
       c.rest = !c.rest;
     },
-    plan: function (g, rng, P, n) {
-      var N = Math.max(1, Math.floor(P.bars * P.spb / g.motifSteps));
+    plan: function (g, rng, P) {
+      var N = Math.max(1, Math.floor(P.len / g.motifSteps));
       if (N <= 2) { g.cad.k = rng.pick([0, 1, -1, 2]); g.period = !g.period; return; }
       var j = rng.int(0, Math.min(N - 3, g.ops.length - 1));
-      g.ops[j] = genOp(rng, P, j + 1, n);
+      g.ops[j] = genOp(rng, P, j + 1);
     },
     anchor: function (g, rng, P, n) { g.anchor = rng.pick(n >= 7 ? [0, 2, 4, -3] : [0, 2, 3, -2]); },
     register: function (g, rng) { g.reg = U.clamp(g.reg + rng.sign(), -1, 1); },
@@ -341,9 +364,8 @@ GO.Melodic = (function () {
     }
   };
 
-  function mutate(g0, rng, P, n) {
-    var g = U.clone(g0);
-    var a = P.amount, c = P.complexity;
+  function mutate(g0, rng, P, frame) {
+    var g = U.clone(g0), a = P.amount, c = P.complexity, n = frame.n;
     var table = [['interval', 0.28], ['rhythm', 0.16 * (0.5 + c)], ['rest', 0.08], ['plan', 0.16],
                  ['anchor', 0.05 * a], ['register', 0.03 * a], ['accent', 0.07], ['genes', 0.1],
                  ['legato', 0.04], ['imit', g.role === 'texture' ? 0.08 : 0]];

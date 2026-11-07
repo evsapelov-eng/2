@@ -11,6 +11,7 @@ GO.SMF = (function () {
     while (n > 0) { bytes.unshift((n & 0x7f) | 0x80); n = n >>> 7; }
     return bytes;
   }
+  function rank(status) { var t = status & 0xf0; return t === 0x80 ? 0 : (t === 0x90 ? 2 : 1); }
   function str(s) { var a = [], i; for (i = 0; i < s.length; i++) a.push(s.charCodeAt(i) & 0x7f); return a; }
 
   // tracks: [{ name, events: [{ tick, msg: [status, d1, d2] }] }]; bpm for the tempo map
@@ -22,8 +23,8 @@ GO.SMF = (function () {
     out = out.concat(str('MTrk'), u32(t0.length), t0);
     for (i = 0; i < tracks.length; i++) {
       var ev = tracks[i].events.slice();
-      // stable sort by tick; note-offs before note-ons on the same tick
-      ev.sort(function (a, b) { return a.tick - b.tick || ((a.msg[0] & 0xf0) - (b.msg[0] & 0xf0)); });
+      // by tick; on the same tick: note-offs, then controllers / pitch bend, then note-ons
+      ev.sort(function (a, b) { return a.tick - b.tick || rank(a.msg[0]) - rank(b.msg[0]); });
       var name = str(tracks[i].name || ('Voice ' + (i + 1)));
       var body = [0, 0xff, 0x03].concat(vlq(name.length), name), last = 0;
       for (j = 0; j < ev.length; j++) {

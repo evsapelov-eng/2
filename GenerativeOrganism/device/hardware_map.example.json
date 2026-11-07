@@ -1,0 +1,122 @@
+{
+  "fader": [
+    "Mutation Amount",
+    "Mutation Probability",
+    "Stability",
+    "Complexity",
+    "Variation",
+    "Density",
+    "Speed",
+    "Evolution"
+  ],
+  "deviceKnob": [
+    "V1 Density",
+    "V2 Density",
+    "V3 Density",
+    "V4 Density",
+    "V1 Mutation",
+    "V2 Mutation",
+    "V3 Mutation",
+    "V4 Mutation"
+  ],
+  "trackKnob": [
+    "Key",
+    "Scale",
+    "System",
+    "Variant",
+    "Library",
+    "Progression",
+    "Harmony Length",
+    "Length"
+  ],
+  "scene": [
+    "mutate",
+    "freeze",
+    "revert",
+    "reset",
+    "capture"
+  ],
+  "grid": [
+    [
+      "slot",
+      "slot",
+      "slot",
+      "slot",
+      "slot",
+      "slot",
+      "slot",
+      "slot"
+    ],
+    [
+      "store",
+      "store",
+      "store",
+      "store",
+      "store",
+      "store",
+      "store",
+      "store"
+    ],
+    [
+      "gen",
+      "gen",
+      "gen",
+      "gen",
+      "evo",
+      "evo",
+      "evo",
+      "freeze"
+    ],
+    [
+      "voice",
+      "voice",
+      "voice",
+      "voice",
+      "lock",
+      "lock",
+      "lock",
+      "lock"
+    ],
+    [
+      "mutatevoice",
+      "mutatevoice",
+      "mutatevoice",
+      "mutatevoice",
+      "mutate",
+      "revert",
+      "reset",
+      "capture"
+    ]
+  ],
+  "patterns": {
+    "fader": [
+      "^(\\d+)_Volume$",
+      "^Track_Volume_(\\d+)$",
+      "^Volume_Slider_(\\d+)$",
+      "^Fader_(\\d+)$"
+    ],
+    "deviceKnob": [
+      "^Device_Control_(\\d+)$",
+      "^Device_Knob_(\\d+)$",
+      "^Device_Encoder_(\\d+)$"
+    ],
+    "trackKnob": [
+      "^Track_Control_(\\d+)$",
+      "^Track_Knob_(\\d+)$",
+      "^Pan_Knob_(\\d+)$"
+    ],
+    "scene": [
+      "^Scene_(\\d+)_Launch_Button$",
+      "^(\\d+)_Scene_Launch_Button$",
+      "^Scene_Launch_Button_(\\d+)$"
+    ],
+    "grid": [
+      "^(\\d+)_Clip_(\\d+)_Button$",
+      "^Clip_Launch_Button_(\\d+)_(\\d+)$"
+    ],
+    "crossfader": [
+      "^Crossfader$",
+      "^Cross_Fader$"
+    ]
+  }
+}
