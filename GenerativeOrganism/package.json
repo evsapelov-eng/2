@@ -1,0 +1,14 @@
+{
+  "name": "generative-organism",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generative Organism: evolutionary MIDI generator for Max for Live / Ableton Live 12",
+  "scripts": {
+    "build": "node build/build.js",
+    "test": "node build/build.js && node --test test/*.test.js",
+    "render": "node build/build.js && node tools/render.js"
+  },
+  "devDependencies": {
+    "acorn": "8.14.0"
+  }
+}
