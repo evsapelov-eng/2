@@ -177,8 +177,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@168fc63a5d5dafc87de6e52e6a9b4f4a02fb7d99/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@168fc63a5d5dafc87de6e52e6a9b4f4a02fb7d99/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@89d7446d72b85e089096fc0533c06f86557bdfe9/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@89d7446d72b85e089096fc0533c06f86557bdfe9/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -357,7 +357,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@168fc63a5d5dafc87de6e52e6a9b4f4a02fb7d99/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@89d7446d72b85e089096fc0533c06f86557bdfe9/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <video id="hero-video" muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
     </video>
@@ -466,7 +466,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 /* our icon must win over the host's default: Tilda serves its own /favicon.ico, and Safari skips icons scoped to a colour scheme */
 (function () {
   var h = document.head || document.documentElement;
-  [["icon", "https://cdn.jsdelivr.net/gh/evsapelov-eng/2@168fc63a5d5dafc87de6e52e6a9b4f4a02fb7d99/site/favicon/favicon-32.png", "32x32"], ["shortcut icon", "https://cdn.jsdelivr.net/gh/evsapelov-eng/2@168fc63a5d5dafc87de6e52e6a9b4f4a02fb7d99/site/favicon/favicon-32.png", "32x32"], ["apple-touch-icon", "https://cdn.jsdelivr.net/gh/evsapelov-eng/2@168fc63a5d5dafc87de6e52e6a9b4f4a02fb7d99/site/favicon/favicon-180.png", "180x180"]].forEach(function (d) {
+  [["icon", "https://cdn.jsdelivr.net/gh/evsapelov-eng/2@89d7446d72b85e089096fc0533c06f86557bdfe9/site/favicon/favicon-32.png", "32x32"], ["shortcut icon", "https://cdn.jsdelivr.net/gh/evsapelov-eng/2@89d7446d72b85e089096fc0533c06f86557bdfe9/site/favicon/favicon-32.png", "32x32"], ["apple-touch-icon", "https://cdn.jsdelivr.net/gh/evsapelov-eng/2@89d7446d72b85e089096fc0533c06f86557bdfe9/site/favicon/favicon-180.png", "180x180"]].forEach(function (d) {
     var l = document.createElement("link"); l.rel = d[0]; l.href = d[1]; l.setAttribute("sizes", d[2]); if (d[0] !== "apple-touch-icon") l.type = "image/png"; h.appendChild(l);
   });
 })();
