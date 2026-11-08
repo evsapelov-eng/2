@@ -82,15 +82,17 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .lg-ch { display: inline-block; text-align: center; transition: color .35s ease; }
 .lg-ch.is-scr { color: var(--mist); }
 .lg-ch.lam { letter-spacing: 0; margin-right: .42em; }
-/* tagline under the logo: small widely-spaced caps that condense out of the air letter by letter */
+/* tagline under the logo: small widely-spaced caps */
 .tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 500;
-  font-size: 12px; line-height: 1.95; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.9); pointer-events: none; }
+  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.9); pointer-events: none; }
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
 .on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
-.tagline i { font-style: normal; display: inline-block; opacity: 0; filter: blur(7px); transform: translateY(-4px) scale(1.15); }
-.tagline.is-in i { animation: from-air 1.6s var(--smooth) forwards; animation-delay: calc(.6s + var(--i) * 55ms); }
-@keyframes from-air { 60% { opacity: .85; } to { opacity: 1; filter: blur(0); transform: none; } }
+/* the whole tagline slowly emerges in place out of nothing */
+.tagline span { opacity: 0; filter: blur(5px); }
+.tagline.is-in span { animation: emerge 2.6s cubic-bezier(.33, 0, .2, 1) .7s forwards; }
+.tagline.still span { opacity: 1; filter: none; animation: none; }
+@keyframes emerge { to { opacity: 1; filter: none; } }
 .header.is-solid .tagline { color: #fff; }
 .lg-ch.lam:not(.is-scr) { transform: rotate(180deg); }
 /* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
@@ -151,7 +153,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   .hero-photo img { inset: auto 0 0 0; width: 100%; height: auto; object-fit: contain;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%); mask-image: linear-gradient(to bottom, transparent 0, #000 12%); }
 }
-.hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.4s var(--smooth); }
+.hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 2.6s ease-in-out; }
 .hero.show-video video { opacity: 1; }
 
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
@@ -173,8 +175,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@12deba8a9f38d233b14557bf1d5b2a7ec8d67de5/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@12deba8a9f38d233b14557bf1d5b2a7ec8d67de5/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@1bb7a8c5b0da62c45d5b4d2d3d5304d902e0d62b/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@1bb7a8c5b0da62c45d5b4d2d3d5304d902e0d62b/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -356,7 +358,7 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@12deba8a9f38d233b14557bf1d5b2a7ec8d67de5/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@1bb7a8c5b0da62c45d5b4d2d3d5304d902e0d62b/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
     </video>
@@ -487,7 +489,7 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
   burger.addEventListener("click", function () { setMenu(!root.classList.contains("menu-open")); });
 
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var current = null, swapTimer = null, forcePhoto = false;
+  var current = null, swapTimer = null, forcePhoto = false, videoTimer = null;
   var tv = document.querySelector(".tv");
   function tvFlash() {
     if (reduce) return;
@@ -533,7 +535,16 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
     var tg = document.querySelector(".header .tagline");
     if (tg && name === "home") { tg.classList.remove("is-in"); void tg.offsetWidth; tg.classList.add("is-in"); }
     setHdr();
-    if (video) { if (name === "home" && !forcePhoto && !reduce) { var p = video.play(); if (p && p.catch) p.catch(function () {}); } else video.pause(); }
+    /* home: the still photo first; after 5 s the video starts from the top and fades in over it */
+    clearTimeout(videoTimer);
+    if (video) {
+      video.pause();
+      if (name === "home" && !forcePhoto && !reduce) {
+        video.style.transition = "none"; hero.classList.remove("show-video"); void video.offsetWidth; video.style.transition = "";   /* back to the photo at once */
+        try { video.currentTime = 0; } catch (err) {}
+        videoTimer = setTimeout(function () { var p = video.play(); if (p && p.catch) p.catch(function () {}); }, 5000);
+      }
+    }
     document.title = name === "home" ? "VERIFICATION" : document.querySelector('#view-' + name + ' h1').textContent + " — VERIFICATION";
     onScroll();
   }
@@ -761,18 +772,10 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
     logo.addEventListener("pointerenter", run);
     logo.addEventListener("focus", run);
     logo.addEventListener("click", run);
-    /* tagline, built letter by letter so each can condense out of the air */
-    var tag = document.createElement("span"); tag.className = "tagline"; tag.setAttribute("aria-hidden", "true");
-    var k = 0;
+    /* tagline: two lines that emerge together */
+    var tag = document.createElement("span"); tag.className = "tagline" + (reduce ? " still" : ""); tag.setAttribute("aria-hidden", "true");
     ["НЕОКЛАССИКА", "И ЭЛЕКТРОНИКА"].forEach(function (line) {
-      var row = document.createElement("span");
-      line.split("").forEach(function (ch) {
-        if (ch === " ") { row.appendChild(document.createTextNode(" ")); return; }
-        var i = document.createElement("i"); i.textContent = ch; i.style.setProperty("--i", reduce ? 0 : k++);
-        if (reduce) { i.style.animation = "none"; i.style.opacity = 1; i.style.filter = "none"; i.style.transform = "none"; }
-        row.appendChild(i);
-      });
-      tag.appendChild(row);
+      var row = document.createElement("span"); row.textContent = line; tag.appendChild(row);
     });
     logo.appendChild(tag);
     if (!root.classList.contains("on-page")) tag.classList.add("is-in");
