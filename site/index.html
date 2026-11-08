@@ -85,7 +85,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
 /* logo: thin geometric caps, widely spaced, A drawn as Λ (a turned V of the same font) */
 .logo { font-family: "Montserrat", var(--font); font-weight: 500; font-size: 30px; line-height: 1; letter-spacing: .42em; margin-right: -.42em; white-space: nowrap; }
-.header .nav a, .header .logo { text-shadow: 0 1px 2px rgba(0,0,0,.16), 0 3px 16px rgba(0,0,0,.20); }
+.header .nav a, .header .logo { text-shadow: 0 1px 3px rgba(0,0,0,.22); }   /* short and crisp: no haze around the letters */
 .header .social svg { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.18)) drop-shadow(0 3px 10px rgba(0,0,0,.18)); }
 .header .burger span { box-shadow: 0 1px 4px rgba(0,0,0,.28); }
 .menu-open .header .logo, .header.is-solid .logo { text-shadow: none; }
@@ -96,7 +96,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* tagline under the logo: small widely-spaced caps */
 .tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 400;
   font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.8); pointer-events: none;
-  text-shadow: 0 1px 8px rgba(0,0,0,.16); } /* soft through colour and weight, no glow (Safari draws colour bands with it) */
+  text-shadow: 0 1px 3px rgba(0,0,0,.2); } /* soft through colour and weight, no glow (Safari draws colour bands with it) */
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
 .on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
@@ -333,11 +333,8 @@ p { margin: 0 0 14px; max-width: 62ch; }
   html { scroll-behavior: auto; }
 }
 
-/* soft edges: no filter (Safari draws colour bands with it); only a very faint edge softening in text-shadow */
-.header .logo { text-shadow: 0 0 .7px rgba(255,255,255,.36), 0 0 9px rgba(255,255,255,.048), 0 1px 2px rgba(0,0,0,.16), 0 3px 16px rgba(0,0,0,.20); }
-.header.is-solid .logo { text-shadow: none; }
-.menu-open .header .logo { text-shadow: 0 0 .7px rgba(255,255,255,.36), 0 0 9px rgba(255,255,255,.048); }
-h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.042); }
+/* no glow halos on text: Safari on iPad renders them with coloured bands */
+.header.is-solid .logo, .menu-open .header .logo { text-shadow: none; }
 </style>
 </head>
 <body>
@@ -818,7 +815,7 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
       var x = c.getContext("2d"), d = x.createImageData(T, T), a = d.data;
       for (var i = 0; i < a.length; i += 4) {
         var v = (r() + r() + r()) / 3 * 255;          /* soft, film-like distribution */
-        a[i] = v; a[i + 1] = v * .95; a[i + 2] = v * .86; /* a touch of warmth */
+        a[i] = a[i + 1] = a[i + 2] = v;   /* neutral grey grain: no colour cast */
         a[i + 3] = 2 + r() * 2.5;
       }
       x.putImageData(d, 0, 0);
