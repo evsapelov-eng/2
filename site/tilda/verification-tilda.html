@@ -158,8 +158,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 8s cubic-bezier(.37, 0, .63, 1); }   /* a very slow, even crossfade from the photo */
 .hero.show-video video { opacity: 1; }
 
-.hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
-.hero.show-video::after { background: linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,.55)); }
+/* one vignette for both the photo and the video, so nothing jumps when the video takes over */
+.hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; background: linear-gradient(to bottom, rgba(0,0,0,.42), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,.5)); }
 
 /* each inner view is its own scroll area; a mask at its top edge dissolves whatever slides under the header,
    pixel by pixel, on the compositor. The mask slides away together with the header when it hides. */
@@ -177,8 +177,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@fe2afa061ff402d405603962d9369a590ce64902/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@fe2afa061ff402d405603962d9369a590ce64902/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b1c106763183de02fd701a9cec46855886fc73a6/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b1c106763183de02fd701a9cec46855886fc73a6/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -357,7 +357,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@fe2afa061ff402d405603962d9369a590ce64902/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b1c106763183de02fd701a9cec46855886fc73a6/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
     </video>
