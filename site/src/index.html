@@ -95,16 +95,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .lg-ch.lam { letter-spacing: 0; margin-right: .42em; }
 /* tagline under the logo: small widely-spaced caps */
 .tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 400;
-  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.78); pointer-events: none;
-  text-shadow: 0 0 .8px rgba(255,255,255,.45), 0 0 7px rgba(255,255,255,.14), 0 1px 10px rgba(0,0,0,.18); } /* softer than the logo */
+  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.8); pointer-events: none;
+  text-shadow: 0 1px 8px rgba(0,0,0,.16); } /* soft through colour and weight, no glow (Safari draws colour bands with it) */
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
 .on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
 /* the whole tagline slowly emerges in place out of nothing */
-.tagline span { opacity: 0; filter: blur(5px); }
-.tagline.is-in span { animation: emerge 2.6s cubic-bezier(.33, 0, .2, 1) .7s forwards; }
-.tagline.still span { opacity: 1; filter: none; animation: none; }
-@keyframes emerge { to { opacity: 1; filter: none; } }
+.tagline span { opacity: 0; }
+.tagline.is-in span { animation: emerge 2.8s cubic-bezier(.33, 0, .2, 1) .7s forwards; }
+.tagline.still span { opacity: 1; animation: none; }
+@keyframes emerge { to { opacity: 1; } }   /* opacity only: no blur filter on text */
 .header.is-solid .tagline { color: rgba(255,255,255,.85); }
 .lg-ch.lam:not(.is-scr) { transform: rotate(180deg); }
 /* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
