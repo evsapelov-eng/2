@@ -76,7 +76,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .header.is-solid .nav a, .header.is-solid .logo { text-shadow: none; }
 .header.is-solid .social svg { filter: none; }
 .header.is-solid .burger span { box-shadow: none; }
-.header.is-hidden { transform: translateY(calc(-100% - 10px)); }
+.header.is-hidden { transform: translateY(calc(-100% - 80px)); } /* also clears the tagline that hangs below the header */
 .menu-open .header { mix-blend-mode: normal; transform: none; }
 .nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .nav a, .menu a { text-transform: uppercase; }
@@ -93,6 +93,14 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .lg-ch { display: inline-block; text-align: center; transition: color .35s ease; }
 .lg-ch.is-scr { color: var(--mist); }
 .lg-ch.lam { letter-spacing: 0; margin-right: .42em; }
+/* tagline under the logo: small widely-spaced caps that condense out of the air letter by letter */
+.tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 500;
+  font-size: 12px; line-height: 1.95; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.9); pointer-events: none; }
+.tagline span { display: block; }
+.tagline i { font-style: normal; display: inline-block; opacity: 0; filter: blur(7px); transform: translateY(-4px) scale(1.15);
+  animation: from-air 1.6s var(--smooth) forwards; animation-delay: calc(.6s + var(--i) * 55ms); }
+@keyframes from-air { 60% { opacity: .85; } to { opacity: 1; filter: blur(0); transform: none; } }
+.header.is-solid .tagline { color: #fff; }
 .lg-ch.lam:not(.is-scr) { transform: rotate(180deg); }
 /* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
 .header .logo { position: relative; display: inline-block; }
@@ -169,8 +177,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 @media (max-aspect-ratio: 3/4) {
   /* tall screens: the photo spans the width and starts at 100svh - 150vw; heads begin about 26% down it.
      The tagline sits just under the header and is sized so its last line ends above the heads. */
-  .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 66px);
-    width: clamp(130px, calc((100svh - 111vw - 66px - env(safe-area-inset-top, 0px) - 8px) * 1.4472 * .75), 56vw); }
+  .hand { left: auto; right: 6vw; top: calc(env(safe-area-inset-top, 0px) + 112px);
+    width: clamp(120px, calc((100svh - 111vw - 112px - env(safe-area-inset-top, 0px) - 8px) * 1.4472 * .75), 56vw); }
 }
 
 .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,0) 24%); }
@@ -319,7 +327,10 @@ p { margin: 0 0 14px; max-width: 62ch; }
 @media (min-width: 700px) and (max-width: 1500px) {
   .logo { font-size: 28px; } /* tablets and laptops (burger menu): room for a large logo */
 }
+@media (max-width: 1500px) { .tagline { font-size: 11px; top: calc(100% + 10px); } }
+@media (max-width: 699px) { .tagline { font-size: 9.5px; top: calc(100% + 8px); letter-spacing: .5em; } }
 @media (max-width: 370px) {
+  .tagline { font-size: 8.5px; }
   .logo { font-size: 17px; } /* very narrow phones: keep clear of the burger */
 }
 /* short screens (phones held sideways): a tighter menu so the icons don't touch the last item */
@@ -579,7 +590,11 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
     if (Math.abs(y - lastY) > 6 || y < 120) lastY = y;
     root.classList.toggle("hdr-hidden", header.classList.contains("is-hidden") || y < 8); /* no fade at rest */
   }
-  function setHdr() { root.style.setProperty("--hdr", header.offsetHeight + "px"); }
+  function setHdr() {   /* header plus the tagline hanging below it */
+    var tl = document.querySelector(".header .tagline"), h = header.offsetHeight;
+    if (tl) h = Math.max(h, tl.getBoundingClientRect().bottom - header.getBoundingClientRect().top + 10);
+    root.style.setProperty("--hdr", Math.round(h) + "px");
+  }
   setHdr(); window.addEventListener("resize", setHdr);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(setHdr);
   window.addEventListener("hashchange", show);
@@ -788,6 +803,22 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
     logo.addEventListener("pointerenter", run);
     logo.addEventListener("focus", run);
     logo.addEventListener("click", run);
+    /* tagline, built letter by letter so each can condense out of the air */
+    var tag = document.createElement("span"); tag.className = "tagline"; tag.setAttribute("aria-hidden", "true");
+    var k = 0;
+    ["НЕОКЛАССИКА", "И ЭЛЕКТРОНИКА"].forEach(function (line) {
+      var row = document.createElement("span");
+      line.split("").forEach(function (ch) {
+        if (ch === " ") { row.appendChild(document.createTextNode(" ")); return; }
+        var i = document.createElement("i"); i.textContent = ch; i.style.setProperty("--i", reduce ? 0 : k++);
+        if (reduce) { i.style.animation = "none"; i.style.opacity = 1; i.style.filter = "none"; i.style.transform = "none"; }
+        row.appendChild(i);
+      });
+      tag.appendChild(row);
+    });
+    logo.appendChild(tag);
+    setHdr();
+    logo.setAttribute("aria-label", "VERIFICATION, неоклассика и электроника — на главную");
     /* now and then the logo catches a little interference by itself */
     (function idle() {
       /* 2.5-8 s apart, uneven; sometimes a double twitch */
