@@ -12,7 +12,7 @@
 <meta property="og:image" content="assets/media/04.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;family=Montserrat:wght@500&amp;subset=cyrillic,latin&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;family=Montserrat:wght@400;500&amp;subset=cyrillic,latin&amp;display=swap">
 <style>
 /* Layout: fixed transparent header over full-bleed media; inner views are black with a faint grained still from the live video, bold grotesk headings, content in columns. */
 :root {
@@ -94,8 +94,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .lg-ch.is-scr { color: var(--mist); }
 .lg-ch.lam { letter-spacing: 0; margin-right: .42em; }
 /* tagline under the logo: small widely-spaced caps */
-.tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 500;
-  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.9); pointer-events: none; }
+.tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 400;
+  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.78); pointer-events: none;
+  text-shadow: 0 0 .8px rgba(255,255,255,.45), 0 0 7px rgba(255,255,255,.14), 0 1px 10px rgba(0,0,0,.18); } /* softer than the logo */
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
 .on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
@@ -104,7 +105,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .tagline.is-in span { animation: emerge 2.6s cubic-bezier(.33, 0, .2, 1) .7s forwards; }
 .tagline.still span { opacity: 1; filter: none; animation: none; }
 @keyframes emerge { to { opacity: 1; filter: none; } }
-.header.is-solid .tagline { color: #fff; }
+.header.is-solid .tagline { color: rgba(255,255,255,.85); }
 .lg-ch.lam:not(.is-scr) { transform: rotate(180deg); }
 /* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
 .header .logo { position: relative; display: inline-block; }
