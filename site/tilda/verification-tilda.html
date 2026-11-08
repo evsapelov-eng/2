@@ -1,7 +1,7 @@
 <!-- VERIFICATION: вставьте весь этот код в блок T123 «HTML-код» -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;family=Montserrat:wght@400&amp;subset=cyrillic,latin&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;family=Montserrat:wght@500&amp;subset=cyrillic,latin&amp;display=swap">
 <style>
 /* Layout: fixed transparent header over full-bleed media; inner views are black with a faint grained still from the live video, bold grotesk headings, content in columns. */
 :root {
@@ -73,7 +73,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .nav a:hover { opacity: .6; }
 .nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
 /* logo: thin geometric caps, widely spaced, A drawn as Λ (a turned V of the same font) */
-.logo { font-family: "Montserrat", var(--font); font-weight: 400; font-size: 26px; line-height: 1; letter-spacing: .42em; margin-right: -.42em; white-space: nowrap; }
+.logo { font-family: "Montserrat", var(--font); font-weight: 500; font-size: 30px; line-height: 1; letter-spacing: .42em; margin-right: -.42em; white-space: nowrap; }
 .header .nav a, .header .logo { text-shadow: 0 1px 2px rgba(0,0,0,.16), 0 3px 16px rgba(0,0,0,.20); }
 .header .social svg { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.18)) drop-shadow(0 3px 10px rgba(0,0,0,.18)); }
 .header .burger span { box-shadow: 0 1px 4px rgba(0,0,0,.28); }
@@ -181,8 +181,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -285,10 +285,10 @@ p { margin: 0 0 14px; max-width: 62ch; }
 #view-contacts .cols { margin-bottom: 96px; }
 .copy { margin: auto 0 0; padding-top: 0; max-width: none; color: var(--mist); font-size: 12px; line-height: 1.6; }
 
-@media (max-width: 1240px) {
+@media (max-width: 1500px) {
   .nav, .header > .social { display: none; }
   .header { grid-template-columns: 1fr auto; }
-  .logo { font-size: 18px; justify-self: start; }
+  .logo { font-size: 20px; justify-self: start; }
   :root { --h1: 20px; } /* a step below the 23px logo */
   .burger { display: block; }
 }
@@ -304,6 +304,12 @@ p { margin: 0 0 14px; max-width: 62ch; }
   .lb-prev, .lb-next { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 4px); }
   .lb-prev { left: max(8px, env(safe-area-inset-left, 0px)); }
   .lb-next { right: max(8px, env(safe-area-inset-right, 0px)); }
+}
+@media (min-width: 700px) and (max-width: 1500px) {
+  .logo { font-size: 28px; } /* tablets and laptops (burger menu): room for a large logo */
+}
+@media (max-width: 370px) {
+  .logo { font-size: 17px; } /* very narrow phones: keep clear of the burger */
 }
 /* short screens (phones held sideways): a tighter menu so the icons don't touch the last item */
 @media (max-height: 520px) {
@@ -355,14 +361,14 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <div class="hand" id="hand" role="img" aria-label="проект на стыке неоклассики и электроники">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/hand/w1.png" alt="" style="left:0.0%;top:0.0%;width:38.02%;height:17.84%;--dur:1.15s;--delay:0.0s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/hand/w2.png" alt="" style="left:40.54%;top:12.56%;width:14.93%;height:10.55%;--dur:0.45s;--delay:1.43s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/hand/w3.png" alt="" style="left:59.72%;top:17.71%;width:37.59%;height:12.31%;--dur:1.14s;--delay:2.16s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/hand/w4.png" alt="" style="left:2.52%;top:42.71%;width:75.09%;height:16.33%;--dur:2.28s;--delay:3.58s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/hand/w5.png" alt="" style="left:57.12%;top:63.19%;width:11.55%;height:9.05%;--dur:0.35s;--delay:6.14s">
-      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ea0ee2ae0c61230ad6705eb5fa16527b78918db9/site/assets/hand/w6.png" alt="" style="left:20.49%;top:73.87%;width:79.51%;height:26.13%;--dur:2.41s;--delay:6.77s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/hand/w1.png" alt="" style="left:0.0%;top:0.0%;width:38.02%;height:17.84%;--dur:1.15s;--delay:0.0s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/hand/w2.png" alt="" style="left:40.54%;top:12.56%;width:14.93%;height:10.55%;--dur:0.45s;--delay:1.43s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/hand/w3.png" alt="" style="left:59.72%;top:17.71%;width:37.59%;height:12.31%;--dur:1.14s;--delay:2.16s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/hand/w4.png" alt="" style="left:2.52%;top:42.71%;width:75.09%;height:16.33%;--dur:2.28s;--delay:3.58s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/hand/w5.png" alt="" style="left:57.12%;top:63.19%;width:11.55%;height:9.05%;--dur:0.35s;--delay:6.14s">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6449db9b283419745fe07ab4a129523ecf3ff2ca/site/assets/hand/w6.png" alt="" style="left:20.49%;top:73.87%;width:79.51%;height:26.13%;--dur:2.41s;--delay:6.77s">
     </div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
