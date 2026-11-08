@@ -12,7 +12,7 @@
 <meta property="og:image" content="assets/media/04.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;subset=cyrillic,latin&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;family=Montserrat:wght@300&amp;subset=cyrillic,latin&amp;display=swap">
 <style>
 /* Layout: fixed transparent header over full-bleed media; inner views are black with a faint grained still from the live video, bold grotesk headings, content in columns. */
 :root {
@@ -83,7 +83,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .nav a { font-size: var(--body); line-height: 1.2; letter-spacing: .01em; opacity: 1; transition: opacity .5s var(--smooth); }
 .nav a:hover { opacity: .6; }
 .nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
-.logo { font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; }
+/* logo: thin geometric caps, widely spaced, A drawn as Λ (a turned V of the same font) */
+.logo { font-family: "Montserrat", var(--font); font-weight: 300; font-size: 26px; line-height: 1; letter-spacing: .42em; margin-right: -.42em; white-space: nowrap; }
 .header .nav a, .header .logo { text-shadow: 0 1px 2px rgba(0,0,0,.16), 0 3px 16px rgba(0,0,0,.20); }
 .header .social svg { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.18)) drop-shadow(0 3px 10px rgba(0,0,0,.18)); }
 .header .burger span { box-shadow: 0 1px 4px rgba(0,0,0,.28); }
@@ -91,6 +92,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* logo "verification": letters cycle through symbols and lock in left to right */
 .lg-ch { display: inline-block; text-align: center; transition: color .35s ease; }
 .lg-ch.is-scr { color: var(--mist); }
+.lg-ch.lam { letter-spacing: 0; margin-right: .42em; }
+.lg-ch.lam:not(.is-scr) { transform: rotate(180deg); }
 /* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
 .header .logo { position: relative; display: inline-block; }
 .header .logo::before, .header .logo::after { content: attr(data-text); position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; opacity: 0; text-shadow: none; }
@@ -296,7 +299,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 @media (max-width: 1240px) {
   .nav, .header > .social { display: none; }
   .header { grid-template-columns: 1fr auto; }
-  .logo { font-size: 23px; justify-self: start; }
+  .logo { font-size: 18px; justify-self: start; }
   :root { --h1: 20px; } /* a step below the 23px logo */
   .burger { display: block; }
 }
@@ -708,8 +711,9 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
     var word = logo.textContent.trim();
     var pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#/_+=<>ЖФЯИЦ";
     logo.textContent = "";
-    var spans = word.split("").map(function (c) {
-      var s = document.createElement("span"); s.className = "lg-ch"; s.textContent = c; s.setAttribute("aria-hidden", "true");
+    var shown = word.split("").map(function (c) { return c === "A" ? "V" : c; });   /* A is shown as a turned V: Λ */
+    var spans = word.split("").map(function (c, i) {
+      var s = document.createElement("span"); s.className = "lg-ch" + (c === "A" ? " lam" : ""); s.textContent = shown[i]; s.setAttribute("aria-hidden", "true");
       logo.appendChild(s); return s;
     });
     var running = false, delay = 50, step = 24, tickMs = 30;
@@ -734,12 +738,12 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
       if (reduce || running) return;
       var start = performance.now(), last = 0;
       (function f(now) {
-        if (now - start >= ms) { spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); }); calm(); return; }
+        if (now - start >= ms) { spans.forEach(function (s, i) { s.textContent = shown[i]; s.classList.remove("is-scr"); }); calm(); return; }
         if (now - last >= 30) {
           last = now;
           spans.forEach(function (s, i) {
             if (swap && Math.random() < .14) { s.textContent = pool[(Math.random() * pool.length) | 0]; s.classList.add("is-scr"); }
-            else { s.textContent = word[i]; s.classList.remove("is-scr"); }
+            else { s.textContent = shown[i]; s.classList.remove("is-scr"); }
           });
           jitter(1);
         }
@@ -758,14 +762,14 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
       (function frame(now) {
         var el = now - start;
         if (el >= end) {
-          spans.forEach(function (s, i) { s.textContent = word[i]; s.classList.remove("is-scr"); });
+          spans.forEach(function (s, i) { s.textContent = shown[i]; s.classList.remove("is-scr"); });
           running = false; calm(); burst(70, false); return;
         }
         if (now - last >= tickMs) {
           last = now;
           spans.forEach(function (s, i) {
             if (el < delay + i * step) { s.textContent = pool[(Math.random() * pool.length) | 0]; s.classList.add("is-scr"); }
-            else { s.textContent = word[i]; s.classList.remove("is-scr"); }
+            else { s.textContent = shown[i]; s.classList.remove("is-scr"); }
           });
           jitter(1.4 - el / end);
         }
