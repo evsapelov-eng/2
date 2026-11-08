@@ -88,7 +88,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   text-shadow: 0 1px 3px rgba(0,0,0,.2); } /* soft through colour and weight, no glow (Safari draws colour bands with it) */
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
-.on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
+:root.on-page .header .tagline { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }   /* only on the home screen; wins over the slow video dissolve */
 .video-on .header .tagline { opacity: 0; visibility: hidden; transition: opacity 5s cubic-bezier(.37, 0, .63, 1) .8s, visibility 5.8s; }   /* dissolves as the video comes in */
 /* the whole tagline slowly emerges in place out of nothing */
 .tagline span { opacity: 0; }
@@ -177,8 +177,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b1c106763183de02fd701a9cec46855886fc73a6/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b1c106763183de02fd701a9cec46855886fc73a6/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ba072c967ac5949719e95f499ce0c4542dc18d71/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ba072c967ac5949719e95f499ce0c4542dc18d71/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -357,7 +357,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@b1c106763183de02fd701a9cec46855886fc73a6/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ba072c967ac5949719e95f499ce0c4542dc18d71/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
     </video>
@@ -533,9 +533,14 @@ p { margin: 0 0 14px; max-width: 62ch; }
     /* tagline only on the home screen: replay its "from the air" entrance each time home opens */
     var tg = document.querySelector(".header .tagline");
     if (tg && name === "home") { tg.classList.remove("is-in"); void tg.offsetWidth; tg.classList.add("is-in"); }
+    if (tg && name !== "home") {   /* cut a slow dissolve that may be running: hide at once on inner pages */
+      tg.style.transition = "none"; void tg.offsetWidth;
+      requestAnimationFrame(function () { requestAnimationFrame(function () { tg.style.transition = ""; }); });
+    }
     setHdr();
     /* home: the still photo first; after 5 s the video starts from the top and fades in over it */
     clearTimeout(videoTimer);
+    if (name !== "home") root.classList.remove("video-on");
     if (video) {
       video.pause();
       if (name === "home" && !forcePhoto && !reduce) {
