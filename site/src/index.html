@@ -476,6 +476,13 @@ p { margin: 0 0 14px; max-width: 62ch; }
 </div>
 
 <script>
+/* our icon must win over the host's default: Tilda serves its own /favicon.ico, and Safari skips icons scoped to a colour scheme */
+(function () {
+  var h = document.head || document.documentElement;
+  [["icon", "favicon/favicon-32.png", "32x32"], ["shortcut icon", "favicon/favicon-32.png", "32x32"], ["apple-touch-icon", "favicon/favicon-180.png", "180x180"]].forEach(function (d) {
+    var l = document.createElement("link"); l.rel = d[0]; l.href = d[1]; l.setAttribute("sizes", d[2]); if (d[0] !== "apple-touch-icon") l.type = "image/png"; h.appendChild(l);
+  });
+})();
 (function () {
   /* Концерты: добавляйте новые строки сюда. Дата в формате ГГГГ-ММ-ДД. */
   var SHOWS = [
