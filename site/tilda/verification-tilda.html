@@ -84,16 +84,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .lg-ch.lam { letter-spacing: 0; margin-right: .42em; }
 /* tagline under the logo: small widely-spaced caps */
 .tagline { position: absolute; left: 0; top: calc(100% + 12px); font-family: "Montserrat", var(--font); font-weight: 400;
-  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.78); pointer-events: none;
-  text-shadow: 0 0 .8px rgba(255,255,255,.45), 0 0 7px rgba(255,255,255,.14), 0 1px 10px rgba(0,0,0,.18); } /* softer than the logo */
+  font-size: 12px; line-height: 1.5; letter-spacing: .55em; white-space: nowrap; color: rgba(255,255,255,.8); pointer-events: none;
+  text-shadow: 0 1px 8px rgba(0,0,0,.16); } /* soft through colour and weight, no glow (Safari draws colour bands with it) */
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
 .on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
 /* the whole tagline slowly emerges in place out of nothing */
-.tagline span { opacity: 0; filter: blur(5px); }
-.tagline.is-in span { animation: emerge 2.6s cubic-bezier(.33, 0, .2, 1) .7s forwards; }
-.tagline.still span { opacity: 1; filter: none; animation: none; }
-@keyframes emerge { to { opacity: 1; filter: none; } }
+.tagline span { opacity: 0; }
+.tagline.is-in span { animation: emerge 2.8s cubic-bezier(.33, 0, .2, 1) .7s forwards; }
+.tagline.still span { opacity: 1; animation: none; }
+@keyframes emerge { to { opacity: 1; } }   /* opacity only: no blur filter on text */
 .header.is-solid .tagline { color: rgba(255,255,255,.85); }
 .lg-ch.lam:not(.is-scr) { transform: rotate(180deg); }
 /* TV interference: a shifted monochrome slice and static-filled letters, only while glitching */
@@ -176,8 +176,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   mask-image: linear-gradient(to bottom, transparent 0, transparent calc(var(--fade-top) - 14px), #000 calc(var(--fade-top) + 44px));
 }
 .page-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .6s var(--smooth);
-  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6d3ac1928a4572e61e6b667cdbd0e61c3196c275/site/assets/bg-dark.jpg") right center / cover no-repeat; }
-@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6d3ac1928a4572e61e6b667cdbd0e61c3196c275/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
+  background: var(--ink) url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ffb14460087ba31d6e2ee71bd9419975f9d9cea5/site/assets/bg-dark.jpg") right center / cover no-repeat; }
+@media (max-aspect-ratio: 3/4) { .page-bg { background-image: url("https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ffb14460087ba31d6e2ee71bd9419975f9d9cea5/site/assets/bg-dark-tall.jpg"); background-position: center bottom; } }
 .on-page .page-bg { opacity: 1; }
 .page > * { position: relative; z-index: 1; }
 h1 { font-size: var(--h1); font-weight: 800; line-height: 1.05; letter-spacing: -.01em; text-transform: uppercase; margin: 0 0 56px; text-wrap: balance; }
@@ -359,7 +359,7 @@ h1, h4 { text-shadow: 0 0 .7px rgba(255,255,255,.34), 0 0 9px rgba(255,255,255,.
 <div class="page-bg" aria-hidden="true"></div>
 <main>
   <section class="view hero" id="view-home" aria-label="VERIFICATION">
-    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@6d3ac1928a4572e61e6b667cdbd0e61c3196c275/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
+    <div class="hero-photo"><img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@ffb14460087ba31d6e2ee71bd9419975f9d9cea5/site/assets/home-photo.jpg" alt="Участники VERIFICATION, чёрно-белый портрет на светлом фоне" width="1442" height="2164" fetchpriority="high"></div>
     <video id="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Фрагмент живого выступления VERIFICATION">
       <source src="https://static.tildacdn.com/vide6234-6136-4862-a431-643461393531/25235806489180.mp4" type="video/mp4">
     </video>
