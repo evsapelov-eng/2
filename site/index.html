@@ -99,7 +99,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   text-shadow: 0 1px 3px rgba(0,0,0,.2); } /* soft through colour and weight, no glow (Safari draws colour bands with it) */
 .tagline span { display: block; }
 .tagline { transition: opacity .35s ease, visibility .35s; }
-.on-page .header .tagline { opacity: 0; visibility: hidden; }   /* only on the home screen */
+:root.on-page .header .tagline { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }   /* only on the home screen; wins over the slow video dissolve */
 .video-on .header .tagline { opacity: 0; visibility: hidden; transition: opacity 5s cubic-bezier(.37, 0, .63, 1) .8s, visibility 5.8s; }   /* dissolves as the video comes in */
 /* the whole tagline slowly emerges in place out of nothing */
 .tagline span { opacity: 0; }
@@ -545,9 +545,14 @@ p { margin: 0 0 14px; max-width: 62ch; }
     /* tagline only on the home screen: replay its "from the air" entrance each time home opens */
     var tg = document.querySelector(".header .tagline");
     if (tg && name === "home") { tg.classList.remove("is-in"); void tg.offsetWidth; tg.classList.add("is-in"); }
+    if (tg && name !== "home") {   /* cut a slow dissolve that may be running: hide at once on inner pages */
+      tg.style.transition = "none"; void tg.offsetWidth;
+      requestAnimationFrame(function () { requestAnimationFrame(function () { tg.style.transition = ""; }); });
+    }
     setHdr();
     /* home: the still photo first; after 5 s the video starts from the top and fades in over it */
     clearTimeout(videoTimer);
+    if (name !== "home") root.classList.remove("video-on");
     if (video) {
       video.pause();
       if (name === "home" && !forcePhoto && !reduce) {
