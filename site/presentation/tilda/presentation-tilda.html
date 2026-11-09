@@ -1,0 +1,145 @@
+<!-- VERIFICATION, презентация: вставьте весь этот код в блок T123 «HTML-код» на отдельной странице -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&amp;family=Montserrat:wght@400;500&amp;subset=cyrillic,latin&amp;display=swap">
+<style>
+/* Layout: the site's dark world as a one-page press sheet — large logo and tagline, a strip of three photos, four text columns divided by hairlines. */
+.vp {
+  --ink: #000000;
+  --paper: #ffffff;
+  --mist: #a8a6a2;
+  --smoke: #2e2f30;
+  --font: "Inter", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --display: "Montserrat", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --gutter: clamp(20px, 6vw, 96px);
+  color-scheme: dark;
+  background: var(--ink); color: var(--paper);
+  font: 400 15px/1.75 var(--font); -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.vp, .vp * { box-sizing: border-box; }
+body, .t-body, #allrecords { margin: 0; background: #000 !important; }
+.vp a { color: inherit; }
+.vp-wrap { max-width: 1520px; margin: 0 auto;
+  padding-top: calc(env(safe-area-inset-top, 0px) + clamp(40px, 6vw, 88px));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px)); }
+
+/* masthead */
+.vp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 18px 40px; padding-bottom: 28px; border-bottom: 1px solid rgba(255,255,255,.55); }
+.vp-logo { grid-column: 1 / -1; margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(30px, 5.6vw, 92px); line-height: 1;
+  letter-spacing: .32em; margin-right: -.32em; white-space: nowrap; }
+.vp-logo .lam { display: inline-block; transform: rotate(180deg); letter-spacing: 0; margin-right: .32em; }
+.vp-claim { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(14px, 1.45vw, 21px);
+  letter-spacing: .22em; text-transform: uppercase; }
+.vp-genres { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(11px, .95vw, 14px); letter-spacing: .2em;
+  text-transform: uppercase; color: rgba(255,255,255,.72); text-align: right; white-space: nowrap; }
+.vp-genres span { color: rgba(255,255,255,.35); margin: 0 .5em; }
+
+/* photo strip */
+.vp-strip { display: grid; grid-template-columns: 1.1fr 2fr 1.55fr; gap: 10px; margin: 28px 0 0; padding-bottom: 28px; border-bottom: 1px solid var(--smoke); }
+.vp-strip img { display: block; width: 100%; height: clamp(150px, 15vw, 230px); object-fit: cover; }
+.vp-strip .duo { object-position: 50% 30%; }
+
+/* four columns */
+.vp-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 36px; }
+.vp-col { min-width: 0; padding: 0 clamp(16px, 1.8vw, 28px); border-left: 1px solid var(--smoke); }
+.vp-col:first-child { padding-left: 0; border-left: 0; }
+.vp-col:last-child { padding-right: 0; }
+.vp h2 { margin: 0 0 16px; font-family: var(--font); font-weight: 800; font-size: 17px; line-height: 1.3; letter-spacing: .01em; text-transform: uppercase; text-wrap: balance; }
+.vp h2:not(:first-child) { margin-top: 30px; }
+.vp p { margin: 0 0 14px; color: rgba(255,255,255,.86); }
+.vp p:last-child { margin-bottom: 0; }
+
+/* footer */
+.vp-foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 44px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.55);
+  font-family: var(--display); font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--mist); }
+.vp-foot a { text-decoration: none; letter-spacing: .08em; text-transform: none; color: rgba(255,255,255,.85); }
+.vp-foot a:hover { color: #fff; }
+
+/* gentle entrance, opacity only */
+@keyframes vp-in { from { opacity: 0; } to { opacity: 1; } }
+.vp-head, .vp-strip, .vp-cols, .vp-foot { animation: vp-in 1.2s ease both; }
+.vp-strip { animation-delay: .15s; } .vp-cols { animation-delay: .3s; } .vp-foot { animation-delay: .4s; }
+@media (prefers-reduced-motion: reduce) { .vp-head, .vp-strip, .vp-cols, .vp-foot { animation: none; } }
+
+@media (max-width: 1100px) {
+  .vp-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 40px; }
+  .vp-col:nth-child(3) { padding-left: 0; border-left: 0; }
+  .vp-col:nth-child(2) { padding-right: 0; }
+}
+@media (max-width: 760px) {
+  .vp-head { grid-template-columns: minmax(0, 1fr); }
+  .vp-genres { text-align: left; white-space: normal; }
+  .vp-logo { letter-spacing: .2em; margin-right: -.2em; font-size: calc((100vw - 2 * max(var(--gutter), 16px)) / 10.6); }
+  .vp-logo .lam { margin-right: .2em; }
+  .vp-strip { grid-template-columns: minmax(0, 1fr); }
+  .vp-strip img { height: auto; aspect-ratio: 2 / 1; }
+  .vp-cols { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
+  .vp-col { padding: 0 !important; border-left: 0 !important; }
+}
+</style>
+<div class="vp">
+  <div class="vp-wrap">
+    <header class="vp-head">
+      <h1 class="vp-logo" aria-label="VERIFICATION">VERIFIC<span class="lam" aria-hidden="true">V</span>TION</h1>
+      <p class="vp-claim">Музыка, которая становится событием</p>
+      <p class="vp-genres">Неоклассика<span>/</span>Электроника<span>/</span>Живое исполнение</p>
+    </header>
+
+    <div class="vp-strip">
+      <img class="duo" src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@eeaa5d68ac417837a923e4c8bda16780b580a019/site/presentation/assets/duo.jpg" alt="Евгений Сапелов и Иван Нужин" width="1200" height="591">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@eeaa5d68ac417837a923e4c8bda16780b580a019/site/presentation/assets/stage-orchestra.jpg" alt="Струнный оркестр и дирижёр на сцене в синем свете" width="941" height="253">
+      <img src="https://cdn.jsdelivr.net/gh/evsapelov-eng/2@eeaa5d68ac417837a923e4c8bda16780b580a019/site/presentation/assets/stage-projection.jpg" alt="Электронный сет на фоне видеопроекции, рядом струнные" width="722" height="253">
+    </div>
+
+    <main class="vp-cols">
+      <section class="vp-col">
+        <h2>О проекте</h2>
+        <p>VERIFICATION — московский авторский музыкальный проект, соединяющий неоклассику и электронику.</p>
+        <p>В его основе — сочетание акустического рояля, струнного оркестра, аналоговых синтезаторов и электронных ритмов.</p>
+        <p>Музыка развивается от камерных фортепианных мелодий и протяжных струнных партий до насыщенных электронных композиций с глубоким басом и ритмами минимал-техно.</p>
+        <p>Здесь академические инструменты не служат дополнением к электронике, а существуют с ней на равных.</p>
+        <p>Композиции строятся на контрастах: между тишиной и плотным звучанием, меланхолией и движением, акустической теплотой и точностью электронного ритма.</p>
+      </section>
+
+      <section class="vp-col">
+        <h2>На сцене</h2>
+        <p>Важная часть проекта раскрывается во время живых выступлений. Рояль, струнный оркестр и электронные инструменты звучат одновременно, а взаимодействие музыкантов становится частью концертного действия.</p>
+        <p>На сцене между музыкантами возникает диалог. Исполнение наполнено живыми эмоциями. Зритель видит, как артисты проживают музыку.</p>
+        <h2>Первый концерт</h2>
+        <p>Первый концерт VERIFICATION состоялся в Московском международном Доме музыки.</p>
+        <p>Программа объединила живое исполнение авторских композиций, электронное звучание, свет и видеопроекции.</p>
+        <p>Успешная премьера стала отправной точкой для дальнейшего развития концертного направления проекта.</p>
+        <h2>Событие, которого ждут</h2>
+        <p>Главная амбиция VERIFICATION — создавать концерты, на которые приходят не только ради знакомых композиций, но и ради самого события.</p>
+      </section>
+
+      <section class="vp-col">
+        <p>Проект стремится развивать формат, в котором музыка существует в тесной связи с визуальным искусством, светом и архитектурой площадки.</p>
+        <p>Одну программу можно представить в классическом концертном зале, другую — в историческом здании с выразительной акустикой, третью — в современном архитектурном пространстве с масштабными проекциями.</p>
+        <p>Место проведения при этом становится частью постановки, а не просто помещением для зрителей.</p>
+        <h2>Развитие</h2>
+        <p>Следующий этап развития VERIFICATION связан с новыми концертами и расширением визуальной составляющей. Сохраняя рояль, струнный оркестр и электронику в основе живого звучания, проект планирует активнее использовать световые решения, видеопроекции и генеративную графику.</p>
+        <p>В дальнейшем концертные программы могут дополняться хором, хореографией и другими формами сценического искусства. Каждое такое решение должно быть связано с музыкальным материалом, а не становиться самостоятельным зрелищным эффектом.</p>
+        <p>При этом VERIFICATION не стремится каждый раз полностью менять программу. Важнее развивать узнаваемый концертный формат, в котором знакомая музыка может раскрываться по-новому.</p>
+      </section>
+
+      <section class="vp-col">
+        <p>VERIFICATION ориентирован на развитие в качестве самостоятельного концертного проекта на российской сцене неоклассики и электроники.</p>
+        <h2>Новые выступления и сотрудничество</h2>
+        <p>Уже состоявшийся концерт в Доме музыки показывает, как авторский материал проекта может быть реализован в формате полноценной сценической программы с участием оркестра.</p>
+        <p>Ближайшая задача — организация новых выступлений на площадках с качественным звуком и техническими возможностями для более сложной визуальной постановки.</p>
+        <p>Проект открыт к сотрудничеству с концертными залами, фестивалями, независимыми организаторами и брендами, заинтересованными в поддержке современной инструментальной музыки.</p>
+        <p>Для площадок VERIFICATION предлагает концертную программу с живым оркестровым и электронным исполнением. Для организаторов и культурных партнёров — возможность совместно создавать новые версии концерта с учётом особенностей конкретного пространства.</p>
+        <p>Для брендов проект может стать основой партнёрского культурного события, объединяющего музыку, современное искусство и аудиторию, интересующуюся электронной музыкой, дизайном и новыми художественными формами.</p>
+      </section>
+    </main>
+
+    <footer class="vp-foot">
+      <span>VERIFICATION</span>
+      <a href="https://verificationgroup.ru" target="_blank" rel="noopener">verificationgroup.ru</a>
+    </footer>
+  </div>
+</div>
