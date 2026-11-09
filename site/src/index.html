@@ -245,7 +245,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 
 /* media */
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.grid-live { margin-bottom: 10px; }
+.grid-live { margin-bottom: clamp(56px, 7vw, 96px); }
 .media-head { color: var(--mist); margin-bottom: 18px; }
 .grid button { position: relative; overflow: hidden; aspect-ratio: 3 / 2; background: #111; }
 .grid img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(.15) contrast(1.02); transition: transform 1.2s var(--smooth), filter .8s var(--smooth); }
@@ -433,6 +433,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
     <h1>Медиа</h1>
     <h4 class="media-head">Концерты</h4>
     <div class="grid grid-live" id="grid-live"></div>
+    <h4 class="media-head">Фото</h4>
     <div class="grid" id="grid"></div>
   </section>
 
