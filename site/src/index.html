@@ -245,7 +245,7 @@ p { margin: 0 0 14px; max-width: 62ch; }
 
 /* media */
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.grid-live { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 56px; }
+.grid-live { margin-bottom: 10px; }
 .media-head { color: var(--mist); margin-bottom: 18px; }
 .grid button { position: relative; overflow: hidden; aspect-ratio: 3 / 2; background: #111; }
 .grid img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(.15) contrast(1.02); transition: transform 1.2s var(--smooth), filter .8s var(--smooth); }
@@ -431,9 +431,8 @@ p { margin: 0 0 14px; max-width: 62ch; }
 
   <section class="view page" id="view-media">
     <h1>Медиа</h1>
-    <h4 class="media-head">Концерт в Доме музыки</h4>
+    <h4 class="media-head">Концерты</h4>
     <div class="grid grid-live" id="grid-live"></div>
-    <h4 class="media-head">Фотосессия</h4>
     <div class="grid" id="grid"></div>
   </section>
 
@@ -621,8 +620,12 @@ p { margin: 0 0 14px; max-width: 62ch; }
   /* media grid + lightbox */
   /* Концертные фото: добавляйте строки сюда (файлы в папке live: NN.jpg и NN-thumb.jpg). pos — какую часть кадра показывать в плитке. */
   var LIVE = [
+    { n: "03", alt: "Концерт в Доме музыки: рояль, струнный оркестр и электроника под видеопроекцией", pos: "50% 60%" },
+    { n: "04", alt: "Концерт в Доме музыки: Иван Нужин за роялем в луче света", pos: "50% 62%" },
     { n: "01", alt: "Концерт в Доме музыки: Иван Нужин за роялем дирижирует струнным оркестром", pos: "50% 70%" },
-    { n: "02", alt: "Концерт в Доме музыки: Евгений Сапелов за электронным сетом на фоне проекции", pos: "50% 45%" }
+    { n: "02", alt: "Концерт в Доме музыки: Евгений Сапелов за электронным сетом на фоне проекции", pos: "50% 45%" },
+    { n: "05", alt: "Концерт в Доме музыки: Иван Нужин в движении за роялем, длинная выдержка", pos: "50% 45%" },
+    { n: "06", alt: "Концерт в Доме музыки: световые линии сцены на длинной выдержке", pos: "50% 55%" }
   ];
   var ITEMS = [];
   LIVE.forEach(function (p) { ITEMS.push({ src: "assets/live/" + p.n + ".jpg", thumb: "assets/live/" + p.n + "-thumb.jpg", alt: p.alt, pos: p.pos, el: "grid-live" }); });
