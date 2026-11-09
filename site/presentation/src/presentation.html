@@ -49,6 +49,8 @@ body { margin: 0; background: #000; }
 .vp-strip { display: grid; grid-template-columns: 1.1fr 2fr 1.55fr; gap: 10px; margin: 28px 0 0; padding-bottom: 28px; border-bottom: 1px solid var(--smoke); }
 .vp-strip img { display: block; width: 100%; height: clamp(150px, 15vw, 230px); object-fit: cover; }
 .vp-strip .duo { object-position: 50% 30%; }
+.vp-strip .orch { object-position: 50% 72%; }
+.vp-strip .proj { object-position: 58% 62%; }
 
 /* four columns */
 .vp-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 36px; }
@@ -84,6 +86,7 @@ body { margin: 0; background: #000; }
   .vp-logo .lam { margin-right: .2em; }
   .vp-strip { grid-template-columns: minmax(0, 1fr); }
   .vp-strip img { height: auto; aspect-ratio: 2 / 1; }
+  .vp-strip .proj { object-position: 58% 82%; }
   .vp-cols { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
   .vp-col { padding: 0 !important; border-left: 0 !important; }
 }
@@ -99,9 +102,9 @@ body { margin: 0; background: #000; }
     </header>
 
     <div class="vp-strip">
-      <img class="duo" src="assets/duo.jpg" alt="Евгений Сапелов и Иван Нужин" width="1200" height="591">
-      <img src="assets/stage-orchestra.jpg" alt="Струнный оркестр и дирижёр на сцене в синем свете" width="941" height="253">
-      <img src="assets/stage-projection.jpg" alt="Электронный сет на фоне видеопроекции, рядом струнные" width="722" height="253">
+      <img class="duo" src="assets/duo.jpg" alt="Евгений Сапелов и Иван Нужин" width="1400" height="2100">
+      <img class="orch" src="assets/stage-orchestra.jpg" alt="Иван Нужин за роялем дирижирует струнным оркестром в синем свете" width="1800" height="1200">
+      <img class="proj" src="assets/stage-projection.jpg" alt="Евгений Сапелов за электронным сетом на фоне видеопроекции, рядом струнные" width="1400" height="1176">
     </div>
 
     <main class="vp-cols">
