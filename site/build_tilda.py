@@ -43,8 +43,8 @@ def main() -> None:
     s = s.replace('"favicon/', '"' + GH.replace("/site/assets/", "/site/favicon/"))
     urls = ",".join('"https://static.tildacdn.com/' + p + '"' for p in PHOTOS)
     s = s.replace("  var PHOTOS = 16;", "  var PHOTOS = 16;\n  var PHOTO_URLS = [" + urls + "];", 1)
-    s = s.replace("""src="assets/media/' + n + '-thumb.jpg\"""", """src="' + PHOTO_URLS[i - 1] + '\"""")
-    s = s.replace('var src = "assets/media/" + n + ".jpg"', "var src = PHOTO_URLS[cur - 1]")
+    s = s.replace('src: "assets/media/" + n + ".jpg", thumb: "assets/media/" + n + "-thumb.jpg"', 'src: PHOTO_URLS[i - 1], thumb: PHOTO_URLS[i - 1]')
+    s = s.replace('"assets/live/', '"' + GH + 'live/')
     left = re.findall(r"(?<!site/)assets/[\w./-]+", s)
     assert not left, left
     out = ROOT / "tilda" / "verification-tilda.html"
