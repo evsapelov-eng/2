@@ -1,0 +1,105 @@
+{
+  "_doc": "Single source for macro → DSP mapping. Read by tools/render_voices.js (offline reference model) and tools/build_patches.py (Max voice patches). Exponential maps: v = lo * (hi/lo)^x. Values are first estimates — confirm by ear in Live (spec §07).",
+  "sampleRate": 48000,
+  "envelope": {
+    "attackMs": 0.7,
+    "shape": "linear ramp to 0 over decayMs, then squared (≈ exponential, no tail click)",
+    "minDecayMs": 8
+  },
+  "drive": {
+    "gainMax": 14.0,
+    "_doc": "y = tanh(g*x) * comp, g = 1 + drive*gainMax, comp = g^(-compExp): unity for quiet signals at drive 0, RMS roughly constant across drive (calibrated by tools/render_voices.js)",
+    "compExp": 0.6
+  },
+  "texture": {
+    "_doc": "src = (1-t)*white*whiteGain + t*pink*pinkGain + crackle(t)*crackleGain; crackle = sparse random impulses, density = crackleMax*t",
+    "whiteGain": 1.0,
+    "pinkGain": 3.2,
+    "crackleMaxDensity": 0.03
+  },
+  "voices": {
+    "HISS": {
+      "filter": "hp",
+      "toneHz": [
+        700,
+        9000
+      ],
+      "q": 0.2,
+      "decayMs": [
+        8,
+        420
+      ],
+      "crackleGain": 0.35,
+      "outGain": 0.9,
+      "stereo": "mono"
+    },
+    "DUST": {
+      "filter": "bp",
+      "toneHz": [
+        450,
+        7000
+      ],
+      "q": 0.55,
+      "decayMs": [
+        15,
+        650
+      ],
+      "crackleGain": 1.6,
+      "outGain": 2.6,
+      "stereo": "mono"
+    },
+    "METAL": {
+      "filter": "bp",
+      "toneHz": [
+        320,
+        1900
+      ],
+      "q": 0.7,
+      "_doc": "toneHz = fundamental of 4 inharmonic sine partials; noise excitation band-passed at 2.2×f0; texture = noise share",
+      "partialRatios": [
+        1.0,
+        1.483,
+        2.163,
+        2.873
+      ],
+      "partialGains": [
+        0.5,
+        0.35,
+        0.28,
+        0.2
+      ],
+      "noiseBpRatio": 2.2,
+      "decayMs": [
+        20,
+        900
+      ],
+      "crackleGain": 0.0,
+      "outGain": 1.1,
+      "stereo": "mono"
+    },
+    "ATMOS": {
+      "filter": "lp",
+      "toneHz": [
+        320,
+        9000
+      ],
+      "q": 0.18,
+      "decayMs": [
+        60,
+        1200
+      ],
+      "attackMs": [
+        3,
+        28
+      ],
+      "crackleGain": 0.25,
+      "outGain": 1.2,
+      "stereo": "decorrelated noise per channel"
+    }
+  },
+  "master": {
+    "_doc": "fixed safety: out = tanh(sum * drive) * ceiling. Not a user control.",
+    "drive": 1.0,
+    "ceiling": 0.94
+  }
+}

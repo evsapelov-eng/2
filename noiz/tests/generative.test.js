@@ -1,0 +1,266 @@
+// Generate / Mutate / Keep / Undo / Locks — A06–A10, A12, A13.
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert");
+const { loadCore } = require("../js/node_loader");
+const C = loadCore();
+const plain = (x) => JSON.parse(JSON.stringify(x));
+const deq = (a, b, m) => assert.deepStrictEqual(plain(a), plain(b), m);
+
+const J = (o) => JSON.stringify(o);
+const rhythmOf = (t) => J({ l: t.length, d: t.division, s: t.steps.map((s) => [s.on, s.velocity, s.probability, s.ratchet]) });
+const onsOf = (t) => t.steps.slice(0, t.length).map((s) => (s.on ? 1 : 0)).join("");
+const locksOf = (t) => J(t.steps.map((s) => s.pLocks));
+function diffSteps(a, b) {
+  let n = 0;
+  for (let i = 0; i < 32; i++) if (a.steps[i].on !== b.steps[i].on) n++;
+  return n;
+}
+
+test("A06: Generate x10 → different usable rhythms, never all-16, never silent tracks", () => {
+  const e = new C.NoizEngine();
+  const seen = new Set();
+  for (let i = 0; i < 10; i++) {
+    e.generate("RHYTHM");
+    const sig = e.state.tracks.map(onsOf).join("|");
+    seen.add(sig);
+    e.state.tracks.forEach((t) => {
+      const hits = C.noizCountHits(t);
+      assert.ok(hits >= 1, t.name + " silent");
+      assert.ok(hits < t.length, t.name + " all steps on");
+    });
+    // character: HISS densest, ATMOS sparse (on average sense, per pattern for ATMOS)
+    assert.ok(C.noizCountHits(e.state.tracks[3]) <= Math.ceil(e.state.tracks[3].length * 0.35));
+  }
+  assert.strictEqual(seen.size, 10);
+});
+
+test("Generate is reproducible from the same state and seed", () => {
+  const a = new C.NoizEngine(), b = new C.NoizEngine();
+  for (let i = 0; i < 5; i++) { a.generate("ALL"); b.generate("ALL"); }
+  assert.strictEqual(J(a.state.tracks), J(b.state.tracks));
+  assert.strictEqual(a.state.global.seed, b.state.global.seed);
+});
+
+test("Generate across 200 seeds: some polymeter/poly ratios, but not in most patterns", () => {
+  const e = new C.NoizEngine();
+  let poly = 0;
+  for (let i = 0; i < 200; i++) {
+    e.generate("RHYTHM");
+    if (e.state.tracks.some((t) => t.length !== 16 || t.division.n !== t.division.m)) poly++;
+  }
+  assert.ok(poly > 20 && poly < 110, "poly patterns: " + poly);
+});
+
+test("Generate limits 4-voice strong stacked transients", () => {
+  const e = new C.NoizEngine();
+  let worst = 0;
+  for (let i = 0; i < 100; i++) {
+    e.generate("RHYTHM");
+    let stacks = 0;
+    for (let s = 0; s < 16; s++) {
+      if (e.state.tracks.every((t) => t.division.n === 1 && t.division.m === 1 && t.steps[s % t.length].on && t.steps[s % t.length].velocity > 0.75)) stacks++;
+    }
+    worst = Math.max(worst, stacks);
+  }
+  assert.ok(worst <= 1, "max stacked strong hits " + worst);
+});
+
+test("A07: Mutate amount 0 → exactly no change, no history entry", () => {
+  const e = new C.NoizEngine();
+  e.generate("ALL");
+  const before = J(e.state.tracks);
+  const undoLen = e.undoStack.length;
+  assert.strictEqual(e.mutate("ALL", 0), false);
+  assert.strictEqual(J(e.state.tracks), before);
+  assert.strictEqual(e.undoStack.length, undoLen);
+});
+
+test("A08: Mutate ~15% keeps the groove recognizable (1–4 changed steps on 16)", () => {
+  const e = new C.NoizEngine();
+  const counts = [];
+  for (let i = 0; i < 40; i++) {
+    e.generate("RHYTHM");
+    const anchor = JSON.parse(J(e.state.tracks));
+    e.mutate("RHYTHM", 0.15);
+    e.state.tracks.forEach((t, k) => {
+      if (anchor[k].length === 16 && t.length === 16) counts.push(diffSteps(anchor[k], t));
+    });
+  }
+  const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+  assert.ok(Math.max(...counts) <= 6, "max " + Math.max(...counts));
+  assert.ok(mean >= 0.8 && mean <= 4, "mean changed steps " + mean);
+});
+
+test("Mutate at 10% changes ~1–3 events per 16-step track; 60% is wider but keeps silence", () => {
+  const e = new C.NoizEngine();
+  const at = (amt) => {
+    const c = [];
+    for (let i = 0; i < 30; i++) {
+      e.generate("RHYTHM");
+      const anchor = JSON.parse(J(e.state.tracks[0]));
+      e.mutate("RHYTHM", amt);
+      c.push(diffSteps(anchor, e.state.tracks[0]));
+      assert.ok(C.noizCountHits(e.state.tracks[0]) < 16);
+    }
+    return c.reduce((a, b) => a + b, 0) / c.length;
+  };
+  const m10 = at(0.1), m60 = at(0.6);
+  assert.ok(m10 >= 0.8 && m10 <= 3.5, "10%: " + m10);
+  assert.ok(m60 > m10 * 2, "60%: " + m60 + " vs 10%: " + m10);
+});
+
+test("A09: Mutate derives from Keep anchor; repeated mutates differ; Undo restores state and anchor", () => {
+  const e = new C.NoizEngine();
+  e.generate("RHYTHM");
+  e.keep();
+  const anchor = J(e.anchorTracks);
+  const s0 = J(e.state.tracks);
+  e.mutate("RHYTHM", 0.3);
+  const m1 = J(e.state.tracks);
+  e.mutate("RHYTHM", 0.3);
+  const m2 = J(e.state.tracks);
+  assert.notStrictEqual(m1, m2);
+  // both are variations of the anchor, not of each other (no accumulating drift)
+  const a = JSON.parse(anchor), v2 = JSON.parse(m2);
+  const drift = a.reduce((sum, t, k) => sum + diffSteps(t, v2[k]), 0);
+  assert.ok(drift <= 20, "drift from anchor " + drift);
+  assert.strictEqual(J(e.anchorTracks), anchor);
+  e.undo();
+  assert.strictEqual(J(e.state.tracks), m1);
+  e.undo();
+  assert.strictEqual(J(e.state.tracks), s0);
+  e.keep();
+  e.mutate("RHYTHM", 0.3);
+  e.keep(); // new anchor
+  const newAnchor = J(e.anchorTracks);
+  e.undo(); // undo the keep → previous anchor back
+  assert.notStrictEqual(J(e.anchorTracks), newAnchor);
+});
+
+test("Undo stack is bounded to 16 and Undo on empty stack is a safe no-op", () => {
+  const e = new C.NoizEngine();
+  for (let i = 0; i < 40; i++) e.generate("RHYTHM");
+  assert.strictEqual(e.undoStack.length, 16);
+  for (let i = 0; i < 16; i++) assert.ok(e.undo());
+  assert.strictEqual(e.undo(), false);
+});
+
+for (const scope of ["RHYTHM", "SOUND", "PLOCKS", "ALL"]) {
+  test("A10: locked rhythm+sound track is untouched by Generate and Mutate in scope " + scope, () => {
+    const e = new C.NoizEngine();
+    e.setGlobal("lockDensity", 1);
+    e.setGlobal("lockAmount", 0.8);
+    e.generate("ALL");
+    e.keep();
+    e.setLock(2, "rhythm", true);
+    e.setLock(2, "sound", true);
+    e.setPLock(2, 3, "tone", 0.777);
+    const locked = J(e.state.tracks[2]);
+    for (let i = 0; i < 8; i++) {
+      e.generate(scope);
+      e.mutate(scope, 0.9);
+      assert.strictEqual(J(e.state.tracks[2]), locked);
+    }
+  });
+}
+
+test("Lock Rhythm only: sound may change, rhythm may not; Lock Sound only: the opposite (P-Locks included)", () => {
+  const e = new C.NoizEngine();
+  e.setLock(0, "rhythm", true);
+  e.setLock(1, "sound", true);
+  e.setPLock(1, 1, "drive", 0.5);
+  const r0 = rhythmOf(e.state.tracks[0]);
+  const s1 = J(e.state.tracks[1].sound), l1 = locksOf(e.state.tracks[1]);
+  let soundChanged = false, rhythmChanged = false;
+  for (let i = 0; i < 6; i++) {
+    e.generate("ALL");
+    assert.strictEqual(rhythmOf(e.state.tracks[0]), r0);
+    assert.strictEqual(J(e.state.tracks[1].sound), s1);
+    assert.strictEqual(locksOf(e.state.tracks[1]), l1);
+    if (J(e.state.tracks[0].sound) !== J(C.noizDefaultState().tracks[0].sound)) soundChanged = true;
+    if (rhythmOf(e.state.tracks[1]) !== rhythmOf(C.noizDefaultState().tracks[1])) rhythmChanged = true;
+  }
+  assert.ok(soundChanged && rhythmChanged);
+});
+
+test("A12: Random P-Locks with Density=0 adds no P-Locks", () => {
+  const e = new C.NoizEngine();
+  e.setGlobal("lockDensity", 0);
+  e.setGlobal("lockAmount", 0.8);
+  for (let i = 0; i < 10; i++) {
+    e.generate("PLOCKS");
+    e.state.tracks.forEach((t) => t.steps.forEach((s) => assert.strictEqual(Object.keys(s.pLocks).length, 0)));
+  }
+});
+
+test("A13: Random P-Locks Density=1, Amount>0 → locks on active steps, rhythm/base sound unchanged", () => {
+  const e = new C.NoizEngine();
+  e.generate("RHYTHM");
+  e.setGlobal("lockDensity", 1);
+  e.setGlobal("lockAmount", 0.5);
+  const rhythm = e.state.tracks.map(rhythmOf);
+  const sound = J(e.state.tracks.map((t) => t.sound));
+  e.generate("PLOCKS");
+  deq(e.state.tracks.map(rhythmOf), rhythm);
+  assert.strictEqual(J(e.state.tracks.map((t) => t.sound)), sound);
+  e.state.tracks.forEach((t) => t.steps.forEach((s, i) => {
+    const n = Object.keys(s.pLocks).length;
+    if (i < t.length && s.on) assert.ok(n >= 1, t.name + " step " + i + " has no lock");
+    else assert.strictEqual(n, 0);
+  }));
+  // drive is not slammed to 100% everywhere
+  const drives = [];
+  e.state.tracks.forEach((t) => t.steps.forEach((s) => { if (s.pLocks.drive !== undefined) drives.push(s.pLocks.drive); }));
+  assert.ok(drives.filter((d) => d >= 0.99).length <= 1);
+});
+
+test("Mutate P-Locks stays near the anchor locks at small amounts", () => {
+  const e = new C.NoizEngine();
+  e.setGlobal("lockDensity", 0.6);
+  e.setGlobal("lockAmount", 0.3);
+  e.generate("ALL");
+  e.keep();
+  const anchor = JSON.parse(J(e.anchorTracks));
+  e.mutate("PLOCKS", 0.1);
+  e.state.tracks.forEach((t, k) => t.steps.forEach((s, i) => {
+    for (const key of Object.keys(s.pLocks)) {
+      const a = anchor[k].steps[i].pLocks[key];
+      if (a !== undefined) assert.ok(Math.abs(a - s.pLocks[key]) <= 0.1 * 0.3 + 1e-9);
+    }
+  }));
+});
+
+test("every Generate/Mutate uses a new seed, stored in state", () => {
+  const e = new C.NoizEngine();
+  const seeds = new Set([e.state.global.seed]);
+  for (let i = 0; i < 20; i++) { e.generate("RHYTHM"); seeds.add(e.state.global.seed); e.mutate("RHYTHM", 0.2); seeds.add(e.state.global.seed); }
+  assert.strictEqual(seeds.size, 41);
+});
+
+test("while playing, Generate is applied at the next bar; stopped → immediately", () => {
+  const e = new C.NoizEngine({ clock: { lookaheadMs: 0 } });
+  e.generate("RHYTHM");
+  assert.strictEqual(e.pending, false);
+  const old = J(e.state.tracks);
+  let pos = 0;
+  e.tick(pos, 120);
+  for (let i = 0; i < 50; i++) { pos += 0.02; e.tick(pos, 120); } // playing, pos = 1.0
+  assert.ok(e.transportPlaying);
+  const oldGlobal = JSON.parse(J(e.state.global));
+  const posAtCommand = pos;
+  e.generate("RHYTHM");
+  assert.strictEqual(e.pending, true);
+  assert.strictEqual(J(e.playState.tracks), old);
+  const out = [];
+  while (pos < 4.5) { pos += 0.02; out.push(...e.tick(pos, 120)); }
+  assert.strictEqual(e.pending, false);
+  const before = out.filter((x) => x.beat < 4), after = out.filter((x) => x.beat >= 4);
+  const oldS = { global: oldGlobal, tracks: JSON.parse(old), schemaVersion: 1 };
+  const exp1 = C.noizEventsInRange(oldS, posAtCommand, 4);
+  deq(before.map((x) => [x.beat, x.trackId]), exp1.map((x) => [x.beat, x.trackId])); // old pattern until the bar
+  assert.ok(after.every((x) => {
+    const st = e.state.tracks[x.trackId].steps[x.stepIndex];
+    return st.on;
+  }));
+});
