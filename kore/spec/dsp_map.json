@@ -1,0 +1,198 @@
+{
+  "_doc": "KØRE single source for parameter → DSP mapping (normalized 0..1 params). Read by js/shared/kore_dsp_model.js (UI preview + offline checks) and tools/build_patches.py (Max patches). exp maps: v = lo*(hi/lo)^x. Envelopes are linear ramps in dB → dbtoa~ (= exponential). Design guides from the spec, not club standards.",
+  "sampleRate": 48000,
+  "envelope": {
+    "attackMs": 0.7,
+    "floorDb": -60,
+    "gateFadeMs": 2
+  },
+  "drive": {
+    "gainMax": 8.0,
+    "compExp": 0.3
+  },
+  "voices": {
+    "PUNCH": {
+      "params": [
+        "tune",
+        "punch",
+        "decay",
+        "drive",
+        "click"
+      ],
+      "defaults": {
+        "tune": 0.3825,
+        "punch": 0.5,
+        "decay": 0.5242,
+        "drive": 0.15,
+        "click": 0.15
+      },
+      "levelDb": -6,
+      "tuneHz": [
+        42,
+        85
+      ],
+      "sweepSemis": [
+        6,
+        42
+      ],
+      "sweepMs": {
+        "_doc": "max(min, a - b*punch)",
+        "a": 70,
+        "b": 80,
+        "min": 8
+      },
+      "decayMs": [
+        100,
+        450
+      ],
+      "clickHpHz": 3000,
+      "clickMs": 5,
+      "clickGain": 0.9,
+      "outGain": 1.0
+    },
+    "SUB": {
+      "params": [
+        "tune",
+        "decay"
+      ],
+      "defaults": {
+        "tune": 0.3297,
+        "decay": 0.4804
+      },
+      "levelDb": -10,
+      "tuneHz": [
+        35,
+        75
+      ],
+      "sweepSemis": 3,
+      "sweepMs": 15,
+      "decayMs": [
+        120,
+        700
+      ],
+      "outGain": 1.0
+    },
+    "RUMBLE": {
+      "params": [
+        "amount",
+        "tail",
+        "duck"
+      ],
+      "defaults": {
+        "amount": 0.35,
+        "tail": 0.4466,
+        "duck": 0.6
+      },
+      "levelDb": -6,
+      "_doc": "bus FX fed by PUNCH: lowpass → 2-tap feedback delay; fb = min(fbMax, 10^(-3*avgDelay/tailMs)); gate opens on RUMBLE steps; PUNCH hits duck it by `duck`",
+      "lowpassHz": 220,
+      "lowpassQ": 0.2,
+      "tapsMs": [
+        47,
+        83
+      ],
+      "fbMax": 0.85,
+      "tailMs": [
+        150,
+        1000
+      ],
+      "gateAttackMs": 5,
+      "duckAttackMs": 2,
+      "duckReleaseMs": 120,
+      "wetGain": 2.0
+    },
+    "TOM L": {
+      "params": [
+        "tune",
+        "decay",
+        "tone"
+      ],
+      "defaults": {
+        "tune": 0.4,
+        "decay": 0.4,
+        "tone": 0.35
+      },
+      "levelDb": -12,
+      "tuneHz": [
+        60,
+        160
+      ],
+      "sweepSemis": 7,
+      "sweepMs": 30,
+      "decayMs": [
+        80,
+        600
+      ],
+      "noiseBpRatio": 2.0,
+      "q": [
+        0.3,
+        0.9
+      ],
+      "noiseGain": 1.2,
+      "outGain": 1.0
+    },
+    "TOM H": {
+      "params": [
+        "tune",
+        "decay",
+        "tone"
+      ],
+      "defaults": {
+        "tune": 0.45,
+        "decay": 0.35,
+        "tone": 0.4
+      },
+      "levelDb": -13,
+      "tuneHz": [
+        120,
+        320
+      ],
+      "sweepSemis": 7,
+      "sweepMs": 25,
+      "decayMs": [
+        80,
+        600
+      ],
+      "noiseBpRatio": 2.0,
+      "q": [
+        0.3,
+        0.9
+      ],
+      "noiseGain": 1.2,
+      "outGain": 1.0
+    },
+    "HAT": {
+      "params": [
+        "tone",
+        "decay"
+      ],
+      "defaults": {
+        "tone": 0.55,
+        "decay": 0.35
+      },
+      "levelDb": -14,
+      "toneHz": [
+        4000,
+        14000
+      ],
+      "q": 0.25,
+      "decayMs": [
+        15,
+        120
+      ],
+      "openFactor": 6,
+      "outGain": 0.9
+    }
+  },
+  "lowEnd": {
+    "_doc": "coordinator: every PUNCH hit ducks SUB (fixed) and RUMBLE (RUMBLE duck); output DC-blocked, soft safety",
+    "subDuckDepth": 0.5,
+    "subDuckAttackMs": 2,
+    "subDuckReleaseMs": 140,
+    "dcBlockHz": 15
+  },
+  "master": {
+    "drive": 1.0,
+    "ceiling": 0.94
+  }
+}

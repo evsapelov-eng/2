@@ -1,0 +1,46 @@
+{
+  "model": "offline reference (shared model + real scheduler), not Max output",
+  "checks": [
+    {
+      "id": "A36 proxy: demo never reaches 0 dBFS",
+      "pass": true,
+      "detail": "peak -6.1 dBFS"
+    },
+    {
+      "id": "starter preset peak ≈ -6 dBFS (−9 … −3)",
+      "pass": true,
+      "detail": "-8.5 dBFS"
+    },
+    {
+      "id": "A10 proxy: PUNCH+SUB layered at 0 dB levels stays below full scale",
+      "pass": true,
+      "detail": "-3.1 dBFS"
+    },
+    {
+      "id": "A11 proxy: SUB duck active only briefly around PUNCH hits",
+      "pass": true,
+      "detail": "21% of the time"
+    },
+    {
+      "id": "A36 proxy: worst case (6 voices, ratchet 8, drive 100%, rumble max) bounded",
+      "pass": true,
+      "detail": "-0.6 dBFS"
+    }
+  ],
+  "demo": {
+    "seconds": 53.2,
+    "hits": 713,
+    "peakDb": -6.1,
+    "sections": [
+      "starter preset",
+      "GENERATE FOUNDATION",
+      "MUTATE 20%",
+      "GENERATE DRIVING",
+      "MUTATE 20%",
+      "GENERATE HYPNOTIC",
+      "MUTATE 20%",
+      "GENERATE BROKEN",
+      "MUTATE 20%"
+    ]
+  }
+}
