@@ -144,7 +144,7 @@ test("trigger message: amp from velocity+level, effective sound, per-hit pan, vo
   deq(m.slice(2), [0.5, 0.25, 0.1, 0, 0.25, 0.4, 0.1, 0.9]);
 });
 
-test("schema v1 Live Sets migrate to v3: pattern kept, pan/synth get defaults", () => {
+test("schema v1 Live Sets migrate to v4: pattern kept, pan/synth get defaults", () => {
   const v1 = { format: "NOIZ", schemaVersion: 1, tracks: [{ length: 7, sound: { tone: 0.1, decay: 0.2, texture: 0.3, drive: 0.4 },
     steps: [{ on: true, pLocks: { tone: 0.9 } }] }] };
   const e = new C.NoizEngine();
@@ -155,8 +155,8 @@ test("schema v1 Live Sets migrate to v3: pattern kept, pan/synth get defaults", 
   assert.strictEqual(t.sound.pan, 0.56);
   deq(t.synth, C.NOIZ_DEFAULT_SYNTH[0]);
   assert.strictEqual(t.steps[0].pLocks.tone, 0.9);
-  assert.strictEqual(JSON.parse(e.serialize()).schemaVersion, 3);
-  assert.strictEqual(e.state.global.lockDensity, 0.75); // old hidden settings → lane defaults
+  assert.strictEqual(JSON.parse(e.serialize()).schemaVersion, 4);
+  assert.strictEqual(e.state.global.lockDensity, 1); // old hidden settings → lane defaults
 });
 
 test("SYNTH params: setSynth/resetSynth with one undo entry each; hold locks rhythm and sound", () => {

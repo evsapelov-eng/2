@@ -255,7 +255,7 @@ function noizGenerate(tracks, scope, rng, opts) {
     done.push(tr);
     if (noizScopeSound(scope) && !tr.locks.sound) noizGenerateTrackSound(tr, rng);
     if (noizScopePLocks(scope) && !tr.locks.sound) {
-      noizGenerateTrackPLocks(tr, rng, noizIsNum(opts.lockDensity) ? opts.lockDensity : 0.75,
+      noizGenerateTrackPLocks(tr, rng, noizIsNum(opts.lockDensity) ? opts.lockDensity : 1.0,
         noizIsNum(opts.lockAmount) ? opts.lockAmount : 0.5);
     }
   }
@@ -347,37 +347,47 @@ function noizMutateRhythm(track, amount, rng) {
   }
 }
 
+// Moves v by a random amount that is never ~zero (every value really changes);
+// at a range end it moves inwards.
+function noizNudge(v, size, rng) {
+  var d = (rng.chance(0.5) ? 1 : -1) * rng.range(0.4, 1) * size;
+  if (Math.abs(d) < 0.01) d = d < 0 ? -0.01 : 0.01;
+  var nv = noizClamp01(v + d);
+  if (Math.abs(nv - v) < 0.005) nv = noizClamp01(v - d);
+  return noizRound(nv, 3);
+}
+
+// MUTATE sound: every base sound and synth value of the voice changes.
 function noizMutateSound(track, amount, rng) {
   if (amount <= 0) return;
   for (var i = 0; i < NOIZ_MACROS.length; i++) {
     var k = NOIZ_MACROS[i];
-    var v = track.sound[k] + rng.gauss() * 0.18 * amount;
-    if (k === "drive" && amount < 0.8) v = Math.min(v, Math.max(track.sound[k], 0.7));
-    track.sound[k] = noizRound(noizClamp01(v), 3);
+    var nv = noizNudge(track.sound[k], 0.3 * amount, rng);
+    // no runaway distortion at moderate amounts: mirror the step downwards instead
+    if (k === "drive" && amount < 0.8 && nv > 0.7 && nv > track.sound[k]) nv = noizRound(Math.max(0, 2 * track.sound[k] - nv), 3);
+    track.sound[k] = nv;
   }
   for (var j = 0; j < NOIZ_SYNTH.length; j++) {
     var sk = NOIZ_SYNTH[j];
-    track.synth[sk] = noizRound(noizClamp01(track.synth[sk] + rng.gauss() * 0.14 * amount), 3);
+    track.synth[sk] = noizNudge(track.synth[sk], 0.25 * amount, rng);
   }
 }
 
+// MUTATE per-step values: every parameter has a lane afterwards and every value of
+// every lane changes; at larger amounts some lanes are redrawn with a new shape.
 function noizMutatePLocks(track, amount, rng, lockDensity, lockAmount) {
   if (amount <= 0) return;
   var depthScale = Math.min(2, lockAmount / 0.5);
   for (var k = 0; k < NOIZ_LOCKABLE.length; k++) {
-    var key = NOIZ_LOCKABLE[k], has = false, i;
-    for (i = 0; i < track.length; i++) if (track.steps[i].pLocks.hasOwnProperty(key)) has = true;
-    if (rng.chance(amount * 0.35)) {            // redraw / add / drop a whole lane
-      if (has && rng.chance(0.25)) { for (i = 0; i < NOIZ_MAX_STEPS; i++) delete track.steps[i].pLocks[key]; }
-      else if (rng.chance(Math.max(lockDensity, 0.3))) noizDrawLane(track, key, rng, depthScale);
+    var key = NOIZ_LOCKABLE[k], has = true, i;
+    for (i = 0; i < track.length; i++) if (!track.steps[i].pLocks.hasOwnProperty(key)) has = false;
+    if (!has || rng.chance(Math.max(0, amount - 0.25) * 0.6)) {
+      noizDrawLane(track, key, rng, depthScale * (has ? 1 : Math.max(amount, 0.4)));
       continue;
     }
-    if (!has) continue;
-    for (i = 0; i < track.length; i++) {       // nudge the existing values
+    for (i = 0; i < track.length; i++) {
       var pl = track.steps[i].pLocks;
-      if (pl.hasOwnProperty(key) && rng.chance(0.3 + amount * 0.7)) {
-        pl[key] = noizRound(noizClamp01(pl[key] + rng.range(-1, 1) * amount * 0.3 * depthScale), 3);
-      }
+      pl[key] = noizNudge(pl[key], amount * 0.3 * depthScale, rng);
     }
   }
 }
@@ -418,5 +428,35 @@ function noizMutateFromAnchor(currentTracks, anchorTracks, amount, scope, rng, o
       noizMutatePLocks(tr, amount, rng, ld, la);
     }
   }
+  noizEnsureChanged(next, currentTracks, scope, rng);
   return noizNormalizeTracks(next);
+}
+
+// Every MUTATE must audibly move every value of every unlocked voice compared with
+// what was playing right before the press (not only compared with the Keep anchor).
+function noizEnsureChanged(next, current, scope, rng) {
+  for (var t = 0; t < next.length; t++) {
+    var tr = next[t], cur = current[t], i, k, guard;
+    if (tr.locks.sound) continue;
+    if (noizScopeSound(scope)) {
+      for (i = 0; i < NOIZ_MACROS.length; i++) {
+        k = NOIZ_MACROS[i];
+        for (guard = 0; guard < 6 && tr.sound[k] === cur.sound[k]; guard++) tr.sound[k] = noizNudge(tr.sound[k], 0.02, rng);
+      }
+      for (i = 0; i < NOIZ_SYNTH.length; i++) {
+        k = NOIZ_SYNTH[i];
+        for (guard = 0; guard < 6 && tr.synth[k] === cur.synth[k]; guard++) tr.synth[k] = noizNudge(tr.synth[k], 0.02, rng);
+      }
+    }
+    if (noizScopePLocks(scope)) {
+      for (var s = 0; s < tr.length; s++) {
+        var pl = tr.steps[s].pLocks, cp = cur.steps[s].pLocks;
+        for (i = 0; i < NOIZ_LOCKABLE.length; i++) {
+          k = NOIZ_LOCKABLE[i];
+          if (!pl.hasOwnProperty(k)) continue;
+          for (guard = 0; guard < 6 && cp.hasOwnProperty(k) && pl[k] === cp[k]; guard++) pl[k] = noizNudge(pl[k], 0.02, rng);
+        }
+      }
+    }
+  }
 }

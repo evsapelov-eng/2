@@ -398,3 +398,39 @@ test("lanes keep their shape near the range ends (no half-flattened lanes)", () 
   }
   assert.ok(clipped / total < 0.08, `clipped ${(100 * clipped / total).toFixed(1)}% of lane values`);
 });
+
+test("after EVERY Generate: all 9 parameters of every unlocked voice have a per-step lane", () => {
+  const e = new C.NoizEngine();
+  e.setHold(2, true);
+  for (let n = 0; n < 15; n++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t) => {
+      if (t.id === 2) return;
+      for (const k of C.NOIZ_LOCKABLE) assert.ok(lanesOf(t, k).every((v) => typeof v === "number"), `gen ${n} ${t.name} ${k} has no lane`);
+    });
+  }
+});
+
+for (const amt of [0.05, 0.25, 1]) {
+  test(`after EVERY Mutate (amount ${amt}): every base value and every step value of every unlocked voice changes`, () => {
+    const e = new C.NoizEngine();
+    e.generate("ALL");
+    e.keep();
+    e.setHold(1, true);
+    const locked = J(e.state.tracks[1]);
+    for (let n = 0; n < 8; n++) {
+      const before = JSON.parse(J(e.state.tracks));
+      e.mutate("ALL", amt);
+      e.state.tracks.forEach((t, i) => {
+        if (i === 1) { assert.strictEqual(J(t), locked); return; }
+        for (const k of C.NOIZ_MACROS) assert.notStrictEqual(t.sound[k], before[i].sound[k], `${t.name}.${k}`);
+        for (const k of C.NOIZ_SYNTH) assert.notStrictEqual(t.synth[k], before[i].synth[k], `${t.name}.${k}`);
+        if (t.length !== before[i].length) return;
+        for (const k of C.NOIZ_LOCKABLE) {
+          const a = lanesOf(before[i], k), b = lanesOf(t, k);
+          b.forEach((v, s) => assert.ok(typeof v === "number" && v !== a[s], `${t.name} ${k} step ${s + 1} unchanged`));
+        }
+      });
+    }
+  });
+}

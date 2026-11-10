@@ -1,7 +1,7 @@
 // NØIZ core — data model, defaults, validation, (de)serialization.
 // Step indices are 0-based in code, 1-based in the UI.
 
-var NOIZ_SCHEMA_VERSION = 3;
+var NOIZ_SCHEMA_VERSION = 4;
 var NOIZ_MAX_STEPS = 32;
 var NOIZ_TRACK_NAMES = ["HISS", "DUST", "METAL", "ATMOS"];
 // Base sound params (track.sound). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
@@ -84,7 +84,7 @@ function noizDefaultGlobal() {
     activeView: "SEQUENCE",
     mutationAmount: 0.25,
     randomScope: "RHYTHM",
-    lockDensity: 0.75,   // probability that a parameter gets a per-step lane on GENERATE
+    lockDensity: 1.0,    // probability that a parameter gets a per-step lane on GENERATE (1 = all)
     lockAmount: 0.5,     // lane depth scale (0.5 = nominal)
     uiMotion: true
   };
@@ -268,9 +268,9 @@ function noizMigrate(raw) {
   if (raw.format !== undefined && raw.format !== "NOIZ") return null;
   var v = raw.schemaVersion;
   if (v === undefined) v = 1; // tolerate hand-written partial states
-  if (v !== 1 && v !== 2 && v !== 3) return null;
-  if (v < 3 && raw.global) { // v3: lanes — old hidden lock settings → new defaults
-    raw.global.lockDensity = 0.75;
+  if (v !== 1 && v !== 2 && v !== 3 && v !== 4) return null;
+  if (v < 4 && raw.global) { // v4: every parameter gets a lane — old hidden lock settings → new defaults
+    raw.global.lockDensity = 1.0;
     raw.global.lockAmount = 0.5;
   }
   return raw;
