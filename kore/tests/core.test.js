@@ -56,13 +56,14 @@ test("A31: a P-Lock affects only its step and only valid ids of its voice (no le
   deq(st.tracks[3].steps[0].pLocks, { decay: 0.1 });
 });
 
-test("trigger message: 8 values, voice params in order, HAT open flag", () => {
-  const ev = { trackId: 5, velocity: 1, levelDb: 0, open: true, params: { tone: 0.3, decay: 0.6, reso: 0.2, open: 0.5 } };
-  deq(C.koreEventToTrigger(ev), [5, 1, 0.3, 0.6, 0.2, 0.5, 0, 1]);
-  const k = { trackId: 3, velocity: 1, levelDb: -6, open: false, params: { tune: 0.1, decay: 0.2, sweep: 0.3, tone: 0.4, snap: 0.5 } };
+test("trigger message: 9 values (track amp p0..p4 open pan), PAN outside the sound slots", () => {
+  const ev = { trackId: 5, velocity: 1, levelDb: 0, open: true, params: { tone: 0.3, decay: 0.6, reso: 0.2, open: 0.5, pan: 0.8 } };
+  deq(C.koreEventToTrigger(ev), [5, 1, 0.3, 0.6, 0.2, 0.5, 0, 1, 0.8]);
+  const k = { trackId: 3, velocity: 1, levelDb: -6, open: false, params: { tune: 0.1, decay: 0.2, sweep: 0.3, drive: 0.4, snap: 0.5, pan: 0.25 } };
   const m = C.koreEventToTrigger(k);
-  assert.strictEqual(m.length, 8);
-  deq(m.slice(2), [0.1, 0.2, 0.3, 0.4, 0.5, 0]);
+  assert.strictEqual(m.length, 9);
+  deq(m.slice(2), [0.1, 0.2, 0.3, 0.4, 0.5, 0, 0.25]);
+  deq(C.koreEventToTrigger({ trackId: 1, velocity: 1, levelDb: 0, params: { tune: 0, decay: 0, sweep: 0, drive: 0 } }).slice(-1), [0.5]); // SUB: centre
   assert.ok(Math.abs(m[1] - Math.pow(10, -6 / 20)) < 1e-4);
 });
 
@@ -100,4 +101,18 @@ test("A35 (static part): serialize → restore keeps steps, P-Locks, seed, ancho
   assert.strictEqual(e2.restore("{bad").ok, false);
   assert.strictEqual(e2.restore(J({ format: "NOIZ" })).ok, false);
   assert.strictEqual(e2.serialize(), text);
+});
+
+test("schema v2 → v3: old tom sounds (TONE) reset to the new kick-like defaults; other voices kept", () => {
+  const e = new C.KoreEngine();
+  const raw = JSON.parse(e.serialize());
+  raw.schemaVersion = 2;
+  raw.tracks[3].params = { tune: 0.9, decay: 0.1, sweep: 0.2, tone: 0.7, snap: 0.1 };
+  raw.tracks[5].params.tone = 0.91; delete raw.tracks[5].params.pan;
+  const r = C.koreDeserialize(JSON.stringify(raw));
+  assert.ok(r.ok);
+  deq(r.state.tracks[3].params, C.KORE_DEFAULT_PARAMS[3]);
+  assert.strictEqual(r.state.tracks[5].params.tone, 0.91);
+  assert.strictEqual(r.state.tracks[5].params.pan, C.KORE_DEFAULT_PARAMS[5].pan);
+  assert.strictEqual(r.state.tracks[0].params.humpitch, 0.5);
 });

@@ -54,7 +54,7 @@ test("the rendered kick is identical every time for the same settings and change
   const p = Object.assign({}, MAP.voices.PUNCH.defaults);
   const a = MODEL.koreRenderKick(MAP, p, 48000).L, b = MODEL.koreRenderKick(MAP, p, 48000).L;
   assert.ok(a.length === b.length && a.every((x, i) => x === b[i]));
-  for (const k of MAP.voices.PUNCH.params.filter((x) => x !== "hum")) { // HUM = separate signal layer
+  for (const k of MAP.voices.PUNCH.params.filter((x) => x !== "hum" && x !== "humpitch")) { // HUM = separate signal layer
     const q = Object.assign({}, p, { [k]: p[k] > 0.5 ? 0.05 : 0.95 });
     const c = MODEL.koreRenderKick(MAP, q, 48000).L;
     let diff = Math.abs(c.length - a.length);
@@ -105,7 +105,7 @@ test("user D1: every GENERATE changes rhythm+length of the 5 other voices and th
     e.setGlobal("style", C.KORE_STYLES[n % 4]);
     e.generate();
     e.state.tracks.forEach((t, i) => {
-      for (const k of C.KORE_VOICE_PARAMS[i]) if (k !== "hum") assert.notStrictEqual(t.params[k], before[i].params[k], `gen ${n} ${t.name}.${k}`);
+      for (const k of C.KORE_VOICE_PARAMS[i]) if (k !== "hum" && k !== "humpitch") assert.notStrictEqual(t.params[k], before[i].params[k], `gen ${n} ${t.name}.${k}`);
       assert.ok(t.soundName.length > 0);
       if (i === 0) return;
       assert.notStrictEqual(t.length, before[i].length, `gen ${n} ${t.name} length`);

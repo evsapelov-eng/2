@@ -101,22 +101,42 @@ test("strip: GENERATE / MUTATE / KEEP / UNDO / style / KICK-SUB route correctly"
   b.save("ui_strip_sequence.svg");
 });
 
-test("HUM knob: drag sets PUNCH hum whatever voice is selected; double-click resets; dB readout", () => {
+test("HUM LEVEL + PITCH knobs: set PUNCH hum whatever voice is selected; double-click resets; readouts", () => {
   const b = boot();
-  b.draw(); b.click(...cell(5, 0).map((v, i) => (i ? v : 170))); b.send(); b.draw(); // select HAT
+  b.draw(); b.click(170, 10 + 5 * 25 + 8); b.send(); b.draw();     // select HAT
   assert.strictEqual(b.state().global.selectedTrack, 5);
-  b.click(1020, 60); for (let i = 1; i <= 10; i++) b.dragTo(1020, 60 - i * 5, false); b.dragTo(1020, 0);
+  const knob = (k) => b.ui.hits.find((h) => h.kind === "kick" && h.key === k);
+  let h = knob("hum");
+  b.click(h.x + 40, h.y + 20); for (let i = 1; i <= 10; i++) b.dragTo(h.x + 40, h.y + 20 - i * 5, false); b.dragTo(h.x + 40, -40);
   const sel = b.uiOut.map((m) => m[1]);
-  assert.strictEqual(sel[0], "gesture"); assert.strictEqual(sel[sel.length - 1], "gesture"); assert.ok(sel.includes("humlevel"));
+  assert.strictEqual(sel[0], "gesture"); assert.strictEqual(sel[sel.length - 1], "gesture"); assert.ok(sel.includes("kickparam"));
   b.send(); b.draw();
   assert.ok(b.state().tracks[0].params.hum > 0.7);
   assert.strictEqual(b.state().tracks[5].params.hum, undefined);
-  assert.ok(svgText(b.mg.svg()).includes("-1dB") || svgText(b.mg.svg()).includes("-2dB") || /-\d+dB/.test(svgText(b.mg.svg())));
-  b.click(1020, 60); b.dragTo(1020, 400); b.send(); b.draw();
+  h = knob("hum"); b.click(h.x + 40, h.y + 20); b.dragTo(h.x + 40, 400); b.send(); b.draw();
   assert.strictEqual(b.state().tracks[0].params.hum, 0); assert.ok(svgText(b.mg.svg()).includes("OFF"));
-  b.ui.ondblclick(1020, 60); b.send();
+  b.ui.ondblclick(h.x + 40, h.y + 20); b.send();
   assert.strictEqual(b.state().tracks[0].params.hum, 0.4);
+  b.draw(); const p = knob("humpitch");
+  b.click(p.x + 40, p.y + 20); b.dragTo(p.x + 40, p.y + 20 - 50); b.send(); b.draw();
+  assert.ok(b.state().tracks[0].params.humpitch > 0.8);
+  assert.ok(/\+\d+st/.test(svgText(b.mg.svg())), "pitch readout in semitones");
+  b.ui.ondblclick(p.x + 40, p.y + 20); b.send();
+  assert.strictEqual(b.state().tracks[0].params.humpitch, 0.5);
   b.save("ui_strip_hum.svg");
+});
+
+test("PAN: knob and lane on TOM / HAT; none on the low end", () => {
+  const b = boot();
+  b.draw(); b.tab("SOUND"); b.voice(3);
+  const pan = b.ui.hits.find((h) => h.kind === "param" && h.key === "pan");
+  assert.ok(pan, "TOM L has a PAN knob");
+  b.click(pan.x + 30, pan.y + 25); b.dragTo(pan.x + 30, pan.y - 30); b.send(); b.draw();
+  assert.ok(b.state().tracks[3].params.pan > 0.6 && /R\d+/.test(svgText(b.mg.svg())));
+  b.save("ui_strip_sound_tom.svg");
+  for (const v of [0, 1, 2]) { b.voice(v); assert.ok(!b.ui.hits.some((h) => h.kind === "param" && h.key === "pan"), "no pan on voice " + v); }
+  b.tab("LANES"); b.voice(5);
+  assert.ok(b.ui.hits.some((h) => h.kind === "lanekey" && h.key === "pan"), "HAT pan lane");
 });
 
 test("SEQUENCE: six rows, step toggle, option-click → step strip, open-hat toggle, step P-Lock from SOUND", () => {
@@ -158,6 +178,7 @@ test("LANES: draw a parameter across steps in one gesture; option-click clears o
   const b = boot();
   b.draw(); b.tab("LANES"); b.voice(3);                    // TOM L
   b.click(158 + 330 + 1 * 62 + 29, 14); b.draw();          // DECAY lane
+  assert.strictEqual(b.ui.laneKey, "decay");
   const colX = (s) => 160 + s * 50 + 20;
   b.click(colX(0), 40);
   for (let s = 1; s < 16; s++) b.dragTo(colX(s), 40 + s * 6, false);

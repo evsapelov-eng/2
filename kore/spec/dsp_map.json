@@ -21,7 +21,8 @@
         "drive",
         "click",
         "clicktone",
-        "hum"
+        "hum",
+        "humpitch"
       ],
       "levelDb": -6,
       "tuneHz": [
@@ -65,15 +66,23 @@
         "drive": 0.35,
         "click": 0.35,
         "clicktone": 0.5,
-        "hum": 0.4
+        "hum": 0.4,
+        "humpitch": 0.5
       },
       "clickGain": 0.8,
       "hum": {
-        "_doc": "HUM: long humming sub under the kick — sine at the kick's TUNE, swells in after each kick (attack) and holds until the next one; slides down fast just before/at the kick (no click). Level = maxDb + 20log10(hum); hum=0 → off. Not changed by GENERATE.",
-        "attackMs": 90,
+        "_doc": "HUM: sub that HITS WITH the kick and keeps humming until the next one. Rendered per beat into its own buffer (sine from phase 0 at the hit, short glide from the kick's PUNCH, 1 ms attack, settles to 'sustain', fades to 0 just before the next beat → no click at the restart). Pitch = kick TUNE · 2^(humpitch semis/12). Level = maxDb + 20log10(hum); hum=0 → off. GENERATE/MUTATE never change hum/humpitch.",
         "maxDb": -4,
-        "slideUpMs": 2,
-        "slideDownMs": 4
+        "attackMs": 1.0,
+        "glideFrac": 0.3,
+        "settleMs": 350,
+        "sustain": 0.65,
+        "fadeMs": 25,
+        "endGapMs": 1.5,
+        "pitchSemis": [
+          -12,
+          12
+        ]
       }
     },
     "SUB": {
@@ -154,91 +163,101 @@
         "tune",
         "decay",
         "sweep",
-        "tone",
-        "snap"
+        "drive",
+        "snap",
+        "pan"
       ],
       "defaults": {
         "tune": 0.4,
-        "decay": 0.4,
-        "sweep": 0.5,
-        "tone": 0.35,
-        "snap": 0.3
+        "decay": 0.35,
+        "sweep": 0.55,
+        "drive": 0.45,
+        "snap": 0.45,
+        "pan": 0.4
       },
       "levelDb": -12,
+      "_doc": "TOM = the kick's synthesis at a higher pitch: phase-reset sine with an exponential pitch drop (GLIDE semis, tau sweepMs), exp decay, CLICK (SNAP: band-passed noise + tick at clickHz), tanh DRIVE with level compensation, PAN (balance, centre = mono level).",
       "tuneHz": [
-        60,
-        160
+        65,
+        180
       ],
-      "sweepMs": 30,
       "decayMs": [
         80,
-        600
+        500
       ],
-      "noiseBpRatio": 2.0,
-      "q": [
-        0.3,
-        0.9
-      ],
-      "noiseGain": 1.2,
-      "outGain": 1.0,
       "sweepSemisRange": [
-        0,
-        14
+        4,
+        30
       ],
-      "snapGain": 6.0,
-      "snapTauMs": 4
+      "sweepMs": 14,
+      "driveGain": [
+        1.2,
+        8.0
+      ],
+      "clickHz": 2200,
+      "clickQ": 0.55,
+      "clickGain": 1.4,
+      "clickTauMs": 2,
+      "tickTauMs": 1.2,
+      "outGain": 1.0
     },
     "TOM H": {
       "params": [
         "tune",
         "decay",
         "sweep",
-        "tone",
-        "snap"
+        "drive",
+        "snap",
+        "pan"
       ],
       "defaults": {
         "tune": 0.45,
-        "decay": 0.35,
+        "decay": 0.3,
         "sweep": 0.5,
-        "tone": 0.4,
-        "snap": 0.3
+        "drive": 0.45,
+        "snap": 0.45,
+        "pan": 0.62
       },
       "levelDb": -13,
+      "_doc": "TOM = the kick's synthesis at a higher pitch: phase-reset sine with an exponential pitch drop (GLIDE semis, tau sweepMs), exp decay, CLICK (SNAP: band-passed noise + tick at clickHz), tanh DRIVE with level compensation, PAN (balance, centre = mono level).",
       "tuneHz": [
         120,
-        320
+        380
       ],
-      "sweepMs": 25,
       "decayMs": [
-        80,
-        600
+        60,
+        400
       ],
-      "noiseBpRatio": 2.0,
-      "q": [
-        0.3,
-        0.9
-      ],
-      "noiseGain": 1.2,
-      "outGain": 1.0,
       "sweepSemisRange": [
-        0,
-        14
+        4,
+        30
       ],
-      "snapGain": 6.0,
-      "snapTauMs": 4
+      "sweepMs": 14,
+      "driveGain": [
+        1.2,
+        8.0
+      ],
+      "clickHz": 3800,
+      "clickQ": 0.55,
+      "clickGain": 1.4,
+      "clickTauMs": 2,
+      "tickTauMs": 1.2,
+      "outGain": 1.0
     },
     "HAT": {
       "params": [
         "tone",
         "decay",
         "reso",
-        "open"
+        "open",
+        "pan"
       ],
       "defaults": {
         "tone": 0.55,
         "decay": 0.35,
         "reso": 0.2,
-        "open": 0.45
+        "open": 0.45,
+        "pan": 0.58
       },
       "levelDb": -14,
       "toneHz": [
@@ -271,5 +290,8 @@
   "master": {
     "drive": 1.0,
     "ceiling": 0.94
+  },
+  "pan": {
+    "_doc": "Balance law per channel: gL=min(1,2(1-pan)), gR=min(1,2·pan); pan 0.5 = both 1 (mono level). Only TOM L, TOM H, HAT — the low end (PUNCH, HUM, SUB, RUMBLE) stays mono."
   }
 }

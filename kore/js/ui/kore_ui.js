@@ -24,11 +24,11 @@ var NAMES = ["PUNCH", "SUB", "RUMBLE", "TOM L", "TOM H", "HAT"];
 var PARAMS = [];            // editable on SOUND / LANES (HUM has its own knob on the right)
 for (var pi = 0; pi < NAMES.length; pi++) {
   var pk = KORE_DSP_MAP.voices[NAMES[pi]].params, pl = [];
-  for (var pj = 0; pj < pk.length; pj++) if (pk[pj] !== "hum") pl.push(pk[pj]);
+  for (var pj = 0; pj < pk.length; pj++) if (pk[pj] !== "hum" && pk[pj] !== "humpitch") pl.push(pk[pj]);
   PARAMS.push(pl);
 }
 var LABEL = { tune: "TUNE", punch: "PUNCH", time: "TIME", body: "BODY", decay: "DECAY", drive: "DRIVE", click: "CLICK",
-  clicktone: "CLK TONE", sweep: "GLIDE", tone: "TONE", snap: "SNAP", reso: "RESO", open: "OPEN", amount: "AMOUNT", tail: "TAIL", duck: "DUCK", hum: "HUM" };
+  clicktone: "CLK TONE", sweep: "GLIDE", tone: "TONE", snap: "SNAP", reso: "RESO", open: "OPEN", amount: "AMOUNT", tail: "TAIL", duck: "DUCK", hum: "HUM", humpitch: "PITCH", pan: "PAN" };
 var STYLES = ["FOUNDATION", "DRIVING", "HYPNOTIC", "BROKEN"];
 var DIVS = [[1, 1], [3, 4], [5, 4], [7, 4], [3, 2], [2, 3], [4, 3], [1, 2], [2, 1]];
 
@@ -74,6 +74,8 @@ function vToLevel(v) { return Math.round((LEVEL_MIN + v * (LEVEL_MAX - LEVEL_MIN
 function valueText(t, key, v) {
   var m = vmap(t);
   if (key === "level") return vToLevel(v) + "dB";
+  if (key === "pan") { var pv = Math.round((v - 0.5) * 200); return pv === 0 ? "C" : (pv < 0 ? "L" + (-pv) : "R" + pv); }
+  if (key === "humpitch") { var hs = Math.round(KORE_DSP_MAP.voices.PUNCH.hum.pitchSemis[0] + (KORE_DSP_MAP.voices.PUNCH.hum.pitchSemis[1] - KORE_DSP_MAP.voices.PUNCH.hum.pitchSemis[0]) * v); return (hs > 0 ? "+" : "") + hs + "st"; }
   if (key === "hum") { var hm = KORE_DSP_MAP.voices.PUNCH.hum; return v > 0 ? Math.round(hm.maxDb + 20 * Math.log(v) / Math.LN10) + "dB" : "OFF"; }
   if (key === "tune") return fmtHz(expMap(m.tuneHz, v)) + "Hz";
   if (key === "decay") return fmtMs(expMap(m.decayMs, v));
@@ -201,11 +203,13 @@ function paintRight(g) {
   // HUM — the long humming sub under the kick (PUNCH's own knob, D8; GENERATE never moves it)
   var hv = S.tracks[0].params.hum, hx = RX;
   rect(hx, 8, 84, 153, COL.primary, false, 1.2);
-  text("HUM", hx + 8, 22, 10, COL.primary, true);
-  text("SUB", hx + 50, 22, 6.5, COL.stroke);
-  drawNode(hx + 2, 26, 80, 112, "hum", "LONG SUB", hv, valueText(0, "hum", hv), { kind: "hum" }, false, 0, 22);
-  var hz = expMap(vmap(0).tuneHz, S.tracks[0].params.tune);
-  textC("@ " + fmtHz(hz) + "Hz", hx + 42, 150, 7, COL.stroke);
+  text("HUM", hx + 8, 21, 10, COL.primary, true);
+  text("SUB", hx + 50, 21, 6.5, COL.stroke);
+  var hpv = S.tracks[0].params.humpitch;
+  drawNode(hx + 2, 24, 80, 60, "hum", "LEVEL", hv, valueText(0, "hum", hv), { kind: "kick", key: "hum" }, false, 0, 13);
+  drawNode(hx + 2, 86, 80, 60, "humpitch", "PITCH", hpv, valueText(0, "humpitch", hpv), { kind: "kick", key: "humpitch" }, false, 0, 13);
+  var hz = koreHumHz(KORE_DSP_MAP, S.tracks[0].params);
+  textC(fmtHz(hz) + " Hz", hx + 42, 156, 7, COL.stroke);
   // actions
   var ax = RX + 92, aw = 120;
   rect(ax, 8, aw, 28, COL.primary, false, 1.5); dice(ax + 8, 14, 15); text("GENERATE", ax + 30, 26, 9, COL.primary, true);
@@ -369,6 +373,7 @@ function handle(x, y, label, key, fn, axis) {
 function paintSound(g) {
   voiceRow(g);
   var t = g.selectedTrack, pv = previewFor(g), info = pv.data.info, m = vmap(t), p = pv.p;
+  PITCH_FMAX = (t === 3 || t === 4) ? 3200 : 800;   // kick-like toms start high
   var stepMode = g.selectedStep >= 0 && t !== 0;
   text((stepMode ? NAMES[t] + " / STEP " + pad2(g.selectedStep + 1) : NAMES[t] + " / BASE") + "  " + (S.tracks[t].soundName || ""), MX + 330, 18, 8, COL.primary, true);
   if (stepMode) button(MR - 50, 6, 46, 16, "BASE", "exitstep", 7);
@@ -456,8 +461,8 @@ function drawWave(sig, x, y, w, h) {
   for (var k = 0; k < ticks.length; k++) { var px = x + 2 + tLog(ticks[k][0], cols); line(px, y + h - 5, px, y + h, COL.stroke); text(ticks[k][1], px + 2, y + h - 2, 6, COL.stroke); }
 }
 function drawPitch(pitch) {
-  var G = GRAPH, marks = [40, 60, 100, 200, 400];
-  for (var m = 0; m < marks.length; m++) { line(G.x + PX0, fyPitch(marks[m]), G.x + G.w - 6, fyPitch(marks[m]), COL.inactive, 1, 0.7); text(String(marks[m]), G.x + 6, fyPitch(marks[m]) + 3, 6, COL.stroke); }
+  var G = GRAPH, marks = PITCH_FMAX > 1000 ? [60, 100, 200, 500, 1000, 2000] : [40, 60, 100, 200, 400];
+  for (var m = 0; m < marks.length; m++) { line(G.x + PX0, fyPitch(marks[m]), G.x + G.w - 6, fyPitch(marks[m]), COL.inactive, 1, 0.7); text(marks[m] >= 1000 ? marks[m] / 1000 + "k" : String(marks[m]), G.x + 6, fyPitch(marks[m]) + 3, 6, COL.stroke); }
   col(COL.primary); mgraphics.set_line_width(1.4);
   var cols = G.w - PX0 - 8;
   for (var c = 0; c <= cols; c++) {
@@ -532,7 +537,17 @@ function glyph(key, v, cx, cy, r) {
   else if (key === "amount") { circle(cx, cy, r, COL.primary, 0.3); circle(cx, cy, Math.max(2, r * v), COL.primary, 1, 2); }
   else if (key === "duck") { circle(cx, cy, r, COL.primary, 0.3); var dip = v * r * 0.8; col(COL.primary); mgraphics.move_to(cx - r * 0.8, cy - r * 0.3); mgraphics.line_to(cx - r * 0.2, cy - r * 0.3 + dip); mgraphics.line_to(cx + r * 0.8, cy - r * 0.3); mgraphics.stroke(); }
   else if (key === "level") circle(cx, cy, r * (0.25 + 0.75 * v), COL.primary, 1);
-  else if (key === "hum") { // long low sine whose height is the HUM level
+  else if (key === "pan") { // position between L and R
+    line(cx - r, cy, cx + r, cy, COL.primary, 1, 0.4);
+    line(cx, cy - r * 0.4, cx, cy + r * 0.4, COL.primary, 1, 0.4);
+    dot(cx - r + 2 * r * v, cy, Math.max(2.5, r * 0.3), COL.primary);
+  } else if (key === "humpitch") { // a sine whose density is the pitch
+    circle(cx, cy, r, COL.primary, 0.3);
+    col(COL.primary); mgraphics.set_line_width(1.4);
+    var cyc = 1 + v * 4;
+    for (i = 0; i <= 48; i++) { var px2 = cx - r * 0.8 + i / 48 * r * 1.6, py2 = cy - Math.sin(i / 48 * Math.PI * 2 * cyc) * r * 0.5; if (i === 0) mgraphics.move_to(px2, py2); else mgraphics.line_to(px2, py2); }
+    mgraphics.stroke();
+  } else if (key === "hum") { // long low sine whose height is the HUM level
     circle(cx, cy, r, COL.primary, 0.3);
     col(COL.primary); mgraphics.set_line_width(1.6);
     for (i = 0; i <= 48; i++) { var hx = cx - r * 0.8 + i / 48 * r * 1.6, hy = cy - Math.sin(i / 48 * Math.PI * 3) * r * 0.65 * v; if (i === 0) mgraphics.move_to(hx, hy); else mgraphics.line_to(hx, hy); }
@@ -606,7 +621,7 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
     outlet(0, "gesture", 1);
     drag = { kind: "lane", t: g.selectedTrack, last: h.s };
     outlet(0, "lane", g.selectedTrack, h.s, laneKey, laneValue(y));
-  } else if (h.kind === "param" || h.kind === "level" || h.kind === "hum") { outlet(0, "gesture", 1); drag = { kind: "node", target: h, y0: y, v0: h.v }; }
+  } else if (h.kind === "param" || h.kind === "level" || h.kind === "kick") { outlet(0, "gesture", 1); drag = { kind: "node", target: h, y0: y, v0: h.v }; }
   else if (h.kind === "handle") { outlet(0, "gesture", 1); drag = { kind: "handle", h: h }; }
   else if (h.kind === "num") {
     var st0 = g.selectedStep >= 0 ? tr.steps[g.selectedStep] : null;
@@ -633,7 +648,7 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
     var nv = Math.max(0, Math.min(1, drag.v0 + (drag.y0 - y) * sens));
     nv = Math.round(nv * 1000) / 1000;
     if (drag.target.kind === "param") outlet(0, "param", drag.target.key, nv);
-    else if (drag.target.kind === "hum") outlet(0, "humlevel", nv);
+    else if (drag.target.kind === "kick") outlet(0, "kickparam", drag.target.key, nv);
     else outlet(0, "level", S.global.selectedTrack, vToLevel(nv));
     if (shift) { drag.v0 = nv; drag.y0 = y; }
   } else if (drag.kind === "num") {
@@ -658,7 +673,7 @@ function ondblclick(x, y) {
   if (!h) return;
   var t = S.global.selectedTrack;
   if (h.kind === "param") outlet(0, "paramreset", h.key);
-  else if (h.kind === "hum") outlet(0, "humreset");
+  else if (h.kind === "kick") outlet(0, "kickparamreset", h.key);
   else if (h.kind === "level") outlet(0, "level", t, S.defaults.levelDb[t]);
   else if (h.kind === "lanecol") outlet(0, "clearlock", t, h.s, laneKey);
 }

@@ -29,14 +29,14 @@ test("engine bundle: Max inlets/outlets and every documented message exists", ()
   }
 });
 
-test("130 BPM transport ticks → trig messages: 8 values + delay; PUNCH is NOT sent as messages (signal domain)", () => {
+test("130 BPM transport ticks → trig messages: 9 values + delay; PUNCH is NOT sent as messages (signal domain)", () => {
   const { ctx, out } = load();
   for (let i = 0; i <= 190; i++) { // up to beat 3.8 (+ 40 ms lookahead < beat 4)
     const pos = i * 0.02, b = Math.floor(pos);
     ctx.tick(1 + Math.floor(b / 4), 1 + (b % 4), (pos - b) * 480, 480, 130);
   }
   const trig = out.filter((m) => m[0] === 0 && m[1] === "trig");
-  trig.forEach((m) => { assert.strictEqual(m.length, 11); m.slice(2).forEach((v) => assert.ok(Number.isFinite(v))); assert.ok(m[10] >= 0 && m[10] <= 60); });
+  trig.forEach((m) => { assert.strictEqual(m.length, 12); m.slice(2).forEach((v) => assert.ok(Number.isFinite(v))); assert.ok(m[11] >= 0 && m[11] <= 60); });
   assert.strictEqual(trig.filter((m) => m[2] === 0).length, 0, "kick runs from buffers, not messages");
   assert.ok(trig.length > 5);
   assert.ok(out.some((m) => m[1] === "playhead" && m.length === 8));

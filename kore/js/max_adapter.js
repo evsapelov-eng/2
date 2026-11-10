@@ -13,18 +13,18 @@
 //   tracklength <track> <n>  division <track> <n> <m>  level <track> <dB>  mute <track> <0|1>
 //   hold <track> <0|1>
 //   param <key> <0..1>  paramreset <key>        (BASE or STEP P-Lock of the selected voice)
-//   humlevel <0..1>  humreset                   (PUNCH HUM sub, whatever voice is selected)
+//   kickparam <hum|humpitch> <0..1>  kickparamreset <key>   (PUNCH HUM, whatever voice is selected)
 //   lane <track> <step> <key> <0..1>  clearlock <track> <step> <key>  clearsteplocks
 //   gesture <1|0>
 //   meter <peak>  kickmeter <peak>                from [peakamp~] (UI telemetry only)
 //
-// Outlet 0 → DSP:  trig <track> <amp> <p0> <p1> <p2> <p3> <p4> <open> <delayMs>   (tracks 1-5)
+// Outlet 0 → DSP:  trig <track> <amp> <p0> <p1> <p2> <p3> <p4> <open> <pan> <delayMs>   (tracks 1-5)
 //                  flush
 //                  kickbuf <bufferName>   (switch the kick player to the freshly rendered buffer)
-//                  kicklevel <amp> · kickgate <0|1> · hum <amp> <hz>
+//                  kicklevel <amp> · kickgate <0|1> · hum <amp> · humbuf <bufferName>
 // PUNCH is played in the signal domain from buffer~ (sample-accurate); this object
 // writes its 16-step pattern into the pattern buffer and renders its sound.
-//   bufnames <kickA> <kickB> <pattern>   (from the patch: unique ---names)
+//   bufnames <kickA> <kickB> <pattern> <humA> <humB>   (from the patch: unique ---names)
 //   sr <sampleRate>                      (from [dspstate~])
 // Outlet 1 → UI:   bind <globalName> · refresh · playhead <s0..s5>
 // Outlet 2 → status: sync <0|1> <tempo> · pending <0|1> · error <text>
@@ -67,9 +67,12 @@ engine.onChange(function (what) {
 });
 
 // ---------- kick buffers ----------
-var kick = { names: null, sr: 48000, active: 0, lastPattern: "", lastSound: "", lastLevel: -1, lastGate: -1, lastHum: "", renderTask: null };
-function bufnames(a, b, pat) { kick.names = [String(a), String(b), String(pat)]; kick.lastPattern = ""; kick.lastSound = ""; syncKick(); }
-function sr(v) { if (v > 0 && v !== kick.sr) { kick.sr = v; kick.lastSound = ""; syncKick(); } }
+var kick = { names: null, sr: 48000, active: 0, humActive: 0, lastPattern: "", lastSound: "", lastHumSound: "", lastLevel: -1, lastGate: -1, lastHum: -1, renderTask: null, humTask: null };
+function bufnames(a, b, pat, ha, hb) {
+  kick.names = [String(a), String(b), String(pat), String(ha || "---hum_a"), String(hb || "---hum_b")];
+  kick.lastPattern = ""; kick.lastSound = ""; kick.lastHumSound = ""; syncKick();
+}
+function sr(v) { if (v > 0 && v !== kick.sr) { kick.sr = v; kick.lastSound = ""; kick.lastHumSound = ""; syncKick(); } }
 
 function syncKick() {
   if (!kick.names) return;
@@ -84,9 +87,17 @@ function syncKick() {
   if (lv !== kick.lastLevel) { kick.lastLevel = lv; outlet(0, "kicklevel", lv); }
   var gate = koreKickGate(st);
   if (gate !== kick.lastGate) { kick.lastGate = gate; outlet(0, "kickgate", gate); }
-  var hum = koreHum(st), hj = hum.amp + "/" + hum.hz;
-  if (hj !== kick.lastHum) { kick.lastHum = hj; outlet(0, "hum", hum.amp, hum.hz); }
-  var kp = koreClone(st.tracks[KORE_PUNCH].params); delete kp.hum;   // HUM is not part of the rendered kick
+  var hum = koreHum(st);
+  if (hum.amp !== kick.lastHum) { kick.lastHum = hum.amp; outlet(0, "hum", hum.amp); }
+  var pp = st.tracks[KORE_PUNCH].params, tempo = Math.round((engine.tempo || 120) * 10) / 10;
+  var hs = [pp.tune, pp.punch, pp.time, pp.humpitch, tempo].join(",");
+  if (hs !== kick.lastHumSound) {
+    kick.lastHumSound = hs;
+    if (!kick.humTask) kick.humTask = new Task(renderHumNow, this);
+    kick.humTask.cancel();
+    kick.humTask.schedule(60);
+  }
+  var kp = koreClone(pp); delete kp.hum; delete kp.humpitch;   // HUM is not part of the rendered kick
   var sj = JSON.stringify(kp);
   if (sj !== kick.lastSound) {
     kick.lastSound = sj;
@@ -109,6 +120,19 @@ function renderKickNow() {
   } catch (e) { outlet(2, "error", "kick render buffer: " + e); }
 }
 
+function renderHumNow() {
+  if (!kick.names) return;
+  var r = koreRenderHum(KORE_DSP_MAP, engine.playState.tracks[KORE_PUNCH].params, kick.sr, engine.tempo || 120);
+  var next = 1 - kick.humActive, name = kick.names[3 + next];
+  try {
+    var b = new Buffer(name);
+    b.send("sizeinsamps", r.L.length, 1);
+    b.poke(1, 0, r.L);
+    kick.humActive = next;
+    outlet(0, "humbuf", name);
+  } catch (e) { outlet(2, "error", "hum render buffer: " + e); }
+}
+
 function sendStatus() {
   var s = engine.transportPlaying ? 1 : 0;
   if (s !== lastSync) { lastSync = s; outlet(2, "sync", s, engine.tempo); publishUi(); }
@@ -129,7 +153,7 @@ function tick(bars, beats, units, resolution, tempo) {
   for (var i = 0; i < evs.length; i++) {
     if (evs[i].trackId === KORE_PUNCH) continue; // kick runs in the signal domain
     var m = koreEventToTrigger(evs[i]);
-    outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], koreRound(evs[i].delayMs, 3));
+    outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], koreRound(evs[i].delayMs, 3));
   }
   var ph = [], changed = false;
   for (var t = 0; t < KORE_TRACK_NAMES.length; t++) {
@@ -138,6 +162,7 @@ function tick(bars, beats, units, resolution, tempo) {
     if (s !== lastPlayhead[t]) changed = true;
   }
   if (engine.pending === false && lastPending === 1) syncKick(); // pending pattern applied at the bar
+  if (Math.round(engine.tempo * 10) / 10 !== kick.lastTempo) { kick.lastTempo = Math.round(engine.tempo * 10) / 10; syncKick(); } // HUM length = 1 beat
   if (changed) { lastPlayhead = ph; ui.playhead = ph; ui.pos = pos; outlet(1, "playhead", ph[0], ph[1], ph[2], ph[3], ph[4], ph[5]); }
   sendStatus();
 }
@@ -169,9 +194,10 @@ function mute(t, v) { engine.setMute(t, v); }
 function hold(t, v) { engine.setHold(t, v); }
 function param(key, v) { engine.setParam(String(key), v); }
 function paramreset(key) { engine.resetParam(String(key)); }
-// HUM is PUNCH's own knob, reachable whatever voice is selected (D8)
-function humlevel(v) { engine.setBase(KORE_PUNCH, "hum", v); }
-function humreset() { engine.setBase(KORE_PUNCH, "hum", KORE_DEFAULT_PARAMS[KORE_PUNCH].hum); }
+// HUM level / pitch are PUNCH's own knobs, reachable whatever voice is selected (D8)
+var KICK_DIRECT = { hum: 1, humpitch: 1 };
+function kickparam(key, v) { if (KICK_DIRECT[key]) engine.setBase(KORE_PUNCH, String(key), v); }
+function kickparamreset(key) { if (KICK_DIRECT[key]) engine.setBase(KORE_PUNCH, String(key), KORE_DEFAULT_PARAMS[KORE_PUNCH][key]); }
 function lane(t, s, key, v) { engine.setPLock(t, s, String(key), v); }
 function clearlock(t, s, key) { engine.clearLock(t, s, String(key)); }
 function clearsteplocks() {

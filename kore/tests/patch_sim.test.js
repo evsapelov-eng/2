@@ -18,10 +18,11 @@ function load(file) { return new Patch(JSON.parse(fs.readFileSync(path.join(MAXD
 function hit(voice, over = {}, ms = 600, p0) {
   const p = p0 || load(`kore_voice_${FILES[voice]}.maxpat`);
   const params = Object.assign({}, MAP.voices[voice].defaults, over);
-  const keys = MAP.voices[voice].params;
+  const keys = MAP.voices[voice].params.filter((k) => k !== "pan");
   const list = [over.amp === undefined ? 0.8 : over.amp];
   for (let i = 0; i < 5; i++) list.push(i < keys.length ? params[keys[i]] : 0);
   list.push(over.isOpen ? 1 : 0);
+  list.push(params.pan === undefined ? 0.5 : params.pan);
   p.send(p.inletBox().id, 0, list);
   return { out: p.run(Math.round(ms / 1000 * SR))[1], patch: p, params };
 }
@@ -55,7 +56,7 @@ const kick = (over) => M.koreRenderKick(MAP, Object.assign({}, MAP.voices.PUNCH.
 
 test("SUB / TOM patches = model: same glide and decay", () => {
   for (const voice of ["SUB", "TOM L"]) {
-    const { out, params } = hit(voice, { tone: 0, snap: 0, drive: 0 }, 600);
+    const { out, params } = hit(voice, { snap: 0, drive: 0, pan: 0.5 }, 600);
     const m = M.koreModelHit(MAP, voice, Object.assign({ amp: 0.8 }, params), SR, 600, 1).L;
     assert.ok(rel(t90(out), t90(m)) < 0.06, `${voice} decay patch ${t90(out).toFixed(1)} vs model ${t90(m).toFixed(1)} ms`);
     const info = M.koreModelInfo(MAP, voice, params);
@@ -106,7 +107,7 @@ test("A07: kick CLICK adds a high-frequency attack; CLICK TONE moves it; fundame
 test("A15: HAT open is longer than closed; a closed hit right after chokes the open tail", () => {
   const closed = hit("HAT", { isOpen: 0 }, 800).out, open = hit("HAT", { isOpen: 1 }, 800).out;
   assert.ok(t90(open) > t90(closed) * 3, `open ${t90(open)} vs closed ${t90(closed)} ms`);
-  const p = load("kore_voice_hat.maxpat"), list = (o) => [0.8, 0.55, 0.35, 0.2, 0.45, 0, o];
+  const p = load("kore_voice_hat.maxpat"), list = (o) => [0.8, 0.55, 0.35, 0.2, 0.45, 0, o, 0.5];
   p.send(p.inletBox().id, 0, list(1));
   const a = p.run(Math.round(0.03 * SR))[1].slice();
   p.send(p.inletBox().id, 0, list(0));
@@ -118,11 +119,11 @@ test("A15: HAT open is longer than closed; a closed hit right after chokes the o
 });
 
 test("A14: TOM L and TOM H sit in distinct pitch ranges", () => {
-  const lHz = (t) => M.koreModelInfo(MAP, "TOM L", { tune: t, decay: 0.4, tone: 0.3 }).tuneHz;
-  const hHz = (t) => M.koreModelInfo(MAP, "TOM H", { tune: t, decay: 0.4, tone: 0.3 }).tuneHz;
+  const lHz = (t) => M.koreModelInfo(MAP, "TOM L", { tune: t, decay: 0.4, drive: 0.3 }).tuneHz;
+  const hHz = (t) => M.koreModelInfo(MAP, "TOM H", { tune: t, decay: 0.4, drive: 0.3 }).tuneHz;
   assert.ok(lHz(0.5) < hHz(0.5));
-  const l = hit("TOM L", { tone: 0 }).out, h = hit("TOM H", { tone: 0 }).out;
-  assert.ok(zcHz(h, 4800, 9600) > zcHz(l, 4800, 9600) * 1.4);
+  const l = hit("TOM L", { snap: 0, drive: 0 }).out, h = hit("TOM H", { snap: 0, drive: 0 }).out;
+  assert.ok(zcHz(h, 2400, 4800) > zcHz(l, 2400, 4800) * 1.4, `${zcHz(h, 2400, 4800)} vs ${zcHz(l, 2400, 4800)}`);
 });
 
 test("A12: RUMBLE wet follows the kick, feedback bounded, no runaway after many seconds", () => {
@@ -157,4 +158,36 @@ test("A13: the kick proximity signal ducks the RUMBLE tail; TONE and DRIVE chang
   const dark = go(zero, [1, 0.6, 0.6, 0.9, 0, 0.2, 0]), dirty = go(zero, [1, 0.6, 0.6, 0.9, 0.5, 1, 0]);
   assert.ok(rel(energy(dark, SR * 0.1, n), energy(free, SR * 0.1, n)) > 0.05, "TONE");
   assert.ok(rel(energy(dirty, SR * 0.1, n), energy(free, SR * 0.1, n)) > 0.05, "DRIVE");
+});
+
+test("v0.4 TOMs = the kick's synthesis higher up: patch = model with DRIVE, and CLICK adds a bright attack", () => {
+  for (const voice of ["TOM L", "TOM H"]) {
+    const { out, params } = hit(voice, { snap: 0, drive: 0.9, pan: 0.5 }, 300);
+    const m = M.koreModelHit(MAP, voice, Object.assign({ amp: 0.8 }, params), SR, 300, 1).L;
+    let best = Infinity, ref = 0;
+    for (let i = 0; i < Math.min(9600, m.length); i++) ref += m[i] ** 2;
+    for (let sh = -2; sh <= 2; sh++) {   // the sim and the model may differ by a sample of latency
+      let err = 0;
+      for (let i = 2; i < Math.min(9600, m.length, out.length) - 2; i++) err += (out[i + sh] - m[i]) ** 2;
+      best = Math.min(best, err);
+    }
+    const err = best;
+    assert.ok(err / ref < 0.01, `${voice} patch vs model rel. error ${(err / ref).toExponential(2)}`);
+    const hf = (x) => { let e = 0; for (let i = 1; i < 240; i++) e += (x[i] - x[i - 1]) ** 2; return e; };
+    assert.ok(hf(hit(voice, { snap: 1 }).out) > hf(hit(voice, { snap: 0 }).out) * 2, voice + " click");
+    const info = M.koreModelInfo(MAP, voice, params);
+    assert.ok(info.startHz > info.tuneHz * 2, voice + ": pitch drop like a kick");
+  }
+});
+
+test("PAN: balance per hit on TOM / HAT (centre = same level both sides, hard left = right silent)", () => {
+  for (const voice of ["TOM L", "TOM H", "HAT"]) {
+    const run = (pan) => { const p = load(`kore_voice_${FILES[voice]}.maxpat`); hit(voice, { pan }, 300, p); return [p.outs[1].state.buf, p.outs[2].state.buf]; };
+    const [cl, cr] = run(0.5), [ll, lr] = run(0), [rl, rr] = run(1);
+    assert.ok(Math.abs(energy(cl) - energy(cr)) / energy(cl) < 1e-6, voice + " centre");
+    assert.ok(energy(lr) < energy(cl) * 1e-3 && Math.abs(energy(ll) - energy(cl)) / energy(cl) < 0.05, voice + " left");
+    assert.ok(energy(rl) < energy(cl) * 1e-3 && Math.abs(energy(rr) - energy(cl)) / energy(cl) < 0.05, voice + " right");
+  }
+  const sub = load("kore_voice_sub.maxpat");
+  assert.ok(!sub.outs[2], "SUB stays mono (low end)");
 });

@@ -90,34 +90,44 @@ test("stopped transport (playing 0) → silence and no duck", () => {
   outs.forEach((o) => assert.ok(o.state.buf.every((v) => v === 0)));
 });
 
-// ---- HUM: long humming sub under the kick ----
-function runHum(humAmp, pattern, gate = 1, bars = 1.3) {
+// ---- HUM: the sub that hits with the kick and hums until the next one ----
+function runHum(humAmp, pattern, gate = 1, bars = 1.3, humpitch = 0.5) {
   const p = new Patch(JSON.parse(fs.readFileSync(path.join(__dirname, "..", "max", "kore_kick.maxpat"), "utf8")), 1);
+  const hp = Object.assign({}, MAP.voices.PUNCH.defaults, { humpitch });
   p.buffers["---kpat"] = Float64Array.from(pattern);
   p.buffers["---kick_a"] = Float64Array.from(KICK);
+  p.buffers["---hum_a"] = Float64Array.from(M.koreRenderHum(MAP, hp, SR, 120).L);
   const msg = p.inlets()[0];
   p.send(msg.id, 0, ["sr", SR]); p.send(msg.id, 0, ["tempo", 120]); p.send(msg.id, 0, ["level", 1]);
-  p.send(msg.id, 0, ["playing", 1]); p.send(msg.id, 0, ["gate", gate]); p.send(msg.id, 0, ["hum", humAmp, 55]);
+  p.send(msg.id, 0, ["playing", 1]); p.send(msg.id, 0, ["gate", gate]); p.send(msg.id, 0, ["hum", humAmp]);
   const barS = 2 * SR, n = Math.round(bars * barS);
   const phb = Object.values(p.boxes).find((b) => b.cls === "phasor~");
   phb.state.ext = Float64Array.from({ length: n }, (_, i) => (0.9 + i / barS) % 1); phb.state.i = 0;
   p.run(n);
   const outs = Object.values(p.boxes).filter((b) => b.cls === "outlet").sort((a, b) => a.patching_rect[0] - b.patching_rect[0]);
-  return { kick: outs[0].state.buf, hum: outs[2].state.buf, barS };
+  return { kick: outs[0].state.buf, hum: outs[2].state.buf, barS, hz: M.koreHumHz(MAP, hp) };
 }
 const four = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
 
-test("HUM: a sustained 55 Hz sine swells in after each kick and holds until the next one", () => {
+test("HUM hits WITH the kick (same sample), hums at TUNE·PITCH until the next kick, no clicks", () => {
   const r = runHum(0.5, four);
   const k1 = Math.round(0.1 * r.barS), q = r.barS / 4;   // first kick at 0.1 bar
   const rms = (a, b) => Math.sqrt(r.hum.slice(a, b).reduce((s, v) => s + v * v, 0) / (b - a));
-  assert.ok(rms(k1, k1 + 100) < 0.05, "silent right at the kick");
-  assert.ok(rms(k1 + 0.15 * SR, k1 + 0.22 * SR) > 0.3, "sustained between kicks");
-  let zc = 0; for (let i = k1 + 0.12 * SR; i < k1 + 0.22 * SR; i++) if ((r.hum[i] < 0) !== (r.hum[i - 1] < 0)) zc++;
-  assert.ok(Math.abs(zc / 2 / 0.1 - 55) < 6, "55 Hz, got " + zc / 2 / 0.1);
+  assert.strictEqual(r.hum[k1 - 1], 0, "silent before the first kick");
+  assert.ok(rms(k1, k1 + Math.round(0.01 * SR)) > 0.2, "already loud in the first 10 ms: it hits with the kick");
+  assert.ok(rms(k1 + 0.2 * SR, k1 + 0.3 * SR) > 0.15, "keeps humming");
+  let zc = 0; for (let i = k1 + 0.15 * SR; i < k1 + 0.4 * SR; i++) if ((r.hum[i] < 0) !== (r.hum[i - 1] < 0)) zc++;
+  assert.ok(Math.abs(zc / 2 / 0.25 - r.hz) / r.hz < 0.06, `pitch ${zc / 2 / 0.25} vs ${r.hz} Hz`);
   let jump = 0; for (let i = 1; i < r.hum.length; i++) jump = Math.max(jump, Math.abs(r.hum[i] - r.hum[i - 1]));
-  assert.ok(jump < 0.02, "no clicks (max step " + jump + ")");
-  assert.ok(rms(k1 + q - 300, k1 + q) > 0.2, "holds until just before the next kick");
+  assert.ok(jump < 0.04, "no clicks (1 ms attack is the only steep part), also at the restart (max step " + jump + ")");
+  assert.ok(Math.abs(r.hum[k1 + q - 2]) < 1e-3 && rms(k1 + q, k1 + q + 480) > 0.2, "fades to 0 just before the next kick, then hits again");
+});
+
+test("HUM PITCH moves the hum (−12 … +12 st around the kick TUNE)", () => {
+  const lo = runHum(0.5, four, 1, 0.6, 0), hi = runHum(0.5, four, 1, 0.6, 1);
+  assert.ok(Math.abs(hi.hz / lo.hz - 4) < 1e-6);
+  const zcHz = (x) => { const a = Math.round(0.1 * 2 * SR + 0.15 * SR), b = a + 0.2 * SR; let z = 0; for (let i = a + 1; i < b; i++) if ((x[i] < 0) !== (x[i - 1] < 0)) z++; return z / 2 / 0.2; };
+  assert.ok(zcHz(hi.hum) > zcHz(lo.hum) * 3.5);
 });
 
 test("HUM 0 → silence; empty pattern (gate 0) → no kick, no hum, no replay of the last hit", () => {

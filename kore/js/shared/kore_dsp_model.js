@@ -59,7 +59,8 @@ function koreModelInfo(map, voice, p) {
   } else if (voice === "TOM L" || voice === "TOM H") {
     i.sweepSemis = koreLin(v.sweepSemisRange, p.sweep); i.sweepMs = v.sweepMs;
     i.startHz = i.tuneHz * Math.pow(2, i.sweepSemis / 12);
-    i.q = koreLin(v.q, p.tone);
+    i.driveGain = koreExpMap(v.driveGain, p.drive);
+    i.clickHz = v.clickHz;
   } else if (voice === "HAT") {
     i.toneHz = koreExpMap(v.toneHz, p.tone);
     i.q = koreLin(v.q, p.reso);
@@ -121,6 +122,31 @@ function koreRenderKick(map, p, sr) {
   return { L: out, pitch: pitch, info: info, sr: sr };
 }
 
+// ---------- HUM: the sub that hits with the kick ----------
+function koreHumHz(map, p) {
+  var v = map.voices.PUNCH, h = v.hum, semis = koreLin(h.pitchSemis, p.humpitch === undefined ? 0.5 : p.humpitch);
+  return koreExpMap(v.tuneHz, p.tune) * Math.pow(2, semis / 12);
+}
+// One beat long (the kick is always 4/4): sine from phase 0 at the hit with a short glide
+// borrowed from the kick's PUNCH, 1 ms attack, settles to 'sustain', fades to exactly 0
+// before the next beat so the restart at the next kick is click-free. Peak 1 (level is
+// applied in the player).
+function koreRenderHum(map, p, sr, tempo) {
+  var v = map.voices.PUNCH, h = v.hum, info = koreModelInfo(map, "PUNCH", p), hz = koreHumHz(map, p);
+  var beatMs = 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(beatMs / 1000 * sr));
+  var endMs = beatMs - h.endGapMs, fadeStart = endMs - h.fadeMs, out = [], pitch = [], ph = 0;
+  for (var i = 0; i < n; i++) {
+    var tMs = i / sr * 1000;
+    var f = hz * Math.pow(2, info.sweepSemis * h.glideFrac / 12 * koreSweep(tMs, info.sweepMs));
+    pitch.push(f); ph += f / sr;
+    var a = Math.min(1, tMs / h.attackMs) * (h.sustain + (1 - h.sustain) * Math.exp(-tMs / h.settleMs));
+    if (tMs >= endMs) a = 0; else if (tMs > fadeStart) a *= 0.5 + 0.5 * Math.cos(Math.PI * (tMs - fadeStart) / h.fadeMs);
+    out.push(Math.sin(2 * Math.PI * (ph - f / sr)) * a);
+  }
+  out[n - 1] = 0;
+  return { L: out, pitch: pitch, hz: hz, sr: sr };
+}
+
 // ---------- MSP voices (mirrors of the patches) ----------
 // p: normalized params + amp (+ isOpen for HAT). Returns {L:[], pitch:[], info, sr}.
 function koreModelHit(map, voice, p, sr, maxMs, seed) {
@@ -145,7 +171,8 @@ function koreModelHit(map, voice, p, sr, maxMs, seed) {
       out.push(koreTanh(g * Math.sin(2 * Math.PI * ph) * koreEnv(tMs, E.attackMs, info.decayMs, E.floorDb, E.gateFadeMs)) * comp * amp);
     }
   } else if (voice === "TOM L" || voice === "TOM H") {
-    var bp = koreSvf(info.tuneHz * v.noiseBpRatio, info.q, sr);
+    // the kick's synthesis at a higher pitch: glide body + CLICK (noise band + tick) → tanh DRIVE
+    var bp = koreSvf(info.clickHz, v.clickQ, sr), tg = info.driveGain, tc = Math.pow(tg, -0.3);
     for (i = 0; i < n; i++) {
       tMs = i / sr * 1000;
       var ft = info.tuneHz * Math.pow(2, info.sweepSemis / 12 * koreSweep(tMs, info.sweepMs));
@@ -153,8 +180,10 @@ function koreModelHit(map, voice, p, sr, maxMs, seed) {
       bp.tick(rnd.next() * 2 - 1);
       var env = koreEnv(tMs, E.attackMs, info.decayMs, E.floorDb, E.gateFadeMs);
       var endT = E.attackMs + info.decayMs, gateT = tMs > endT ? Math.max(0, 1 - (tMs - endT) / E.gateFadeMs) : 1;
-      var snap = bp.bp * v.snapGain * p.snap * koreDbToA(-60 * Math.min(2, tMs / (v.snapTauMs * KORE_TAU_TO_60DB))) * gateT;
-      out.push(((Math.sin(2 * Math.PI * ph) * (1 - 0.6 * p.tone) + bp.bp * v.noiseGain * p.tone) * env + snap) * v.outGain * amp);
+      var ce = koreDbToA(-60 * Math.min(2, tMs / (v.clickTauMs * KORE_TAU_TO_60DB)));
+      var te = koreDbToA(-60 * Math.min(2, tMs / (v.tickTauMs * KORE_TAU_TO_60DB)));
+      var clk = p.snap * v.clickGain * (bp.bp * 2.2 * ce + Math.sin(2 * Math.PI * info.clickHz * tMs / 1000) * te) * gateT;
+      out.push(koreTanh(tg * v.outGain * (Math.sin(2 * Math.PI * ph) * env + clk)) * tc * amp);
     }
   } else if (voice === "HAT") {
     var hh = koreSvf(info.toneHz, info.q, sr);

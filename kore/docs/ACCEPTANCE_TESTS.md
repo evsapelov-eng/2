@@ -1,6 +1,6 @@
 # KØRE — матрица A01–A36
 
-Статусы: PASS / FAIL / NOT TESTED. «Static proxy» — автотест или офлайн-модель; **не заменяет** host-проверку (ТЗ: never PASS from static inspection alone). Host-колонка заполняется в Live. Версия 0.3.0, 2026-11-10, Live/Max на стороне разработки: нет.
+Статусы: PASS / FAIL / NOT TESTED. «Static proxy» — автотест или офлайн-модель; **не заменяет** host-проверку (ТЗ: never PASS from static inspection alone). Host-колонка заполняется в Live. Версия 0.4.0, 2026-11-10, Live/Max на стороне разработки: нет.
 
 | ID | Static proxy | Host |
 |---|---|---|
@@ -37,6 +37,8 @@
 | A31* | P-Lock только своего шага и своего голоса | NOT TESTED |
 | A32* | плотность 0 → нет P-Locks; 1 → на всех шагах | NOT TESTED |
 | A33* | весь UI в полосе 1240×169 (без окна); UI-шим: ни один текст не выходит за полосу во всех вкладках и голосах | static proxy PASS · host NOT TESTED |
+| A41* | TOM L/H = синтез бочки выше по тону (спад высоты, CLICK, DRIVE); патч = модель (ошибка < 1%) | static proxy PASS · host NOT TESTED |
+| A42* | PAN у TOM L/H и HAT по шагам (баланс, центр = прежний уровень); низ (бочка, HUM, SUB, RUMBLE) моно | static proxy PASS · host NOT TESTED |
 | A40* | HUM: синус на TUNE нарастает после удара, держится, у удара без щелчка; 0 → тишина; пустой паттерн → ни бочки, ни HUM (симуляция патча) | static proxy PASS · host NOT TESTED |
 | A34* | ноды: один gesture, значения меняются (UI-шим) | NOT TESTED |
 | A35* | сериализация/restore, отказ чужого формата | NOT TESTED |

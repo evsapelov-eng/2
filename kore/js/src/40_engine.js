@@ -290,9 +290,12 @@ KoreEngine.prototype.restore = function (text) {
 // p0..p4 = the voice's params in KORE_VOICE_PARAMS order (unused slots 0).
 function koreEventToTrigger(ev) {
   var amp = Math.pow(koreClamp01(ev.velocity), 1.5) * koreDbToAmp(ev.levelDb);
-  var keys = KORE_VOICE_PARAMS[ev.trackId], out = [ev.trackId, koreRound(amp, 5)];
-  for (var i = 0; i < 5; i++) out.push(i < keys.length ? koreRound(ev.params[keys[i]], 4) : 0);
+  // trig list: track amp p0..p4 open pan — PAN is not one of the 5 sound slots
+  var keys = KORE_VOICE_PARAMS[ev.trackId], out = [ev.trackId, koreRound(amp, 5)], snd = [];
+  for (var k = 0; k < keys.length; k++) if (keys[k] !== "pan") snd.push(keys[k]);
+  for (var i = 0; i < 5; i++) out.push(i < snd.length ? koreRound(ev.params[snd[i]], 4) : 0);
   out.push(ev.open ? 1 : 0);
+  out.push(ev.params.pan === undefined ? 0.5 : koreRound(ev.params.pan, 4));
   return out;
 }
 
@@ -318,6 +321,6 @@ function koreKickGate(state) { var p = koreKickPattern(state); for (var i = 0; i
 function koreHum(state) {
   var tr = state.tracks[KORE_PUNCH], h = KORE_DSP_MAP.voices.PUNCH.hum, v = tr.params.hum;
   var amp = v > 0 ? koreDbToAmp(h.maxDb + 20 * Math.log(v) / Math.LN10) * koreDbToAmp(tr.levelDb + 6) : 0;
-  var hz = KORE_DSP_MAP.voices.PUNCH.tuneHz[0] * Math.pow(KORE_DSP_MAP.voices.PUNCH.tuneHz[1] / KORE_DSP_MAP.voices.PUNCH.tuneHz[0], tr.params.tune);
+  var hz = koreHumHz(KORE_DSP_MAP, tr.params);
   return { amp: koreRound(amp, 5), hz: koreRound(hz, 3) };
 }

@@ -33,7 +33,7 @@ function writeWav(file, L, R) {
 function renderGroove(sections, bpm) {
   const beatS = 60 / bpm, total = sections.reduce((a, s) => a + s.bars, 0);
   const n = Math.ceil((total * 4 * beatS + 1.5) * SR);
-  const bus = { punch: new Float64Array(n), sub: new Float64Array(n), other: new Float64Array(n), rumbleIn: new Float64Array(n) };
+  const bus = { punch: new Float64Array(n), sub: new Float64Array(n), otherL: new Float64Array(n), otherR: new Float64Array(n), rumbleIn: new Float64Array(n) };
   const punchHits = [], rumbleEvents = [], humHits = [];
   let barAt = 0, hits = 0;
   for (const sec of sections) {
@@ -45,9 +45,14 @@ function renderGroove(sections, bpm) {
       if (name === "RUMBLE") { rumbleEvents.push({ at, p: e.params }); continue; }
       const p = Object.assign({ amp: m[1], isOpen: e.open ? 1 : 0 }, e.params);
       const h = M.koreModelHit(MAP, name, p, SR, 0, 1000 + hits).L;
-      const dst = name === "PUNCH" ? bus.punch : name === "SUB" ? bus.sub : bus.other;
-      for (let i = 0; i < h.length && at + i < n; i++) dst[at + i] += h[i];
-      if (name === "PUNCH") { punchHits.push(at); humHits.push({ at, h: C.koreHum(sec.state) }); }
+      if (name === "PUNCH" || name === "SUB") {
+        const dst = name === "PUNCH" ? bus.punch : bus.sub;
+        for (let i = 0; i < h.length && at + i < n; i++) dst[at + i] += h[i];
+      } else { // balance pan like the voice patches
+        const pan = e.params.pan === undefined ? 0.5 : e.params.pan, gl = Math.min(1, 2 * (1 - pan)), gr = Math.min(1, 2 * pan);
+        for (let i = 0; i < h.length && at + i < n; i++) { bus.otherL[at + i] += h[i] * gl; bus.otherR[at + i] += h[i] * gr; }
+      }
+      if (name === "PUNCH") { punchHits.push(at); humHits.push({ at, h: C.koreHum(sec.state), p: sec.state.tracks[0].params }); }
     }
     barAt += sec.bars;
   }
@@ -86,29 +91,23 @@ function renderGroove(sections, bpm) {
       rum[i] = M.koreTanh(drv * taps) * comp * gate * rDuck[i] * amount * rv.wetGain;
     }
   }
-  // HUM (as kore_kick: sine at TUNE, act·clip(t/attack) → slide~ up/down, × hum amp)
+  // HUM (as kore_kick: one rendered beat from every kick, × HUM level)
   const hum = new Float64Array(n);
-  {
-    const H = MAP.voices.PUNCH.hum, att = H.attackMs / 1000 * SR, up = H.slideUpMs / 1000 * SR, dn = H.slideDownMs / 1000 * SR;
-    let k = -1, z = 0, ph = 0;
-    for (let i = 0; i < n; i++) {
-      while (k + 1 < humHits.length && humHits[k + 1].at <= i) k++;
-      if (k < 0) continue;
-      const tgt = Math.min(1, (i - humHits[k].at) / att);
-      z += (tgt - z) / (tgt > z ? up : dn);
-      ph += humHits[k].h.hz / SR;
-      hum[i] = Math.sin(2 * Math.PI * ph) * z * humHits[k].h.amp;
-    }
+  for (const hh of humHits) {
+    const buf = M.koreRenderHum(MAP, hh.p, SR, bpm).L;
+    for (let i = 0; i < buf.length && hh.at + i < n; i++) hum[hh.at + i] = buf[i] * hh.h.amp;
   }
-  const L = new Float32Array(n), hp = M.koreSvf(le.dcBlockHz, 0.05, SR);
-  let peak = 0, lowSum = 0;
+  const L = new Float32Array(n), R = new Float32Array(n);
+  const hpL = M.koreSvf(le.dcBlockHz, 0.05, SR), hpR = M.koreSvf(le.dcBlockHz, 0.05, SR);
+  let peak = 0;
   for (let i = 0; i < n; i++) {
-    const x = bus.punch[i] + hum[i] + bus.sub[i] * subDuck[i] + rum[i] + bus.other[i];
-    hp.tick(x);
-    const y = M.koreTanh(hp.hp * MAP.master.drive) * MAP.master.ceiling;
-    L[i] = y; peak = Math.max(peak, Math.abs(y)); lowSum += x * x;
+    const mono = bus.punch[i] + hum[i] + bus.sub[i] * subDuck[i] + rum[i];
+    hpL.tick(mono + bus.otherL[i]); hpR.tick(mono + bus.otherR[i]);
+    L[i] = M.koreTanh(hpL.hp * MAP.master.drive) * MAP.master.ceiling;
+    R[i] = M.koreTanh(hpR.hp * MAP.master.drive) * MAP.master.ceiling;
+    peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
   }
-  return { L, hits, peak, peakDb: 20 * Math.log10(peak), bus, subDuck, rum };
+  return { L, R, hits, peak, peakDb: 20 * Math.log10(peak), bus, subDuck, rum };
 }
 
 const report = { model: "offline reference (shared model + real scheduler), not Max output", checks: [] };
@@ -123,7 +122,7 @@ for (const st of ["FOUNDATION", "DRIVING", "HYPNOTIC", "BROKEN"]) {
   e.keep(); e.mutate("ALL", 0.2); sections.push({ bars: 2, state: snap(e) }); names.push("MUTATE 20%");
 }
 const demo = renderGroove(sections, 130);
-writeWav(path.join(OUT, "kore_demo_130bpm.wav"), demo.L, demo.L);
+writeWav(path.join(OUT, "kore_demo_130bpm.wav"), demo.L, demo.R);
 report.demo = { seconds: +(demo.L.length / SR).toFixed(1), hits: demo.hits, peakDb: +demo.peakDb.toFixed(1), sections: names };
 check("A36 proxy: demo never reaches 0 dBFS", demo.peak < 0.95, `peak ${demo.peakDb.toFixed(1)} dBFS`);
 
@@ -136,10 +135,27 @@ check("A36 proxy: demo never reaches 0 dBFS", demo.peak < 0.95, `peak ${demo.pea
     k.state.tracks[0].params.hum = hv; segs.push({ bars: 2, state: snap(k) });
   }
   const hr = renderGroove(segs, 128);
-  writeWav(path.join(OUT, "kore_hum_0_40_100.wav"), hr.L, hr.L);
+  writeWav(path.join(OUT, "kore_hum_0_40_100.wav"), hr.L, hr.R);
   const full = new C.KoreEngine(); full.state.tracks[0].params.hum = 1; full.state.tracks.forEach((t) => (t.levelDb = 0));
   const fr = renderGroove([{ bars: 2, state: snap(full) }], 128);
   check("HUM at 100% with all voices at 0 dB stays below full scale", fr.peak < 0.95, `${fr.peakDb.toFixed(1)} dBFS`);
+}
+
+// 1c) HUM PITCH sweep −12 / 0 / +7 st and the new toms solo (for listening)
+{
+  const segs = [];
+  for (const hp of [0, 0.5, 0.79]) {
+    const k = new C.KoreEngine();
+    k.state.tracks.forEach((t, i) => { if (i > 0) t.mute = true; });
+    Object.assign(k.state.tracks[0].params, { hum: 0.7, humpitch: hp }); segs.push({ bars: 2, state: snap(k) });
+  }
+  const hr2 = renderGroove(segs, 128);
+  writeWav(path.join(OUT, "kore_hum_pitch_-12_0_+7.wav"), hr2.L, hr2.R);
+  const t = new C.KoreEngine();
+  t.state.tracks.forEach((tr, i) => { if (i !== 0 && i !== 3 && i !== 4) tr.mute = true; });
+  t.state.tracks[0].params.hum = 0;
+  const tr3 = renderGroove([{ bars: 4, state: snap(t) }], 128);
+  writeWav(path.join(OUT, "kore_kick_and_toms_128bpm.wav"), tr3.L, tr3.R);
 }
 
 // 2) starter preset headroom (spec: ≈ -6 dBFS in the test preset)
@@ -163,11 +179,11 @@ w.state.tracks.forEach((t) => { t.levelDb = 0; t.steps.forEach((s, i) => { s.on 
 w.state.tracks[0].params.drive = 1; w.state.tracks[2].params.amount = 1; w.state.tracks[2].params.tail = 1;
 const wr = renderGroove([{ bars: 2, state: snap(w) }], 145);
 check("A36 proxy: worst case (6 voices, ratchet 8, drive 100%, rumble max) bounded", wr.peak < 0.95 && wr.L.every(Number.isFinite), `${wr.peakDb.toFixed(1)} dBFS`);
-writeWav(path.join(OUT, "kore_worstcase.wav"), wr.L, wr.L);
+writeWav(path.join(OUT, "kore_worstcase.wav"), wr.L, wr.R);
 
 // 6) one-shot per voice with the macro sweeps (for listening)
 for (const voice of ["PUNCH", "SUB", "TOM L", "TOM H", "HAT"]) { // PUNCH = the rendered kick
-  const keys = MAP.voices[voice].params;
+  const keys = MAP.voices[voice].params.filter((k) => k !== "pan" && k !== "hum" && k !== "humpitch");
   for (const k of keys) {
     const seg = Math.round(SR * 0.9), L = new Float32Array(seg * 5);
     [0, 0.25, 0.5, 0.75, 1].forEach((x, j) => {
