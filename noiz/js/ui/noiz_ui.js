@@ -193,6 +193,7 @@ function drawActions(g, fullDivider) {
 function modeLabel(g) {
   return NAMES[g.selectedTrack] + "  /  " + (g.selectedStep >= 0 ? "STEP " + pad2(g.selectedStep + 1) : "BASE");
 }
+function soundNameOf(t) { var n = S.tracks[t].soundName; return n ? n : ""; }
 function stepModeTools(g, x, y, right) {
   if (g.selectedStep < 0) return;
   button(x + textW(modeLabel(g), 8, true) + 6, y - 9, 12, 12, "x", "exitstep", 7);
@@ -220,6 +221,7 @@ function drawSeq(g) {
     var trk = S.tracks[t], y = GRID_Y + t * ROW_H, sel = t === g.selectedTrack;
     if (sel) rect(129, y + 4, 3, 8, COL.primary, true);
     text(NAMES[t], 135, y + 11, 8, sel ? COL.primary : COL.secondary, sel);
+    if (soundNameOf(t)) text(soundNameOf(t).substring(0, 12), 135, y + 20, 5, COL.inactive);
     hit({ x: 128, y: y - 3, w: 42, h: 22, kind: "track", t: t });
     for (var i = 0; i < 16; i++) {
       var s = off + i, x = GRID_X + i * (CELL + GAP), step = trk.steps[s];
@@ -420,7 +422,8 @@ function drawSpectrum(pv, x, y, w, h) {
 function drawSynth(g) {
   voiceList(g, 104);
   var t = g.selectedTrack, tr = S.tracks[t], pv = previewFor(g), info = pv.data.info;
-  text(modeLabel(g) + "   SYNTH", 132, 15, 8.5, COL.primary, true);
+  var sn = soundNameOf(t);
+  text(modeLabel(g) + "   SYNTH" + (sn ? "   - " + sn : ""), 132, 15, 8.5, COL.primary, true);
   stepModeTools(g, 132, 15, 515);
   text("ATT " + fmtMs(info.attackMs) + "  DEC " + fmtMs(info.decayMs) + "  " + fmtHz(info.toneHz) + "Hz  Q " + (Math.round(info.q * 100) / 100), 528, 76, 7, COL.secondary);
   text("picture = sound model of these values", 528, 88, 6.5, COL.inactive);

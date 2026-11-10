@@ -434,3 +434,62 @@ for (const amt of [0.05, 0.25, 1]) {
     }
   });
 }
+
+// ---- sound variety on GENERATE ----
+const vm2 = require("vm"), fs2 = require("fs"), path2 = require("path");
+const MAP = JSON.parse(fs2.readFileSync(path2.join(__dirname, "..", "spec", "dsp_map.json"), "utf8"));
+const MODEL = vm2.createContext({});
+vm2.runInContext(fs2.readFileSync(path2.join(__dirname, "..", "js", "shared", "noiz_dsp_model.js"), "utf8"), MODEL);
+
+test("every GENERATE gives each voice a new sound: all 9 base values change, archetype name shown", () => {
+  const e = new C.NoizEngine();
+  for (let n = 0; n < 20; n++) {
+    const before = JSON.parse(J(e.state.tracks));
+    e.generate("ALL");
+    e.state.tracks.forEach((t, i) => {
+      for (const k of C.NOIZ_MACROS) assert.notStrictEqual(t.sound[k], before[i].sound[k], `gen ${n} ${t.name}.${k}`);
+      for (const k of C.NOIZ_SYNTH) assert.notStrictEqual(t.synth[k], before[i].synth[k], `gen ${n} ${t.name}.${k}`);
+      assert.ok(t.soundName.length > 0);
+    });
+  }
+});
+
+test("GENERATE covers wide sound space: archetypes vary, params span most of their range", () => {
+  const e = new C.NoizEngine();
+  const names = [new Set(), new Set(), new Set(), new Set()];
+  const lo = {}, hi = {};
+  for (let n = 0; n < 60; n++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t, i) => {
+      names[i].add(t.soundName);
+      for (const k of [...C.NOIZ_MACROS, ...C.NOIZ_SYNTH]) {
+        const v = k in t.sound ? t.sound[k] : t.synth[k];
+        const key = i + k;
+        lo[key] = Math.min(lo[key] ?? 1, v); hi[key] = Math.max(hi[key] ?? 0, v);
+      }
+    });
+  }
+  names.forEach((s, i) => assert.ok(s.size >= 5, `voice ${i}: only ${[...s]}`));
+  for (let i = 0; i < 4; i++) for (const k of ["tone", "decay", "texture", "reso", "attack", "character", "spread"]) {
+    assert.ok(hi[i + k] - lo[i + k] > 0.6, `voice ${i} ${k} spans only ${lo[i + k]}..${hi[i + k]}`);
+  }
+});
+
+test("generated sounds are audibly different (brightness and length vary several-fold per voice)", () => {
+  const e = new C.NoizEngine();
+  const NM = ["HISS", "DUST", "METAL", "ATMOS"];
+  const stats = NM.map(() => ({ zc: [], len: [] }));
+  for (let n = 0; n < 12; n++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t, i) => {
+      const p = Object.assign({ amp: 0.8 }, t.sound, t.synth);
+      const h = MODEL.noizModelHit(MAP, NM[i], p, 22050, 1500, 3);
+      let z = 0; for (let s = 1; s < Math.min(h.L.length, 2205); s++) if ((h.L[s] < 0) !== (h.L[s - 1] < 0)) z++;
+      stats[i].zc.push(z / Math.min(h.L.length, 2205)); stats[i].len.push(h.info.attackMs + h.info.decayMs);
+    });
+  }
+  stats.forEach((s, i) => {
+    assert.ok(Math.max(...s.zc) / Math.max(1e-3, Math.min(...s.zc)) > 2, `${NM[i]} brightness barely varies`);
+    assert.ok(Math.max(...s.len) / Math.min(...s.len) > 3, `${NM[i]} length barely varies`);
+  });
+});

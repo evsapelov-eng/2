@@ -126,17 +126,71 @@ var NOIZ_SYNTH_RANGES = [
   { reso: [0.05, 0.6], attack: [0.45, 0.9], character: [0.4, 1.0], spread: [0.1, 0.6] }
 ];
 
+// ---------- sound archetypes (GENERATE picks a different kind of sound each time) ----------
+// Ranges for: tone, decay, texture, drive, reso, attack, character, spread.
+var NOIZ_ARCH_KEYS = ["tone", "decay", "texture", "drive", "reso", "attack", "character", "spread"];
+var NOIZ_ARCHETYPES = [
+  [ // HISS
+    { name: "CLOSED HAT", r: [[0.6, 0.9], [0.04, 0.2], [0.2, 0.6], [0, 0.2], [0.05, 0.3], [0, 0.1], [0, 0.3], [0, 0.4]] },
+    { name: "OPEN HAT", r: [[0.5, 0.8], [0.45, 0.75], [0.3, 0.7], [0.05, 0.3], [0.1, 0.45], [0, 0.15], [0.1, 0.5], [0.1, 0.5]] },
+    { name: "SHAKER", r: [[0.4, 0.7], [0.2, 0.45], [0.5, 0.9], [0, 0.2], [0.05, 0.3], [0.35, 0.6], [0, 0.3], [0.3, 0.8]] },
+    { name: "TICK", r: [[0.7, 1], [0, 0.1], [0, 0.3], [0.2, 0.6], [0.4, 0.85], [0, 0.05], [0.5, 1], [0, 0.5]] },
+    { name: "AIR", r: [[0.15, 0.5], [0.3, 0.65], [0.5, 1], [0, 0.1], [0, 0.2], [0.25, 0.55], [0.6, 1], [0.3, 0.9]] }
+  ],
+  [ // DUST
+    { name: "GRAIN SHAKER", r: [[0.4, 0.75], [0.15, 0.4], [0.5, 0.95], [0, 0.25], [0.3, 0.7], [0.1, 0.4], [0.5, 0.9], [0.3, 0.8]] },
+    { name: "CRACKLE", r: [[0.3, 0.9], [0.2, 0.5], [0.6, 1], [0, 0.3], [0.2, 0.6], [0, 0.2], [0.8, 1], [0.4, 1]] },
+    { name: "SNARE NOISE", r: [[0.2, 0.45], [0.3, 0.55], [0.3, 0.7], [0.3, 0.6], [0.3, 0.6], [0, 0.1], [0, 0.35], [0, 0.3]] },
+    { name: "RIM", r: [[0.45, 0.8], [0, 0.15], [0, 0.3], [0.2, 0.5], [0.7, 0.95], [0, 0.05], [0, 0.3], [0, 0.4]] },
+    { name: "BRUSH", r: [[0.3, 0.6], [0.35, 0.65], [0.4, 0.8], [0, 0.15], [0.1, 0.4], [0.4, 0.75], [0.2, 0.6], [0.2, 0.7]] }
+  ],
+  [ // METAL
+    { name: "COWBELL", r: [[0.3, 0.55], [0.15, 0.4], [0.05, 0.3], [0.1, 0.4], [0.5, 0.9], [0, 0.05], [0.35, 0.6], [0, 0.3]] },
+    { name: "BELL", r: [[0.45, 0.8], [0.6, 0.95], [0, 0.2], [0, 0.2], [0.3, 0.7], [0, 0.1], [0.6, 1], [0, 0.4]] },
+    { name: "CLANK", r: [[0.2, 0.6], [0.05, 0.3], [0.4, 0.8], [0.4, 0.8], [0.3, 0.7], [0, 0.05], [0.2, 0.8], [0.1, 0.5]] },
+    { name: "TINE", r: [[0.7, 1], [0.25, 0.6], [0, 0.25], [0, 0.25], [0.6, 1], [0, 0.05], [0, 0.4], [0, 0.6]] },
+    { name: "GONG", r: [[0, 0.3], [0.7, 1], [0.1, 0.4], [0.1, 0.4], [0.2, 0.6], [0.05, 0.3], [0.7, 1], [0, 0.3]] }
+  ],
+  [ // ATMOS
+    { name: "SWELL", r: [[0.2, 0.6], [0.7, 1], [0.4, 0.8], [0, 0.2], [0, 0.4], [0.75, 1], [0.6, 1], [0.1, 0.5]] },
+    { name: "GHOST TOM", r: [[0.15, 0.4], [0.3, 0.55], [0.1, 0.4], [0.1, 0.4], [0.6, 0.92], [0.05, 0.3], [0.2, 0.6], [0, 0.4]] },
+    { name: "WIND", r: [[0.35, 0.75], [0.55, 0.9], [0.7, 1], [0, 0.15], [0, 0.3], [0.5, 0.85], [0.8, 1], [0.3, 0.9]] },
+    { name: "SUB THUMP", r: [[0, 0.2], [0.2, 0.45], [0.3, 0.7], [0.2, 0.55], [0.2, 0.6], [0, 0.2], [0, 0.4], [0, 0.2]] },
+    { name: "WASH", r: [[0.5, 0.9], [0.6, 1], [0.2, 0.7], [0, 0.25], [0.1, 0.5], [0.3, 0.7], [0.5, 1], [0.4, 1]] }
+  ]
+];
+var NOIZ_WILD_CHANCE = 0.2;
+
+// New sound for one voice: a random archetype (different from the last one) with every
+// parameter randomised inside it, or a WILD sound over almost the full range. Every
+// base value is guaranteed to differ from the previous sound.
 function noizGenerateTrackSound(track, rng) {
-  var r = NOIZ_SOUND_RANGES[track.id];
-  for (var i = 0; i < NOIZ_MACROS.length; i++) {
-    var k = NOIZ_MACROS[i];
-    track.sound[k] = noizRound(rng.range(r[k][0], r[k][1]), 3);
+  var prevS = noizClone(track.sound), prevY = noizClone(track.synth);
+  var list = NOIZ_ARCHETYPES[track.id], arch = null, name;
+  if (rng.chance(NOIZ_WILD_CHANCE)) {
+    name = "WILD";
+  } else {
+    var idx = rng.int(0, list.length - 1);
+    if (list[idx].name === track.soundName) idx = (idx + 1 + rng.int(0, list.length - 2)) % list.length;
+    arch = list[idx];
+    name = arch.name;
   }
-  if (rng.chance(0.06)) track.sound.drive = noizRound(rng.range(0.5, 0.75), 3); // occasional dirt
-  var sr = NOIZ_SYNTH_RANGES[track.id];
-  for (var j = 0; j < NOIZ_SYNTH.length; j++) {
-    var sk = NOIZ_SYNTH[j];
-    track.synth[sk] = noizRound(rng.range(sr[sk][0], sr[sk][1]), 3);
+  for (var i = 0; i < NOIZ_ARCH_KEYS.length; i++) {
+    var k = NOIZ_ARCH_KEYS[i];
+    var r = arch ? arch.r[i] : (k === "drive" ? [0, 0.8] : (k === "attack" ? [0, 0.9] : [0, 1]));
+    var v = noizRound(rng.range(r[0], r[1]), 3);
+    if (NOIZ_SYNTH.indexOf(k) >= 0) track.synth[k] = v; else track.sound[k] = v;
+  }
+  var panW = track.id === 3 ? 0.18 : 0.32;
+  track.sound.pan = noizRound(rng.range(0.5 - panW, 0.5 + panW), 3);
+  track.soundName = name;
+  for (var j = 0; j < NOIZ_MACROS.length; j++) {
+    var mk = NOIZ_MACROS[j];
+    if (track.sound[mk] === prevS[mk]) track.sound[mk] = noizNudge(track.sound[mk], 0.05, rng);
+  }
+  for (var q = 0; q < NOIZ_SYNTH.length; q++) {
+    var sk = NOIZ_SYNTH[q];
+    if (track.synth[sk] === prevY[sk]) track.synth[sk] = noizNudge(track.synth[sk], 0.05, rng);
   }
 }
 

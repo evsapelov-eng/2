@@ -71,6 +71,7 @@ function noizDefaultTrack(id) {
     density: NOIZ_DEFAULT_DENSITY[id],
     sound: noizClone(NOIZ_DEFAULT_SOUND[id]),
     synth: noizClone(NOIZ_DEFAULT_SYNTH[id]),
+    soundName: "",   // archetype the current sound was generated from (display only)
     steps: steps
   };
 }
@@ -173,6 +174,7 @@ function noizNormalizeTrack(raw, id) {
     density: noizNum(raw.density, d.density, 0.02, 0.9),
     sound: noizNormalizeSound(raw.sound, d.sound),
     synth: noizNormalizeSynth(raw.synth, d.synth),
+    soundName: (typeof raw.soundName === "string" && raw.soundName.length <= 24) ? raw.soundName : "",
     steps: steps
   };
 }
