@@ -24,9 +24,9 @@ var NOIZ_MIN_HITS = [3, 2, 1, 1];
 var NOIZ_POLY_LENGTHS = [12, 13, 14, 15, 11, 7, 5];
 var NOIZ_POLY_DIVS = [{ n: 3, m: 4 }, { n: 5, m: 4 }, { n: 7, m: 4 }, { n: 3, m: 2 }];
 
-function noizScopeRhythm(scope) { return scope === "RHYTHM" || scope === "ALL"; }
+function noizScopeRhythm(scope) { return scope === "RHYTHM" || scope === "ALL" || scope === "PATTERN"; }
 function noizScopeSound(scope) { return scope === "SOUND" || scope === "ALL"; }
-function noizScopePLocks(scope) { return scope === "PLOCKS" || scope === "ALL"; }
+function noizScopePLocks(scope) { return scope === "PLOCKS" || scope === "ALL" || scope === "PATTERN"; }
 
 function noizStepWeight(trackId, idx) {
   return NOIZ_PROFILE[trackId][idx % 4] * NOIZ_BAR_EMPH[trackId][Math.floor(idx / 4) % 4];
@@ -114,10 +114,16 @@ function noizLimitStacking(tracks, rng, extreme) {
 }
 
 var NOIZ_SOUND_RANGES = [
-  { tone: [0.45, 0.9], decay: [0.06, 0.4], texture: [0.15, 0.85], drive: [0, 0.35] },
-  { tone: [0.25, 0.75], decay: [0.15, 0.5], texture: [0.4, 0.95], drive: [0, 0.35] },
-  { tone: [0.3, 0.85], decay: [0.1, 0.55], texture: [0.1, 0.7], drive: [0.05, 0.5] },
-  { tone: [0.1, 0.55], decay: [0.4, 0.9], texture: [0.3, 0.9], drive: [0, 0.25] }
+  { tone: [0.45, 0.9], decay: [0.06, 0.4], texture: [0.15, 0.85], drive: [0, 0.35], pan: [0.3, 0.7] },
+  { tone: [0.25, 0.75], decay: [0.15, 0.5], texture: [0.4, 0.95], drive: [0, 0.35], pan: [0.25, 0.75] },
+  { tone: [0.3, 0.85], decay: [0.1, 0.55], texture: [0.1, 0.7], drive: [0.05, 0.5], pan: [0.35, 0.65] },
+  { tone: [0.1, 0.55], decay: [0.4, 0.9], texture: [0.3, 0.9], drive: [0, 0.25], pan: [0.4, 0.6] }
+];
+var NOIZ_SYNTH_RANGES = [
+  { reso: [0.05, 0.55], attack: [0.0, 0.3], character: [0.0, 0.8], spread: [0.0, 0.6] },
+  { reso: [0.3, 0.85], attack: [0.0, 0.35], character: [0.2, 0.9], spread: [0.15, 0.8] },
+  { reso: [0.4, 0.9], attack: [0.0, 0.25], character: [0.15, 0.9], spread: [0.0, 0.45] },
+  { reso: [0.05, 0.6], attack: [0.45, 0.9], character: [0.4, 1.0], spread: [0.1, 0.6] }
 ];
 
 function noizGenerateTrackSound(track, rng) {
@@ -127,10 +133,15 @@ function noizGenerateTrackSound(track, rng) {
     track.sound[k] = noizRound(rng.range(r[k][0], r[k][1]), 3);
   }
   if (rng.chance(0.06)) track.sound.drive = noizRound(rng.range(0.5, 0.75), 3); // occasional dirt
+  var sr = NOIZ_SYNTH_RANGES[track.id];
+  for (var j = 0; j < NOIZ_SYNTH.length; j++) {
+    var sk = NOIZ_SYNTH[j];
+    track.synth[sk] = noizRound(rng.range(sr[sk][0], sr[sk][1]), 3);
+  }
 }
 
 // Weights for which macros a random P-Lock touches (avoid DRIVE everywhere).
-var NOIZ_LOCK_WEIGHTS = { tone: 0.38, decay: 0.34, texture: 0.2, drive: 0.08 };
+var NOIZ_LOCK_WEIGHTS = { tone: 0.3, decay: 0.27, texture: 0.16, drive: 0.07, pan: 0.2 };
 
 function noizRandomLockFor(track, step, rng, lockAmount) {
   var locks = {};
@@ -145,6 +156,7 @@ function noizRandomLockFor(track, step, rng, lockAmount) {
     keys.splice(pick, 1);
     var dev = rng.range(-lockAmount, lockAmount);
     if (k === "drive" && lockAmount < 0.8) dev = Math.min(dev, 0.35);
+    if (k === "pan") dev = rng.range(-1, 1) * Math.min(0.5, lockAmount * 1.4); // audible placement
     locks[k] = noizRound(noizClamp01(track.sound[k] + dev), 3);
   }
   return locks;
@@ -278,6 +290,10 @@ function noizMutateSound(track, amount, rng) {
     if (k === "drive" && amount < 0.8) v = Math.min(v, Math.max(track.sound[k], 0.7));
     track.sound[k] = noizRound(noizClamp01(v), 3);
   }
+  for (var j = 0; j < NOIZ_SYNTH.length; j++) {
+    var sk = NOIZ_SYNTH[j];
+    track.synth[sk] = noizRound(noizClamp01(track.synth[sk] + rng.gauss() * 0.14 * amount), 3);
+  }
 }
 
 function noizMutatePLocks(track, amount, rng, lockDensity, lockAmount) {
@@ -325,6 +341,7 @@ function noizMutateFromAnchor(currentTracks, anchorTracks, amount, scope, rng, o
     }
     if (noizScopeSound(scope) && !tr.locks.sound) {
       tr.sound = noizClone(an.sound);
+      tr.synth = noizClone(an.synth);
       noizMutateSound(tr, amount, rng);
     }
     if (noizScopePLocks(scope) && !tr.locks.sound) {

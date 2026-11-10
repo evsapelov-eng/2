@@ -273,3 +273,30 @@ test("lookahead: stop requests a flush; resume continues without doubles", () =>
   assert.strictEqual(after[0], 2); // the hit at 2.0 that was flushed is re-scheduled once
   assert.strictEqual(new Set(after).size, after.length);
 });
+
+// ---- panorama ----
+
+test("pan: spread 0 → every hit at the track pan; P-Lock pan overrides on its step", () => {
+  const s = soloState(0, (t) => { t.steps.forEach((st) => { st.on = true; }); t.synth.spread = 0; t.sound.pan = 0.3; t.steps[5].pLocks = { pan: 0.9 }; });
+  const ev = C.noizEventsInRange(s, 0, 4);
+  ev.forEach((e) => assert.ok(Math.abs(e.pan - (e.stepIndex === 5 ? 0.9 : 0.3)) < 1e-9));
+});
+
+test("pan: spread moves hits around the base, deterministically and inside the field", () => {
+  const s = soloState(1, (t) => { t.steps.forEach((st) => { st.on = true; }); t.synth.spread = 0.6; t.sound.pan = 0.5; });
+  const a = C.noizEventsInRange(s, 0, 16).map((e) => e.pan);
+  const b = C.noizEventsInRange(s, 0, 16).map((e) => e.pan);
+  deq(a, b);
+  assert.ok(a.every((p) => p >= 0.2 - 1e-9 && p <= 0.8 + 1e-9));
+  assert.ok(Math.max(...a) - Math.min(...a) > 0.4, "spread should be audible");
+  assert.ok(new Set(a.map((p) => p.toFixed(3))).size > 20);
+});
+
+test("pan: ratchet sub-hits sweep across the stereo field", () => {
+  const s = soloState(0, (t) => { t.steps[0].on = true; t.steps[0].ratchet = 4; t.synth.spread = 0.5; t.sound.pan = 0.5; });
+  const p = C.noizEventsInRange(s, 0, 0.25).map((e) => e.pan);
+  assert.strictEqual(p.length, 4);
+  const d = p.slice(1).map((x, i) => x - p[i]);
+  assert.ok(d.every((x) => x > 0) || d.every((x) => x < 0), "monotonic sweep " + p);
+  assert.ok(Math.abs(Math.abs(p[3] - p[0]) - 0.5) < 1e-9);
+});

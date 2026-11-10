@@ -168,146 +168,230 @@ def build_p1():
 
 
 # ---------------------------------------------------------------- voices
-def voice_chain(P, name, v, x0, tone_hz_id, tex_ids, drive_ids, env_id, outlet_index):
-    """One noise→filter→env→drive chain; returns final signal id. tex_ids = (white_gain, pink_gain, thr)."""
+# Voice input list (9 values, 0..1): amp tone decay texture drive pan reso attack character
+VOICE_FIELDS = ["amp", "tone", "decay", "texture", "drive", "pan", "reso", "attack", "character"]
+
+
+def F(i):
+    return VOICE_FIELDS.index(i)
+
+
+def expmap_expr(rng):
+    lo, hi = float(rng[0]), float(rng[1])
+    return "expr %s*pow(%s/%s\\,$f1)" % (fmt(lo), fmt(hi), fmt(lo))
+
+
+def voice_chain(P, name, v, x0, ctl):
+    """One noise→filter→(METAL partials/colour)→env→drive chain. Returns the final signal box id."""
     T = MAP["texture"]
-    white = P.obj("noise~", x0, 300)
-    pink = P.obj("pink~", x0 + 70, 300)
-    wg = P.obj("*~ 1.", x0, 340)
-    pg = P.obj("*~ 0.", x0 + 70, 340)
+    y = 420
+    white = P.obj("noise~", x0, y)
+    pink = P.obj("pink~", x0 + 70, y)
+    wg = P.obj("*~ 1.", x0, y + 40)
+    pg = P.obj("*~ 0.", x0 + 70, y + 40)
     P.connect(white, 0, wg, 0); P.connect(pink, 0, pg, 0)
-    P.connect(tex_ids[0], 0, wg, 1); P.connect(tex_ids[1], 0, pg, 1)
-    s1 = P.obj("+~", x0, 380)
-    P.connect(wg, 0, s1, 0); P.connect(pg, 0, s1, 1)
-    src = s1
+    P.connect(ctl["wgain"], 0, wg, 1); P.connect(ctl["pgain"], 0, pg, 1)
+    src = P.obj("+~", x0, y + 80)
+    P.connect(wg, 0, src, 0); P.connect(pg, 0, src, 1)
+    if name == "DUST":  # GRAIN: less noise body, more grains
+        ng = P.obj("*~ 1.", x0, y + 110)
+        P.connect(src, 0, ng, 0); P.connect(ctl["noisegain"], 0, ng, 1)
+        src = ng
     if v["crackleGain"] > 0:
-        cn = P.obj("noise~", x0 + 150, 300)
-        ab = P.obj("abs~", x0 + 150, 340)
-        gt = P.obj(">~ 1.", x0 + 150, 380)
-        ca = P.obj("noise~", x0 + 230, 340)
-        cm = P.obj("*~", x0 + 150, 420)
-        cg = P.obj("*~ %s" % fmt(float(v["crackleGain"])), x0 + 150, 460)
+        cn = P.obj("noise~", x0 + 150, y)
+        ab = P.obj("abs~", x0 + 150, y + 40)
+        gt = P.obj(">~ 1.", x0 + 150, y + 80)
+        ca = P.obj("noise~", x0 + 230, y + 40)
+        cm = P.obj("*~", x0 + 150, y + 120)
+        cg = P.obj("*~ %s" % fmt(float(v["crackleGain"])), x0 + 150, y + 150)
         P.chain(cn, ab, gt)
-        P.connect(tex_ids[2], 0, gt, 1)
+        P.connect(ctl["thr"], 0, gt, 1)
         P.connect(gt, 0, cm, 0); P.connect(ca, 0, cm, 1)
         P.connect(cm, 0, cg, 0)
-        s2 = P.obj("+~", x0, 500)
-        P.connect(s1, 0, s2, 0); P.connect(cg, 0, s2, 1)
+        s2 = P.obj("+~", x0, y + 180)
+        P.connect(src, 0, s2, 0); P.connect(cg, 0, s2, 1)
         src = s2
-    filt = P.obj("svf~ 1000 %s" % fmt(float(v["q"])), x0, 540)
+    # METAL's noise exciter keeps a fixed q (its RESO acts on the colour filter below)
+    filt = P.obj("svf~ 1000. %s" % ("0.7" if name == "METAL" else "0.5"), x0, y + 220)
     P.connect(src, 0, filt, 0)
-    P.connect(tone_hz_id, 0, filt, 1)
-    out_idx = {"lp": 0, "hp": 1, "bp": 2}[v["filter"]]
-    sig = (filt, out_idx)
+    P.connect(ctl["filtfreq"], 0, filt, 1)
+    if name != "METAL":
+        P.connect(ctl["q"], 0, filt, 2)
+    if name == "HISS":  # BODY: highpass → bandpass crossfade
+        hg = P.obj("*~ 1.", x0, y + 260)
+        bg = P.obj("*~ 0.", x0 + 70, y + 260)
+        P.connect(filt, 1, hg, 0); P.connect(filt, 2, bg, 0)
+        P.connect(ctl["hpgain"], 0, hg, 0 + 1); P.connect(ctl["bpgain"], 0, bg, 1)
+        sig = P.obj("+~", x0, y + 290)
+        P.connect(hg, 0, sig, 0); P.connect(bg, 0, sig, 1)
+        sig = (sig, 0)
+    else:
+        sig = (filt, {"lp": 0, "hp": 1, "bp": 2}[v["filter"]])
     if name == "METAL":
-        # partials (sine) crossfaded with band-passed noise by texture
         psum = None
-        for i, (r, g) in enumerate(zip(v["partialRatios"], v["partialGains"])):
-            fr = P.obj("* %s" % fmt(float(r)), x0 + 300 + i * 90, 500)
-            P.connect(tone_hz_id, 0, fr, 0)
-            osc = P.obj("cycle~", x0 + 300 + i * 90, 540)
+        for i, g in enumerate(v["partialGains"]):
+            fr = ctl["partials"][i]
+            osc = P.obj("cycle~", x0 + 320 + i * 90, y + 260)
             P.connect(fr, 0, osc, 0)
-            pg2 = P.obj("*~ %s" % fmt(float(g)), x0 + 300 + i * 90, 580)
+            pg2 = P.obj("*~ %s" % fmt(float(g)), x0 + 320 + i * 90, y + 290)
             P.connect(osc, 0, pg2, 0)
             if psum is None:
                 psum = pg2
             else:
-                a = P.obj("+~", x0 + 300 + i * 90, 620)
-                P.connect(psum, 0, a, 0); P.connect(pg2, 0, a, 1)
-                psum = a
-        pmix = P.obj("*~ 1.", x0 + 300, 660)       # × (1 - texture)
-        nmix = P.obj("*~ 0.", x0, 600)             # × texture * 2.5
-        P.connect(psum, 0, pmix, 0)
-        P.connect(tex_ids[3], 0, pmix, 1)
-        P.connect(filt, out_idx, nmix, 0)
-        P.connect(tex_ids[4], 0, nmix, 1)
-        mix = P.obj("+~", x0, 700)
+                ad = P.obj("+~", x0 + 320 + i * 90, y + 320)
+                P.connect(psum, 0, ad, 0); P.connect(pg2, 0, ad, 1)
+                psum = ad
+        pmix = P.obj("*~ 1.", x0 + 320, y + 360)
+        nmix = P.obj("*~ 0.", x0, y + 300)
+        P.connect(psum, 0, pmix, 0); P.connect(ctl["mpart"], 0, pmix, 1)
+        P.connect(sig[0], sig[1], nmix, 0); P.connect(ctl["mnoise"], 0, nmix, 1)
+        mix = P.obj("+~", x0, y + 400)
         P.connect(nmix, 0, mix, 0); P.connect(pmix, 0, mix, 1)
-        sig = (mix, 0)
-    vca = P.obj("*~", x0, 740)
+        # resonant colour of the whole mix, level-normalised
+        col = P.obj("svf~ 1000. 0.5", x0 + 120, y + 430)
+        P.connect(mix, 0, col, 0)
+        P.connect(ctl["filtfreq"], 0, col, 1)
+        P.connect(ctl["q"], 0, col, 2)
+        cgain = P.obj("*~ 0.", x0 + 120, y + 460)
+        P.connect(col, 2, cgain, 0); P.connect(ctl["colorgain"], 0, cgain, 1)
+        csum = P.obj("+~", x0, y + 490)
+        P.connect(mix, 0, csum, 0); P.connect(cgain, 0, csum, 1)
+        cnorm = P.obj("*~ 1.", x0, y + 520)
+        P.connect(csum, 0, cnorm, 0); P.connect(ctl["colornorm"], 0, cnorm, 1)
+        sig = (cnorm, 0)
+    yy = y + 560
+    vca = P.obj("*~", x0, yy)
     P.connect(sig[0], sig[1], vca, 0)
-    P.connect(env_id, 0, vca, 1)
-    og = P.obj("*~ %s" % fmt(float(v["outGain"])), x0, 780)
-    pre = P.obj("*~ 1.", x0, 820)
-    th = P.obj("tanh~", x0, 860)
-    comp = P.obj("*~ 1.", x0, 900)
+    P.connect(ctl["env"], 0, vca, 1)
+    og = P.obj("*~ %s" % fmt(float(v["outGain"])), x0, yy + 30)
+    pre = P.obj("*~ 1.", x0, yy + 60)
+    th = P.obj("tanh~", x0, yy + 90)
+    comp = P.obj("*~ 1.", x0, yy + 120)
     P.chain(vca, og, pre, th, comp)
-    P.connect(drive_ids[0], 0, pre, 1)
-    P.connect(drive_ids[1], 0, comp, 1)
-    o = P.obj("out~ %d" % outlet_index, x0, 950)
-    P.connect(comp, 0, o, 0)
+    P.connect(ctl["drvpre"], 0, pre, 1)
+    P.connect(ctl["drvcomp"], 0, comp, 1)
     return comp
 
 
 def build_voice(name):
     v = MAP["voices"][name]
-    T = MAP["texture"]
-    D = MAP["drive"]
-    P = Patcher((40, 40, 1300, 1050))
+    T, D, E, R = MAP["texture"], MAP["drive"], MAP["envelope"], MAP["reso"]
+    CH = MAP["character"][name]
+    P = Patcher((40, 40, 1500, 1350))
     P.comment("NØIZ voice %s — poly~ instance. GENERATED by tools/build_patches.py from spec/dsp_map.json. "
-              "Input list: amp tone decay texture drive (all 0..1, amp already includes velocity curve and level)." % name,
-              20, 8, 900)
+              "Input list (0..1): %s." % (name, " ".join(VOICE_FIELDS)), 20, 8, 1000)
     inp = P.obj("in 1", 20, 50)
     trig = P.obj("t l l", 20, 80)
     P.connect(inp, 0, trig, 0)
-    # --- params (right outlet fires first): set filter / mix / drive BEFORE the envelope starts
-    up = P.obj("unpack 0. 0. 0. 0. 0.", 300, 120, 200)
+    unp = "unpack " + " ".join(["0."] * len(VOICE_FIELDS))
+    # ---- parameters first (right outlet of [t l l] fires first)
+    up = P.obj(unp, 300, 110, 260)
     P.connect(trig, 1, up, 0)
-    lo, hi = v["toneHz"]
-    tone = P.obj("expr %s*pow(%s/%s\\,$f1)" % (fmt(float(lo)), fmt(float(hi)), fmt(float(lo))), 300, 160, 200)
-    P.connect(up, 1, tone, 0)
-    tex_t = P.obj("t f f f f f", 520, 160, 120)
-    P.connect(up, 3, tex_t, 0)
-    wgain = P.obj("expr (1-$f1)*%s" % fmt(float(T["whiteGain"])), 520, 200, 140)
-    pgain = P.obj("expr $f1*%s" % fmt(float(T["pinkGain"])), 660, 200, 120)
-    thr = P.obj("expr 1-%s*$f1" % fmt(float(T["crackleMaxDensity"])), 790, 200, 140)
-    mpart = P.obj("expr 1-$f1", 940, 200, 90)
-    mnoise = P.obj("expr $f1*2.5", 1040, 200, 100)
-    for i, d in enumerate([wgain, pgain, thr, mpart, mnoise]):
-        P.connect(tex_t, 4 - i, d, 0)
-    drv_t = P.obj("t f f", 1150, 160, 60)
-    P.connect(up, 4, drv_t, 0)
-    drv_pre = P.obj("expr 1+$f1*%s" % fmt(float(D["gainMax"])), 1150, 200, 120)
-    drv_comp = P.obj("expr pow(1+$f1*%s\\,-%s)" % (fmt(float(D["gainMax"])), fmt(float(D["compExp"]))), 1150, 240, 150)
-    P.connect(drv_t, 1, drv_pre, 0); P.connect(drv_t, 0, drv_comp, 0)
-    # --- envelope (left outlet fires second)
-    ue = P.obj("unpack 0. 0. 0. 0. 0.", 20, 120, 200)
+    ctl = {}
+    tone = P.obj(expmap_expr(v["toneHz"]), 300, 150, 200)
+    P.connect(up, F("tone"), tone, 0)
+    if name == "METAL":
+        ff = P.obj("* %s" % fmt(float(v["noiseBpRatio"])), 300, 180)
+        P.connect(tone, 0, ff, 0)
+        ctl["filtfreq"] = ff
+        lo, hi = CH["range"]
+        kexp = P.obj("expr %s+%s*$f1" % (fmt(float(lo)), fmt(float(hi - lo))), 1300, 150, 140)
+        P.connect(up, F("character"), kexp, 0)
+        ctl["partials"] = []
+        for i, r in enumerate(v["partialRatios"]):
+            pe = P.obj("expr $f1*(1.+%s*$f2)" % fmt(float(r) - 1.0), 300 + i * 140, 210, 130)
+            P.connect(tone, 0, pe, 0)
+            P.connect(kexp, 0, pe, 1)  # character arrives first (unpack fires right to left)
+            ctl["partials"].append(pe)
+    else:
+        ctl["filtfreq"] = tone
+    tex_t = P.obj("t f f f f f", 560, 150, 120)
+    P.connect(up, F("texture"), tex_t, 0)
+    ctl["wgain"] = P.obj("expr (1.-$f1)*%s" % fmt(float(T["whiteGain"])), 560, 190, 140)
+    ctl["pgain"] = P.obj("expr $f1*%s" % fmt(float(T["pinkGain"])), 700, 190, 120)
+    ctl["mpart"] = P.obj("expr 1.-$f1", 830, 190, 90)
+    ctl["mnoise"] = P.obj("expr $f1*2.5", 930, 190, 100)
+    for i, k in enumerate(["wgain", "pgain", "mpart", "mnoise"]):
+        P.connect(tex_t, i, ctl[k], 0)
+    if name == "DUST":
+        ch_t = P.obj("t f f", 1040, 150, 60)
+        P.connect(up, F("character"), ch_t, 0)
+        d0, d1 = CH["dens"]
+        ctl["thr"] = P.obj("expr 1.-(%s+%s*$f1)" % (fmt(float(d0)), fmt(float(d1 - d0))), 1040, 190, 160)
+        ctl["noisegain"] = P.obj("expr 1.-%s*$f1" % fmt(float(CH["noiseCut"])), 1210, 190, 120)
+        P.connect(ch_t, 0, ctl["thr"], 0); P.connect(ch_t, 1, ctl["noisegain"], 0)
+    else:
+        ctl["thr"] = P.obj("expr 1.-%s*$f1" % fmt(float(T["crackleMaxDensity"])), 1040, 190, 140)
+        P.connect(tex_t, 4, ctl["thr"], 0)
+    if name == "HISS":
+        ch_t = P.obj("t f f", 1040, 230, 60)
+        P.connect(up, F("character"), ch_t, 0)
+        ctl["hpgain"] = P.obj("expr 1.-$f1", 1040, 260, 90)
+        ctl["bpgain"] = P.obj("expr $f1*%s" % fmt(float(CH["bpGain"])), 1140, 260, 110)
+        P.connect(ch_t, 0, ctl["hpgain"], 0); P.connect(ch_t, 1, ctl["bpgain"], 0)
+    drv_t = P.obj("t f f", 1300, 300, 60)
+    P.connect(up, F("drive"), drv_t, 0)
+    ctl["drvpre"] = P.obj("expr 1.+$f1*%s" % fmt(float(D["gainMax"])), 1300, 330, 120)
+    ctl["drvcomp"] = P.obj("expr pow(1.+$f1*%s\\,-%s)" % (fmt(float(D["gainMax"])), fmt(float(D["compExp"]))), 1300, 360, 170)
+    P.connect(drv_t, 1, ctl["drvpre"], 0); P.connect(drv_t, 0, ctl["drvcomp"], 0)
+    res_t = P.obj("t f f", 560, 230, 60)
+    P.connect(up, F("reso"), res_t, 0)
+    ctl["q"] = P.obj("expr %s+%s*$f1" % (fmt(float(R["q"][0])), fmt(float(R["q"][1] - R["q"][0]))), 560, 260, 140)
+    P.connect(res_t, 1, ctl["q"], 0)
+    if name == "METAL":
+        g, nrm = float(MAP["metalColor"]["gain"]), float(MAP["metalColor"]["norm"])
+        ctl["colorgain"] = P.obj("expr $f1*%s" % fmt(g), 710, 260, 100)
+        ctl["colornorm"] = P.obj("expr 1./(1.+%s*$f1)" % fmt(g * nrm), 820, 260, 140)
+        P.connect(res_t, 0, ctl["colorgain"], 0)
+        P.connect(res_t, 0, ctl["colornorm"], 0)
+    pan_t = P.obj("t f f", 300, 300, 60)
+    P.connect(up, F("pan"), pan_t, 0)
+    gl = P.obj("expr 1.41421*cos($f1*1.570796)", 300, 330, 200)
+    gr = P.obj("expr 1.41421*sin($f1*1.570796)", 300, 360, 200)
+    P.connect(pan_t, 1, gl, 0); P.connect(pan_t, 0, gr, 0)
+    # ---- envelope (left outlet of [t l l] fires second)
+    ue = P.obj(unp, 20, 110, 260)
     P.connect(trig, 0, ue, 0)
-    dlo, dhi = v["decayMs"]
-    dec = P.obj("expr %s*pow(%s/%s\\,$f1)" % (fmt(float(dlo)), fmt(float(dhi)), fmt(float(dlo))), 100, 160, 180)
-    P.connect(ue, 2, dec, 0)
-    amp = P.obj("sqrt", 20, 160)
-    P.connect(ue, 0, amp, 0)
-    if "attackMs" in v:
-        alo, ahi = v["attackMs"]
-        dt = P.obj("t f f", 100, 190, 50)
-        P.connect(ue, 2, dt, 0)
-        P.lines[:] = [l for l in P.lines if not (l["patchline"]["source"] == [ue, 2] and l["patchline"]["destination"] == [dec, 0])]
-        P.connect(dt, 1, dec, 0)
-        att = P.obj("expr %s+%s*$f1" % (fmt(float(alo)), fmt(float(ahi - alo))), 160, 220, 120)
-        P.connect(dt, 0, att, 0)
-        pk = P.obj("pack 0. 0. 0.", 20, 250, 120)
-        P.connect(amp, 0, pk, 0); P.connect(dec, 0, pk, 1); P.connect(att, 0, pk, 2)
-        em = P.msg("$1 $3 0 $2", 20, 280)
-    else:
-        pk = P.obj("pack 0. 0.", 20, 250, 100)
-        P.connect(amp, 0, pk, 0); P.connect(dec, 0, pk, 1)
-        em = P.msg("$1 %s 0 $2" % fmt(float(MAP["envelope"]["attackMs"])), 20, 280)
+    dec = P.obj(expmap_expr(v["decayMs"]), 100, 150, 180)
+    P.connect(ue, F("decay"), dec, 0)
+    att = P.obj(expmap_expr(E["attackMs"]), 100, 180, 180)
+    P.connect(ue, F("attack"), att, 0)
+    amp = P.obj("sqrt", 20, 150)
+    P.connect(ue, F("amp"), amp, 0)
+    pk = P.obj("pack 0. 0. 0.", 20, 220, 120)
+    P.connect(amp, 0, pk, 0); P.connect(dec, 0, pk, 1); P.connect(att, 0, pk, 2)
+    em = P.msg("$1 $3 0 $2", 20, 250)
     P.connect(pk, 0, em, 0)
-    line = P.obj("line~", 20, 310, 60)
+    line = P.obj("line~", 20, 280, 60)
     P.connect(em, 0, line, 0)
-    sq = P.obj("*~", 20, 340, 40)
+    sq = P.obj("*~", 20, 310, 40)
     P.connect(line, 0, sq, 0); P.connect(line, 0, sq, 1)
-    busy = P.obj("thispoly~", 20, 380)
+    busy = P.obj("thispoly~", 20, 350)
     P.connect(sq, 0, busy, 0)
-    tex_ids = (wgain, pgain, thr, mpart, mnoise)
-    chans = 2 if v["stereo"].startswith("decorrelated") else 1
-    last = voice_chain(P, name, v, 300, tone, tex_ids, (drv_pre, drv_comp), sq, 1)
-    if chans == 2:
-        voice_chain(P, name, v, 700, tone, tex_ids, (drv_pre, drv_comp), sq, 2)
+    ctl["env"] = sq
+    # ---- channels
+    left = voice_chain(P, name, v, 20, ctl)
+    if v["stereo"].startswith("decorrelated"):  # ATMOS: WIDTH mixes a decorrelated right chain
+        right_raw = voice_chain(P, name, v, 760, ctl)
+        w_t = P.obj("t f f", 1300, 400, 60)
+        P.connect(up, F("character"), w_t, 0)
+        wl = P.obj("expr 1.-$f1", 1300, 430, 90)
+        P.connect(w_t, 1, wl, 0)
+        a = P.obj("*~ 0.", 760, 1220)
+        b = P.obj("*~ 1.", 860, 1220)
+        P.connect(left, 0, a, 0); P.connect(wl, 0, a, 1)
+        P.connect(right_raw, 0, b, 0); P.connect(w_t, 0, b, 1)
+        right = P.obj("+~", 760, 1250)
+        P.connect(a, 0, right, 0); P.connect(b, 0, right, 1)
     else:
-        o2 = P.obj("out~ 2", 300 + 80, 950)
-        P.connect(last, 0, o2, 0)
+        right = left
+    pl = P.obj("*~ 1.", 20, 1290)
+    pr = P.obj("*~ 1.", 200, 1290)
+    P.connect(left, 0, pl, 0); P.connect(gl, 0, pl, 1)
+    P.connect(right, 0, pr, 0); P.connect(gr, 0, pr, 1)
+    o1 = P.obj("out~ 1", 20, 1320)
+    o2 = P.obj("out~ 2", 200, 1320)
+    P.connect(pl, 0, o1, 0); P.connect(pr, 0, o2, 0)
     return P.dump(os.path.join(OUT, "noiz_voice_%s.maxpat" % name.lower()))
 
 
@@ -368,16 +452,17 @@ def build_main():
     # DSP routing: trig list → unpack → pipe (high-priority delay) → pack → route voice → poly~
     rt = P.obj("route trig flush", 20, 360, 140)
     P.connect(eng, 0, rt, 0)
-    up = P.obj("unpack 0 0. 0. 0. 0. 0. 0.", 20, 400, 220)
+    nvals = 10  # track amp tone decay texture drive pan reso attack character
+    up = P.obj("unpack 0" + " 0." * (nvals - 1) + " 0.", 20, 400, 300)
     P.connect(rt, 0, up, 0)
-    pipe = P.obj("pipe 0 0. 0. 0. 0. 0. 0", 20, 440, 220)
-    for i in range(7):
-        P.connect(up, i, pipe, i)   # outlet 6 = delay → pipe's delay inlet (last)
+    pipe = P.obj("pipe 0" + " 0." * (nvals - 1) + " 0", 20, 440, 300)
+    for i in range(nvals + 1):
+        P.connect(up, i, pipe, i)   # last outlet = delay → pipe's delay inlet (last)
     clr = P.msg("clear", 260, 400)
     P.connect(rt, 1, clr, 0)
     P.connect(clr, 0, pipe, 0)
-    pk2 = P.obj("pack 0 0. 0. 0. 0. 0.", 20, 480, 220)
-    for i in range(6):
+    pk2 = P.obj("pack 0" + " 0." * (nvals - 1), 20, 480, 300)
+    for i in range(nvals):
         P.connect(pipe, i, pk2, i)
     rv = P.obj("route 0 1 2 3", 20, 520, 160)
     P.connect(pk2, 0, rv, 0)

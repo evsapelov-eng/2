@@ -2,7 +2,7 @@
 
 Статусы: **PASS / FAIL / NOT TESTED**. «Static proxy» — проверено автотестом или офлайн-моделью, что **не заменяет** host-проверку (ТЗ §15: unit tests не имеют права заменять host validated). Колонка «Host» заполняется после проверки в Live по `HOST_TEST_GUIDE.md`.
 
-Версия: 0.1.1 · дата: 2026-11-10 · Live/Max на стороне разработки: нет.
+Версия: 0.2.0 · дата: 2026-11-10 · Live/Max на стороне разработки: нет.
 
 | ID | Проверка | Static proxy (доказательство) | Host (Live 12) |
 |---|---|---|---|
@@ -10,7 +10,7 @@
 | A02 | чистый компьютер, freeze | — | NOT TESTED |
 | A03 | звук без MIDI-нот от транспорта | PASS: `max_adapter.test.js` — тики `transport` → `trig` | NOT TESTED |
 | A04 | 4 разных тембра | PASS: `render_voices.js` — центроид/decay различаются ≥ 25% попарно | NOT TESTED |
-| A05 | каждый макрос 0–100% слышим | PASS: 16/16 монотонность/изменение в эталонной модели (`renders/report.json`) | NOT TESTED |
+| A05 | каждый макрос 0–100% слышим | PASS: все 4 макроса + RESO/ATTACK/CHARACTER/PAN на 4 голосах в эталонной модели; каждый вход патча влияет на звук (`voice_patch_sim.test.js`) | NOT TESTED |
 | A06 | Generate ×10 | PASS: `generative.test.js` A06 | NOT TESTED |
 | A07 | Mutate Amount=0 → без изменений | PASS: `generative.test.js` A07 | NOT TESTED |
 | A08 | Mutate ≈15% узнаваемо | PASS: среднее 0.8–4 изменённых шага из 16 | NOT TESTED |
@@ -37,7 +37,7 @@
 
 | Статус | Значение сейчас |
 |---|---|
-| STATIC VALID | **PASS** — 58 автотестов, 22 DSP-проверки, 6 патчей без ошибок связей |
+| STATIC VALID | **PASS** — 82 автотеста (в т.ч. исполнение патчей голосов в `tools/maxsim.js`), 38 DSP-проверок, 6 патчей без ошибок связей |
 | MAX LOAD VALID | NOT TESTED |
 | LIVE LOAD VALID | NOT TESTED |
 | AUDIO VALID | NOT TESTED |

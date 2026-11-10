@@ -28,7 +28,7 @@ test("generated noiz_engine.js declares Max inlets/outlets and loads without Max
   const { ctx } = loadInMockMax();
   assert.strictEqual(ctx.inlets, 1);
   assert.strictEqual(ctx.outlets, 3);
-  for (const fn of ["tick", "generate", "mutate", "keep", "undo", "toggle", "macro", "gesture", "getvalueof", "setvalueof", "loopon", "loopstart", "looplength", "tracklength"]) {
+  for (const fn of ["tick", "generate", "mutate", "keep", "undo", "toggle", "macro", "gesture", "getvalueof", "setvalueof", "loopon", "loopstart", "looplength", "tracklength", "hold", "synth", "synthreset", "view"]) {
     assert.strictEqual(typeof ctx[fn], "function", fn);
   }
 });
@@ -44,9 +44,10 @@ test("transport ticks produce timed trig messages with 7 numeric args", () => {
   const trig = out.filter((m) => m[0] === 0 && m[1] === "trig");
   assert.ok(trig.length >= 15, "trig count " + trig.length); // default bar ≈ 19 hits + ratchets − probability misses
   trig.forEach((m) => {
-    assert.strictEqual(m.length, 9);
+    assert.strictEqual(m.length, 13); // outlet, "trig", 10 values, delay
     m.slice(2).forEach((v) => assert.ok(Number.isFinite(v)));
-    assert.ok(m[8] >= 0 && m[8] <= 60, "delay " + m[8]);
+    assert.ok(m[12] >= 0 && m[12] <= 60, "delay " + m[12]);
+    assert.ok(m[8] >= 0 && m[8] <= 1, "pan " + m[8]);
     assert.ok([0, 1, 2, 3].includes(m[2]));
   });
   assert.ok(out.some((m) => m[0] === 1 && m[1] === "playhead"));

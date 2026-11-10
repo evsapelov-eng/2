@@ -12,11 +12,13 @@
 //   toggle <track> <step>  stepset <track> <step> <field> <value>
 //   tracklength <track> <n>  division <track> <n> <m>  density <track> <0..1>
 //   level <track> <dB>  mute <track> <0|1>  lockr <track> <0|1>  locks <track> <0|1>
-//   macro <tone|decay|texture|drive> <0..1>   macroreset <key>
+//   macro <tone|decay|texture|drive|pan> <0..1>   macroreset <key>   (BASE or STEP P-Lock)
+//   synth <reso|attack|character|spread> <0..1>   synthreset <key>  (selected voice)
+//   hold <track> <0|1>  (lock rhythm + sound together)
 //   gesture <1|0>   clearsteplocks   cleartracklocks   motion <0|1>
 //   bang (re-send UI state)   dump (post state JSON to the Max Console)
 //
-// Outlet 0 → DSP:   trig <track> <amp> <tone> <decay> <texture> <drive> <delayMs>
+// Outlet 0 → DSP:   trig <track> <amp> <tone> <decay> <texture> <drive> <pan> <reso> <attack> <character> <delayMs>
 //                   (delay last: the patch unpacks right-to-left into [pipe], track triggers)
 //                   flush                          (drop queued events: stop/seek)
 // Outlet 1 → UI:    bind <globalName>   refresh    playhead <s0> <s1> <s2> <s3>
@@ -50,7 +52,8 @@ function publishUi() {
     canUndo: engine.canUndo(),
     pending: engine.pending,
     playing: engine.transportPlaying,
-    tempo: engine.tempo
+    tempo: engine.tempo,
+    defaults: { levelDb: NOIZ_DEFAULT_LEVEL_DB }
   });
   ui.version++;
   outlet(1, "refresh");
@@ -83,7 +86,7 @@ function tick(bars, beats, units, resolution, tempo) {
   if (engine.flushRequested) outlet(0, "flush");
   for (var i = 0; i < evs.length; i++) {
     var m = noizEventToTrigger(evs[i]);
-    outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], noizRound(evs[i].delayMs, 3));
+    outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], noizRound(evs[i].delayMs, 3));
   }
   // playhead (only on change)
   var ph = [];
@@ -105,8 +108,9 @@ function loopstart(v) { loopInfo.start = v; engine.setLoop(loopInfo.on, loopInfo
 function looplength(v) { loopInfo.length = v; engine.setLoop(loopInfo.on, loopInfo.start, loopInfo.length); }
 
 // ---------- commands ----------
-function generate() { engine.generate(); }
-function mutate() { engine.mutate(); }
+// Scope follows the visible screen: SEQ → rhythm + P-Locks, SYNTH → voice sound.
+function generate() { engine.generate(engine.contextScope()); }
+function mutate() { engine.mutate(engine.contextScope()); }
 function keep() { engine.keep(); }
 function undo() { engine.undo(); }
 function scope(s) { engine.setGlobal("randomScope", String(s)); }
@@ -125,6 +129,9 @@ function division(t, n, m) { engine.setDivision(t, n, m); }
 function density(t, v) { engine.setDensity(t, v); }
 function level(t, db) { engine.setLevel(t, db); }
 function mute(t, v) { engine.setMute(t, v); }
+function hold(t, v) { engine.setHold(t, v); }
+function synth(key, v) { engine.setSynth(engine.state.global.selectedTrack, String(key), v); }
+function synthreset(key) { engine.resetSynth(engine.state.global.selectedTrack, String(key)); }
 function lockr(t, v) { engine.setLock(t, "rhythm", v); }
 function locks(t, v) { engine.setLock(t, "sound", v); }
 function macro(key, v) { engine.setMacro(String(key), v); }

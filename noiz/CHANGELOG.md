@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — 2026-11-10 (test build, not host-tested)
+
+- Упрощённый интерфейс: экраны SEQ / SYNTH, GENERATE/MUTATE по контексту экрана; удалены RHY/SND/PLK/ALL, LK DENS/AMT, DENS, R/S, BASE; одна кнопка L (защита голоса).
+- Панорама: PAN как P-Lock-параметр, SPREAD (разброс по ударам, ratchet пролетает по стерео), генерация панорамы; панорама равной мощности в каждом экземпляре голоса.
+- Модуль синтеза SYNTH: RESO, ATTACK, CHARACTER (HISS BODY, DUST GRAIN, METAL RATIO, ATMOS WIDTH), PAN, SPREAD, LEVEL + 4 макроса; превью огибающей; значения в Гц/мс/дБ/L-R.
+- Схема данных v2 с миграцией v1.
+- `tools/maxsim.js`: исполнение сгенерированных патчей голосов — каждый из 9 входов доказуемо влияет на звук.
+- 82 автотеста, 38 проверок эталонной DSP-модели.
+
 ## 0.1.1 — 2026-11-10 (test build, not host-tested)
 
 - Готовые к перетаскиванию устройства: `dist/NOIZ/NØIZ.amxd` и `NØIZ P1 hello.amxd` + зависимости, zip. Собраны скриптом (`tools/build_amxd.py`), не штатным Save, не Freeze (D21).

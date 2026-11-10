@@ -4,600 +4,1299 @@
   "voices": {
     "HISS": {
       "default": {
-        "centroidHz": 14268,
+        "centroidHz": 14159,
         "decayMs": 18,
-        "rmsDb": -16.7,
-        "peak": 0.527,
-        "flatness": 0.436
+        "rmsDb": -17.8,
+        "peak": 0.503,
+        "flatness": 0.468
       },
       "sweeps": {
         "tone": [
           {
             "value": 0,
-            "centroidHz": 10954,
+            "centroidHz": 10908,
             "decayMs": 18,
-            "rmsDb": -15.7,
-            "crestDb": 10.7,
-            "flatness": 0.509,
-            "peak": 0.556
+            "rmsDb": -16.8,
+            "crestDb": 11.3,
+            "flatness": 0.51,
+            "peak": 0.531,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 12219,
+            "centroidHz": 11506,
             "decayMs": 18,
-            "rmsDb": -15.9,
-            "crestDb": 10.4,
-            "flatness": 0.541,
-            "peak": 0.532
+            "rmsDb": -17.1,
+            "crestDb": 12,
+            "flatness": 0.493,
+            "peak": 0.552,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 12801,
+            "centroidHz": 12761,
             "decayMs": 18,
-            "rmsDb": -16.8,
-            "crestDb": 11.8,
-            "flatness": 0.467,
-            "peak": 0.562
+            "rmsDb": -17.7,
+            "crestDb": 12.5,
+            "flatness": 0.468,
+            "peak": 0.551,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 14397,
+            "centroidHz": 14549,
             "decayMs": 18,
-            "rmsDb": -17.6,
-            "crestDb": 12.4,
-            "flatness": 0.384,
-            "peak": 0.55
+            "rmsDb": -18.3,
+            "crestDb": 12.2,
+            "flatness": 0.402,
+            "peak": 0.495,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 16128,
+            "centroidHz": 16620,
             "decayMs": 18,
-            "rmsDb": -18.3,
-            "crestDb": 12.5,
-            "flatness": 0.251,
-            "peak": 0.517
+            "rmsDb": -19.4,
+            "crestDb": 12,
+            "flatness": 0.262,
+            "peak": 0.426,
+            "peakMs": 0.9,
+            "lrCorr": 1
           }
         ],
         "decay": [
           {
             "value": 0,
-            "centroidHz": 13456,
+            "centroidHz": 13342,
             "decayMs": 8,
-            "rmsDb": -17.5,
-            "crestDb": 11.7,
-            "flatness": 0.378,
-            "peak": 0.516
+            "rmsDb": -18.6,
+            "crestDb": 12.6,
+            "flatness": 0.404,
+            "peak": 0.501,
+            "peakMs": 0.7,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 14094,
+            "centroidHz": 13726,
             "decayMs": 20,
-            "rmsDb": -16.6,
-            "crestDb": 11.1,
-            "flatness": 0.405,
-            "peak": 0.534
+            "rmsDb": -18,
+            "crestDb": 12.3,
+            "flatness": 0.443,
+            "peak": 0.521,
+            "peakMs": 1.1,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 13828,
+            "centroidHz": 13969,
             "decayMs": 54,
-            "rmsDb": -14,
-            "crestDb": 11.9,
-            "flatness": 0.423,
-            "peak": 0.569
+            "rmsDb": -14.8,
+            "crestDb": 12.1,
+            "flatness": 0.408,
+            "peak": 0.527,
+            "peakMs": 2.1,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 14131,
-            "decayMs": 144,
-            "rmsDb": -12,
-            "crestDb": 9,
-            "flatness": 0.401,
-            "peak": 0.568
+            "centroidHz": 13757,
+            "decayMs": 142,
+            "rmsDb": -12.6,
+            "crestDb": 9.3,
+            "flatness": 0.434,
+            "peak": 0.529,
+            "peakMs": 4.6,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 14097,
-            "decayMs": 386,
-            "rmsDb": -11,
-            "crestDb": 6.7,
-            "flatness": 0.415,
-            "peak": 0.568
+            "centroidHz": 13635,
+            "decayMs": 380,
+            "rmsDb": -11.8,
+            "crestDb": 7.1,
+            "flatness": 0.446,
+            "peak": 0.53,
+            "peakMs": 10.8,
+            "lrCorr": 1
           }
         ],
         "texture": [
           {
             "value": 0,
-            "centroidHz": 14457,
+            "centroidHz": 14363,
             "decayMs": 18,
-            "rmsDb": -13.8,
-            "crestDb": 9,
+            "rmsDb": -14.7,
+            "crestDb": 9.6,
             "flatness": 0.391,
-            "peak": 0.572
+            "peak": 0.558,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 14361,
+            "centroidHz": 14309,
             "decayMs": 18,
-            "rmsDb": -15.1,
-            "crestDb": 10.2,
-            "flatness": 0.41,
-            "peak": 0.569
+            "rmsDb": -16.4,
+            "crestDb": 11.1,
+            "flatness": 0.395,
+            "peak": 0.54,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 13732,
+            "centroidHz": 13842,
             "decayMs": 18,
-            "rmsDb": -17.6,
-            "crestDb": 12.2,
-            "flatness": 0.404,
-            "peak": 0.541
+            "rmsDb": -18.5,
+            "crestDb": 12.7,
+            "flatness": 0.439,
+            "peak": 0.512,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 12203,
+            "centroidHz": 12360,
             "decayMs": 18,
-            "rmsDb": -19,
-            "crestDb": 13,
-            "flatness": 0.424,
-            "peak": 0.503
+            "rmsDb": -19.8,
+            "crestDb": 13.3,
+            "flatness": 0.521,
+            "peak": 0.471,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 11678,
+            "centroidHz": 11322,
             "decayMs": 18,
-            "rmsDb": -17.8,
-            "crestDb": 11.5,
-            "flatness": 0.435,
-            "peak": 0.482
+            "rmsDb": -18.9,
+            "crestDb": 12.2,
+            "flatness": 0.493,
+            "peak": 0.461,
+            "peakMs": 1.1,
+            "lrCorr": 1
           }
         ],
         "drive": [
           {
             "value": 0,
-            "centroidHz": 14104,
+            "centroidHz": 13963,
             "decayMs": 18,
-            "rmsDb": -19.1,
-            "crestDb": 13.8,
-            "flatness": 0.384,
-            "peak": 0.544
+            "rmsDb": -20.4,
+            "crestDb": 14.6,
+            "flatness": 0.421,
+            "peak": 0.513,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 13955,
+            "centroidHz": 14063,
             "decayMs": 18,
-            "rmsDb": -16.3,
-            "crestDb": 8.4,
-            "flatness": 0.448,
-            "peak": 0.401
+            "rmsDb": -17.3,
+            "crestDb": 9.4,
+            "flatness": 0.442,
+            "peak": 0.401,
+            "peakMs": 1,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 13965,
+            "centroidHz": 14046,
             "decayMs": 18,
-            "rmsDb": -17.3,
-            "crestDb": 6.4,
-            "flatness": 0.445,
-            "peak": 0.287
+            "rmsDb": -17.6,
+            "crestDb": 6.7,
+            "flatness": 0.465,
+            "peak": 0.287,
+            "peakMs": 1.1,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 13947,
+            "centroidHz": 13953,
             "decayMs": 18,
-            "rmsDb": -17.9,
-            "crestDb": 5.1,
-            "flatness": 0.502,
-            "peak": 0.231
+            "rmsDb": -18.2,
+            "crestDb": 5.4,
+            "flatness": 0.492,
+            "peak": 0.231,
+            "peakMs": 1.2,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 14099,
+            "centroidHz": 13847,
+            "decayMs": 18,
+            "rmsDb": -18.8,
+            "crestDb": 4.7,
+            "flatness": 0.507,
+            "peak": 0.197,
+            "peakMs": 1.3,
+            "lrCorr": 1
+          }
+        ],
+        "reso": [
+          {
+            "value": 0,
+            "centroidHz": 14565,
             "decayMs": 18,
             "rmsDb": -18.4,
-            "crestDb": 4.3,
-            "flatness": 0.468,
-            "peak": 0.197
+            "crestDb": 12.4,
+            "flatness": 0.418,
+            "peak": 0.503,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 13698,
+            "decayMs": 18,
+            "rmsDb": -17.9,
+            "crestDb": 12.3,
+            "flatness": 0.428,
+            "peak": 0.526,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 12441,
+            "decayMs": 18,
+            "rmsDb": -17.3,
+            "crestDb": 12.1,
+            "flatness": 0.423,
+            "peak": 0.548,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 10395,
+            "decayMs": 18,
+            "rmsDb": -16.4,
+            "crestDb": 11.5,
+            "flatness": 0.369,
+            "peak": 0.569,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 6566,
+            "decayMs": 18,
+            "rmsDb": -14,
+            "crestDb": 9.3,
+            "flatness": 0.183,
+            "peak": 0.584,
+            "peakMs": 1.2,
+            "lrCorr": 1
+          }
+        ],
+        "attack": [
+          {
+            "value": 0,
+            "centroidHz": 14031,
+            "decayMs": 16,
+            "rmsDb": -18.1,
+            "crestDb": 12.2,
+            "flatness": 0.421,
+            "peak": 0.51,
+            "peakMs": 0.6,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 13972,
+            "decayMs": 18,
+            "rmsDb": -18.1,
+            "crestDb": 12.5,
+            "flatness": 0.434,
+            "peak": 0.529,
+            "peakMs": 1.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 13704,
+            "decayMs": 22,
+            "rmsDb": -17.8,
+            "crestDb": 11.9,
+            "flatness": 0.463,
+            "peak": 0.512,
+            "peakMs": 4.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 14309,
+            "decayMs": 36,
+            "rmsDb": -16.6,
+            "crestDb": 11.9,
+            "flatness": 0.446,
+            "peak": 0.513,
+            "peakMs": 13.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 13764,
+            "decayMs": 96,
+            "rmsDb": -33.7,
+            "crestDb": 11.7,
+            "flatness": 0.45,
+            "peak": 0.508,
+            "peakMs": 50.4,
+            "lrCorr": 1
+          }
+        ],
+        "character": [
+          {
+            "value": 0,
+            "centroidHz": 14165,
+            "decayMs": 18,
+            "rmsDb": -17,
+            "crestDb": 11.5,
+            "flatness": 0.396,
+            "peak": 0.531,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 13646,
+            "decayMs": 18,
+            "rmsDb": -18.9,
+            "crestDb": 13,
+            "flatness": 0.456,
+            "peak": 0.509,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 11025,
+            "decayMs": 18,
+            "rmsDb": -20.6,
+            "crestDb": 14.2,
+            "flatness": 0.485,
+            "peak": 0.48,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 6694,
+            "decayMs": 18,
+            "rmsDb": -20.8,
+            "crestDb": 13.7,
+            "flatness": 0.327,
+            "peak": 0.441,
+            "peakMs": 1,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 5134,
+            "decayMs": 18,
+            "rmsDb": -19.4,
+            "crestDb": 12.9,
+            "flatness": 0.133,
+            "peak": 0.476,
+            "peakMs": 1,
+            "lrCorr": 1
           }
         ]
-      }
+      },
+      "pan": [
+        {
+          "pan": 0,
+          "lrDb": 215
+        },
+        {
+          "pan": 0.25,
+          "lrDb": 7.7
+        },
+        {
+          "pan": 0.5,
+          "lrDb": 0
+        },
+        {
+          "pan": 0.75,
+          "lrDb": -7.7
+        },
+        {
+          "pan": 1,
+          "lrDb": -215
+        }
+      ]
     },
     "DUST": {
       "default": {
-        "centroidHz": 2039,
+        "centroidHz": 2063,
         "decayMs": 48,
-        "rmsDb": -13,
-        "peak": 0.553,
-        "flatness": 0.021
+        "rmsDb": -15.4,
+        "peak": 0.544,
+        "flatness": 0.025
       },
       "sweeps": {
         "tone": [
           {
             "value": 0,
-            "centroidHz": 571,
+            "centroidHz": 618,
             "decayMs": 48,
-            "rmsDb": -11.2,
-            "crestDb": 8.4,
-            "flatness": 0.002,
-            "peak": 0.55
+            "rmsDb": -14.4,
+            "crestDb": 11.3,
+            "flatness": 0.003,
+            "peak": 0.538,
+            "peakMs": 3.2,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 1049,
-            "decayMs": 48,
-            "rmsDb": -11.3,
-            "crestDb": 8.4,
-            "flatness": 0.007,
-            "peak": 0.548
+            "centroidHz": 1234,
+            "decayMs": 46,
+            "rmsDb": -13.7,
+            "crestDb": 10.7,
+            "flatness": 0.01,
+            "peak": 0.542,
+            "peakMs": 2.3,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 2156,
-            "decayMs": 46,
-            "rmsDb": -10.8,
-            "crestDb": 8,
-            "flatness": 0.021,
-            "peak": 0.552
+            "centroidHz": 2511,
+            "decayMs": 48,
+            "rmsDb": -13.7,
+            "crestDb": 10.8,
+            "flatness": 0.033,
+            "peak": 0.544,
+            "peakMs": 1.9,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 4283,
-            "decayMs": 48,
-            "rmsDb": -11.3,
-            "crestDb": 8.4,
-            "flatness": 0.095,
-            "peak": 0.55
+            "centroidHz": 4332,
+            "decayMs": 46,
+            "rmsDb": -13.4,
+            "crestDb": 10.5,
+            "flatness": 0.082,
+            "peak": 0.55,
+            "peakMs": 1.9,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 7389,
+            "centroidHz": 7455,
             "decayMs": 48,
-            "rmsDb": -11.1,
-            "crestDb": 8.2,
-            "flatness": 0.205,
-            "peak": 0.553
+            "rmsDb": -13.1,
+            "crestDb": 10.2,
+            "flatness": 0.195,
+            "peak": 0.553,
+            "peakMs": 1.8,
+            "lrCorr": 1
           }
         ],
         "decay": [
           {
             "value": 0,
-            "centroidHz": 1851,
+            "centroidHz": 1953,
             "decayMs": 14,
-            "rmsDb": -13.5,
-            "crestDb": 8,
-            "flatness": 0.018,
-            "peak": 0.53
+            "rmsDb": -16,
+            "crestDb": 10.5,
+            "flatness": 0.019,
+            "peak": 0.532,
+            "peakMs": 1.1,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 2112,
+            "centroidHz": 2291,
             "decayMs": 36,
-            "rmsDb": -12.4,
-            "crestDb": 8.5,
-            "flatness": 0.024,
-            "peak": 0.551
+            "rmsDb": -14.8,
+            "crestDb": 10.7,
+            "flatness": 0.028,
+            "peak": 0.541,
+            "peakMs": 1.6,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 2025,
+            "centroidHz": 2199,
             "decayMs": 90,
-            "rmsDb": -9.2,
-            "crestDb": 6.9,
-            "flatness": 0.019,
-            "peak": 0.552
+            "rmsDb": -11.9,
+            "crestDb": 9.5,
+            "flatness": 0.025,
+            "peak": 0.544,
+            "peakMs": 3.1,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 2145,
-            "decayMs": 234,
-            "rmsDb": -8.5,
-            "crestDb": 4.4,
-            "flatness": 0.025,
-            "peak": 0.552
+            "centroidHz": 2166,
+            "decayMs": 230,
+            "rmsDb": -10.8,
+            "crestDb": 6.5,
+            "flatness": 0.027,
+            "peak": 0.549,
+            "peakMs": 6.9,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 2107,
-            "decayMs": 596,
-            "rmsDb": -8.5,
-            "crestDb": 3.6,
-            "flatness": 0.025,
-            "peak": 0.553
+            "centroidHz": 2162,
+            "decayMs": 588,
+            "rmsDb": -10.4,
+            "crestDb": 5.5,
+            "flatness": 0.029,
+            "peak": 0.551,
+            "peakMs": 18.9,
+            "lrCorr": 1
           }
         ],
         "texture": [
           {
             "value": 0,
-            "centroidHz": 3112,
+            "centroidHz": 3057,
             "decayMs": 46,
-            "rmsDb": -11.3,
-            "crestDb": 8.4,
-            "flatness": 0.065,
-            "peak": 0.552
+            "rmsDb": -13.9,
+            "crestDb": 11.1,
+            "flatness": 0.059,
+            "peak": 0.551,
+            "peakMs": 2,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 2803,
-            "decayMs": 48,
-            "rmsDb": -12.2,
-            "crestDb": 9.2,
-            "flatness": 0.051,
-            "peak": 0.54
+            "centroidHz": 2975,
+            "decayMs": 46,
+            "rmsDb": -14.8,
+            "crestDb": 11.9,
+            "flatness": 0.054,
+            "peak": 0.546,
+            "peakMs": 1.9,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 2225,
+            "centroidHz": 2633,
             "decayMs": 46,
-            "rmsDb": -11.4,
-            "crestDb": 8.5,
-            "flatness": 0.03,
-            "peak": 0.551
+            "rmsDb": -14.6,
+            "crestDb": 11.6,
+            "flatness": 0.041,
+            "peak": 0.539,
+            "peakMs": 1.9,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 2042,
+            "centroidHz": 2297,
             "decayMs": 48,
-            "rmsDb": -10.8,
-            "crestDb": 7.9,
-            "flatness": 0.02,
-            "peak": 0.548
+            "rmsDb": -13.6,
+            "crestDb": 10.6,
+            "flatness": 0.028,
+            "peak": 0.542,
+            "peakMs": 1.9,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 1874,
+            "centroidHz": 2150,
             "decayMs": 48,
-            "rmsDb": -9.9,
-            "crestDb": 7,
-            "flatness": 0.017,
-            "peak": 0.553
+            "rmsDb": -12.4,
+            "crestDb": 9.4,
+            "flatness": 0.022,
+            "peak": 0.545,
+            "peakMs": 1.9,
+            "lrCorr": 1
           }
         ],
         "drive": [
           {
             "value": 0,
-            "centroidHz": 2064,
+            "centroidHz": 2346,
             "decayMs": 46,
-            "rmsDb": -12.3,
-            "crestDb": 11.7,
-            "flatness": 0.021,
-            "peak": 0.719
+            "rmsDb": -15.7,
+            "crestDb": 14.8,
+            "flatness": 0.026,
+            "peak": 0.691,
+            "peakMs": 1.8,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 2267,
+            "centroidHz": 2321,
             "decayMs": 48,
-            "rmsDb": -12.1,
-            "crestDb": 6.5,
+            "rmsDb": -13.6,
+            "crestDb": 8.1,
             "flatness": 0.033,
-            "peak": 0.406
+            "peak": 0.405,
+            "peakMs": 2,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 2163,
+            "centroidHz": 2352,
             "decayMs": 48,
-            "rmsDb": -13,
-            "crestDb": 4.2,
-            "flatness": 0.036,
-            "peak": 0.287
+            "rmsDb": -14.4,
+            "crestDb": 5.8,
+            "flatness": 0.042,
+            "peak": 0.287,
+            "peakMs": 2.3,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 2396,
-            "decayMs": 48,
-            "rmsDb": -14.2,
-            "crestDb": 3.5,
-            "flatness": 0.054,
-            "peak": 0.231
+            "centroidHz": 2411,
+            "decayMs": 50,
+            "rmsDb": -15.3,
+            "crestDb": 4.7,
+            "flatness": 0.052,
+            "peak": 0.231,
+            "peakMs": 2.5,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 2206,
+            "centroidHz": 2473,
             "decayMs": 50,
+            "rmsDb": -16.1,
+            "crestDb": 4,
+            "flatness": 0.06,
+            "peak": 0.197,
+            "peakMs": 2.7,
+            "lrCorr": 1
+          }
+        ],
+        "reso": [
+          {
+            "value": 0,
+            "centroidHz": 2817,
+            "decayMs": 46,
+            "rmsDb": -16.8,
+            "crestDb": 13.4,
+            "flatness": 0.054,
+            "peak": 0.514,
+            "peakMs": 1.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 2622,
+            "decayMs": 46,
+            "rmsDb": -15.6,
+            "crestDb": 12.4,
+            "flatness": 0.044,
+            "peak": 0.525,
+            "peakMs": 1.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 2404,
+            "decayMs": 48,
+            "rmsDb": -14.2,
+            "crestDb": 11.2,
+            "flatness": 0.033,
+            "peak": 0.538,
+            "peakMs": 1.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 2144,
+            "decayMs": 48,
+            "rmsDb": -12.5,
+            "crestDb": 9.5,
+            "flatness": 0.021,
+            "peak": 0.549,
+            "peakMs": 1.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 1806,
+            "decayMs": 48,
+            "rmsDb": -9.4,
+            "crestDb": 6.4,
+            "flatness": 0.008,
+            "peak": 0.553,
+            "peakMs": 2.3,
+            "lrCorr": 1
+          }
+        ],
+        "attack": [
+          {
+            "value": 0,
+            "centroidHz": 2328,
+            "decayMs": 46,
+            "rmsDb": -13.8,
+            "crestDb": 10.7,
+            "flatness": 0.029,
+            "peak": 0.541,
+            "peakMs": 1.7,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 2327,
+            "decayMs": 48,
+            "rmsDb": -13.7,
+            "crestDb": 10.7,
+            "flatness": 0.03,
+            "peak": 0.543,
+            "peakMs": 2.1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 2317,
+            "decayMs": 52,
+            "rmsDb": -13.5,
+            "crestDb": 10.7,
+            "flatness": 0.03,
+            "peak": 0.537,
+            "peakMs": 4.8,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 2263,
+            "decayMs": 64,
+            "rmsDb": -13.8,
+            "crestDb": 10.7,
+            "flatness": 0.032,
+            "peak": 0.551,
+            "peakMs": 16.1,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 2189,
+            "decayMs": 126,
+            "rmsDb": -31,
+            "crestDb": 10.5,
+            "flatness": 0.028,
+            "peak": 0.536,
+            "peakMs": 48.5,
+            "lrCorr": 1
+          }
+        ],
+        "character": [
+          {
+            "value": 0,
+            "centroidHz": 2036,
+            "decayMs": 48,
+            "rmsDb": -11.2,
+            "crestDb": 8.3,
+            "flatness": 0.019,
+            "peak": 0.545,
+            "peakMs": 2.1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 2030,
+            "decayMs": 48,
+            "rmsDb": -12.4,
+            "crestDb": 9.2,
+            "flatness": 0.022,
+            "peak": 0.535,
+            "peakMs": 1.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 2328,
+            "decayMs": 48,
+            "rmsDb": -13.7,
+            "crestDb": 10.7,
+            "flatness": 0.029,
+            "peak": 0.542,
+            "peakMs": 1.9,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 2363,
+            "decayMs": 46,
             "rmsDb": -15.3,
-            "crestDb": 3.1,
-            "flatness": 0.046,
-            "peak": 0.197
+            "crestDb": 12.2,
+            "flatness": 0.034,
+            "peak": 0.534,
+            "peakMs": 2,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 2658,
+            "decayMs": 46,
+            "rmsDb": -16.7,
+            "crestDb": 13.5,
+            "flatness": 0.048,
+            "peak": 0.532,
+            "peakMs": 1.8,
+            "lrCorr": 1
           }
         ]
-      }
+      },
+      "pan": [
+        {
+          "pan": 0,
+          "lrDb": 220.6
+        },
+        {
+          "pan": 0.25,
+          "lrDb": 7.7
+        },
+        {
+          "pan": 0.5,
+          "lrDb": 0
+        },
+        {
+          "pan": 0.75,
+          "lrDb": -7.7
+        },
+        {
+          "pan": 1,
+          "lrDb": -220.6
+        }
+      ]
     },
     "METAL": {
       "default": {
-        "centroidHz": 1606,
+        "centroidHz": 1664,
         "decayMs": 50,
-        "rmsDb": -14.4,
+        "rmsDb": -14.6,
         "peak": 0.384,
-        "flatness": 0.011
+        "flatness": 0.005
       },
       "sweeps": {
         "tone": [
           {
             "value": 0,
-            "centroidHz": 561,
+            "centroidHz": 590,
             "decayMs": 48,
-            "rmsDb": -12.6,
-            "crestDb": 6.6,
-            "flatness": 0.001,
-            "peak": 0.381
+            "rmsDb": -13,
+            "crestDb": 6.8,
+            "flatness": 0,
+            "peak": 0.378,
+            "peakMs": 1.9,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 898,
+            "centroidHz": 924,
             "decayMs": 50,
-            "rmsDb": -12.6,
-            "crestDb": 6.6,
-            "flatness": 0.004,
-            "peak": 0.384
+            "rmsDb": -12.9,
+            "crestDb": 7,
+            "flatness": 0.001,
+            "peak": 0.384,
+            "peakMs": 2.5,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 1407,
-            "decayMs": 48,
-            "rmsDb": -12.7,
-            "crestDb": 6.8,
-            "flatness": 0.009,
-            "peak": 0.384
+            "centroidHz": 1530,
+            "decayMs": 50,
+            "rmsDb": -12.9,
+            "crestDb": 7,
+            "flatness": 0.003,
+            "peak": 0.384,
+            "peakMs": 2.8,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 2264,
+            "centroidHz": 2377,
             "decayMs": 48,
-            "rmsDb": -12.4,
-            "crestDb": 6.4,
-            "flatness": 0.02,
-            "peak": 0.384
+            "rmsDb": -12.5,
+            "crestDb": 6.5,
+            "flatness": 0.009,
+            "peak": 0.384,
+            "peakMs": 2.3,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 3583,
+            "centroidHz": 3817,
             "decayMs": 50,
-            "rmsDb": -12.2,
-            "crestDb": 6.3,
-            "flatness": 0.049,
-            "peak": 0.384
+            "rmsDb": -12.3,
+            "crestDb": 6.4,
+            "flatness": 0.028,
+            "peak": 0.384,
+            "peakMs": 2.3,
+            "lrCorr": 1
           }
         ],
         "decay": [
           {
             "value": 0,
-            "centroidHz": 1524,
+            "centroidHz": 1600,
             "decayMs": 20,
-            "rmsDb": -14.9,
-            "crestDb": 6.6,
-            "flatness": 0.011,
-            "peak": 0.383
+            "rmsDb": -15.4,
+            "crestDb": 7,
+            "flatness": 0.005,
+            "peak": 0.38,
+            "peakMs": 1.4,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 1669,
+            "centroidHz": 1664,
             "decayMs": 50,
-            "rmsDb": -12.6,
-            "crestDb": 6.6,
-            "flatness": 0.011,
-            "peak": 0.384
+            "rmsDb": -12.8,
+            "crestDb": 6.8,
+            "flatness": 0.005,
+            "peak": 0.383,
+            "peakMs": 2.4,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 1599,
-            "decayMs": 126,
-            "rmsDb": -11,
-            "crestDb": 4.2,
-            "flatness": 0.009,
-            "peak": 0.384
+            "centroidHz": 1656,
+            "decayMs": 124,
+            "rmsDb": -11.1,
+            "crestDb": 4.5,
+            "flatness": 0.004,
+            "peak": 0.384,
+            "peakMs": 5.2,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 1680,
-            "decayMs": 328,
-            "rmsDb": -10.3,
-            "crestDb": 2.4,
-            "flatness": 0.013,
-            "peak": 0.384
+            "centroidHz": 1756,
+            "decayMs": 326,
+            "rmsDb": -10.7,
+            "crestDb": 2.7,
+            "flatness": 0.006,
+            "peak": 0.384,
+            "peakMs": 13.4,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 1743,
-            "decayMs": 840,
-            "rmsDb": -10.3,
-            "crestDb": 2.1,
-            "flatness": 0.017,
-            "peak": 0.384
+            "centroidHz": 1828,
+            "decayMs": 842,
+            "rmsDb": -10.6,
+            "crestDb": 2.3,
+            "flatness": 0.009,
+            "peak": 0.384,
+            "peakMs": 33.7,
+            "lrCorr": 1
           }
         ],
         "texture": [
           {
             "value": 0,
-            "centroidHz": 1301,
+            "centroidHz": 1481,
             "decayMs": 50,
-            "rmsDb": -11.3,
-            "crestDb": 5.3,
+            "rmsDb": -11.7,
+            "crestDb": 5.7,
             "flatness": 0,
-            "peak": 0.384
+            "peak": 0.384,
+            "peakMs": 2.6,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 1455,
+            "centroidHz": 1556,
             "decayMs": 50,
-            "rmsDb": -12.1,
-            "crestDb": 6.2,
-            "flatness": 0.006,
-            "peak": 0.384
+            "rmsDb": -12.4,
+            "crestDb": 6.5,
+            "flatness": 0.003,
+            "peak": 0.384,
+            "peakMs": 2.5,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 1877,
+            "centroidHz": 1894,
             "decayMs": 50,
-            "rmsDb": -12.8,
-            "crestDb": 6.8,
-            "flatness": 0.019,
-            "peak": 0.384
+            "rmsDb": -13.3,
+            "crestDb": 7.3,
+            "flatness": 0.007,
+            "peak": 0.383,
+            "peakMs": 2.4,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 2204,
-            "decayMs": 48,
-            "rmsDb": -11.8,
-            "crestDb": 5.8,
-            "flatness": 0.018,
-            "peak": 0.384
+            "centroidHz": 2165,
+            "decayMs": 50,
+            "rmsDb": -12.1,
+            "crestDb": 6.1,
+            "flatness": 0.009,
+            "peak": 0.384,
+            "peakMs": 2.6,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 2374,
+            "centroidHz": 2243,
             "decayMs": 50,
-            "rmsDb": -10.4,
-            "crestDb": 4.1,
-            "flatness": 0.027,
-            "peak": 0.384
+            "rmsDb": -10.6,
+            "crestDb": 4.4,
+            "flatness": 0.016,
+            "peak": 0.384,
+            "peakMs": 2.9,
+            "lrCorr": 1
           }
         ],
         "drive": [
           {
             "value": 0,
-            "centroidHz": 1592,
+            "centroidHz": 1657,
             "decayMs": 48,
-            "rmsDb": -13.7,
-            "crestDb": 12.9,
-            "flatness": 0.009,
-            "peak": 0.686
+            "rmsDb": -14.5,
+            "crestDb": 12.1,
+            "flatness": 0.004,
+            "peak": 0.567,
+            "peakMs": 2,
+            "lrCorr": 1
           },
           {
             "value": 0.25,
-            "centroidHz": 1662,
-            "decayMs": 48,
-            "rmsDb": -12.5,
-            "crestDb": 7,
-            "flatness": 0.01,
-            "peak": 0.405
+            "centroidHz": 1661,
+            "decayMs": 50,
+            "rmsDb": -12.7,
+            "crestDb": 7.2,
+            "flatness": 0.004,
+            "peak": 0.403,
+            "peakMs": 2.4,
+            "lrCorr": 1
           },
           {
             "value": 0.5,
-            "centroidHz": 1600,
+            "centroidHz": 1692,
             "decayMs": 50,
-            "rmsDb": -13.6,
-            "crestDb": 5,
-            "flatness": 0.015,
-            "peak": 0.287
+            "rmsDb": -13.7,
+            "crestDb": 5.1,
+            "flatness": 0.006,
+            "peak": 0.287,
+            "peakMs": 2.6,
+            "lrCorr": 1
           },
           {
             "value": 0.75,
-            "centroidHz": 1700,
+            "centroidHz": 1736,
             "decayMs": 50,
-            "rmsDb": -14.4,
-            "crestDb": 3.8,
-            "flatness": 0.017,
-            "peak": 0.231
+            "rmsDb": -14.7,
+            "crestDb": 4.1,
+            "flatness": 0.009,
+            "peak": 0.231,
+            "peakMs": 2.9,
+            "lrCorr": 1
           },
           {
             "value": 1,
-            "centroidHz": 1753,
+            "centroidHz": 1784,
             "decayMs": 50,
-            "rmsDb": -15.5,
-            "crestDb": 3.3,
-            "flatness": 0.023,
-            "peak": 0.197
+            "rmsDb": -15.6,
+            "crestDb": 3.5,
+            "flatness": 0.013,
+            "peak": 0.197,
+            "peakMs": 3.1,
+            "lrCorr": 1
+          }
+        ],
+        "reso": [
+          {
+            "value": 0,
+            "centroidHz": 1602,
+            "decayMs": 50,
+            "rmsDb": -12.5,
+            "crestDb": 6.5,
+            "flatness": 0.01,
+            "peak": 0.384,
+            "peakMs": 2.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 1620,
+            "decayMs": 50,
+            "rmsDb": -12.9,
+            "crestDb": 6.9,
+            "flatness": 0.007,
+            "peak": 0.384,
+            "peakMs": 2.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 1679,
+            "decayMs": 50,
+            "rmsDb": -12.7,
+            "crestDb": 6.8,
+            "flatness": 0.004,
+            "peak": 0.383,
+            "peakMs": 2.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 1794,
+            "decayMs": 50,
+            "rmsDb": -12.1,
+            "crestDb": 6.1,
+            "flatness": 0.003,
+            "peak": 0.384,
+            "peakMs": 2.8,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 2044,
+            "decayMs": 50,
+            "rmsDb": -9.9,
+            "crestDb": 3.7,
+            "flatness": 0.007,
+            "peak": 0.384,
+            "peakMs": 3.8,
+            "lrCorr": 1
+          }
+        ],
+        "attack": [
+          {
+            "value": 0,
+            "centroidHz": 1662,
+            "decayMs": 48,
+            "rmsDb": -12.9,
+            "crestDb": 6.9,
+            "flatness": 0.005,
+            "peak": 0.383,
+            "peakMs": 2.2,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 1665,
+            "decayMs": 50,
+            "rmsDb": -12.8,
+            "crestDb": 6.8,
+            "flatness": 0.005,
+            "peak": 0.383,
+            "peakMs": 2.6,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 1677,
+            "decayMs": 54,
+            "rmsDb": -12.7,
+            "crestDb": 6.8,
+            "flatness": 0.005,
+            "peak": 0.384,
+            "peakMs": 5.1,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 1711,
+            "decayMs": 68,
+            "rmsDb": -13.3,
+            "crestDb": 6.7,
+            "flatness": 0.006,
+            "peak": 0.384,
+            "peakMs": 14.7,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 1759,
+            "decayMs": 128,
+            "rmsDb": -27.7,
+            "crestDb": 6.5,
+            "flatness": 0.007,
+            "peak": 0.384,
+            "peakMs": 47.6,
+            "lrCorr": 1
+          }
+        ],
+        "character": [
+          {
+            "value": 0,
+            "centroidHz": 1469,
+            "decayMs": 48,
+            "rmsDb": -13,
+            "crestDb": 7.1,
+            "flatness": 0.005,
+            "peak": 0.384,
+            "peakMs": 2.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 1600,
+            "decayMs": 50,
+            "rmsDb": -12.7,
+            "crestDb": 6.7,
+            "flatness": 0.004,
+            "peak": 0.384,
+            "peakMs": 2.6,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 1664,
+            "decayMs": 50,
+            "rmsDb": -12.8,
+            "crestDb": 6.8,
+            "flatness": 0.005,
+            "peak": 0.383,
+            "peakMs": 2.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 1840,
+            "decayMs": 50,
+            "rmsDb": -12.8,
+            "crestDb": 6.9,
+            "flatness": 0.005,
+            "peak": 0.384,
+            "peakMs": 2.4,
+            "lrCorr": 1
+          },
+          {
+            "value": 1,
+            "centroidHz": 1876,
+            "decayMs": 48,
+            "rmsDb": -12.7,
+            "crestDb": 6.8,
+            "flatness": 0.005,
+            "peak": 0.384,
+            "peakMs": 2.1,
+            "lrCorr": 1
           }
         ]
-      }
+      },
+      "pan": [
+        {
+          "pan": 0,
+          "lrDb": 222
+        },
+        {
+          "pan": 0.25,
+          "lrDb": 7.7
+        },
+        {
+          "pan": 0.5,
+          "lrDb": 0
+        },
+        {
+          "pan": 0.75,
+          "lrDb": -7.7
+        },
+        {
+          "pan": 1,
+          "lrDb": -222
+        }
+      ]
     },
     "ATMOS": {
       "default": {
@@ -616,90 +1315,110 @@
             "rmsDb": -15.7,
             "crestDb": 8,
             "flatness": 0,
-            "peak": 0.551
+            "peak": 0.55,
+            "peakMs": 34.6,
+            "lrCorr": 0.282
           },
           {
             "value": 0.25,
-            "centroidHz": 213,
-            "decayMs": 406,
-            "rmsDb": -12.1,
-            "crestDb": 6.9,
+            "centroidHz": 131,
+            "decayMs": 398,
+            "rmsDb": -13.7,
+            "crestDb": 7.2,
             "flatness": 0,
-            "peak": 0.57
+            "peak": 0.576,
+            "peakMs": 30.9,
+            "lrCorr": 0.261
           },
           {
             "value": 0.5,
-            "centroidHz": 410,
-            "decayMs": 404,
-            "rmsDb": -14.6,
-            "crestDb": 7.6,
+            "centroidHz": 238,
+            "decayMs": 398,
+            "rmsDb": -12.5,
+            "crestDb": 6.9,
             "flatness": 0,
-            "peak": 0.594
+            "peak": 0.602,
+            "peakMs": 29.9,
+            "lrCorr": 0.256
           },
           {
             "value": 0.75,
-            "centroidHz": 765,
-            "decayMs": 394,
-            "rmsDb": -11.5,
+            "centroidHz": 505,
+            "decayMs": 400,
+            "rmsDb": -11.8,
             "crestDb": 6.5,
             "flatness": 0.002,
-            "peak": 0.621
+            "peak": 0.621,
+            "peakMs": 29.4,
+            "lrCorr": 0.253
           },
           {
             "value": 1,
-            "centroidHz": 1441,
-            "decayMs": 406,
-            "rmsDb": -10.6,
-            "crestDb": 5.5,
-            "flatness": 0.032,
-            "peak": 0.634
+            "centroidHz": 1207,
+            "decayMs": 400,
+            "rmsDb": -11.2,
+            "crestDb": 6,
+            "flatness": 0.03,
+            "peak": 0.627,
+            "peakMs": 29.1,
+            "lrCorr": 0.253
           }
         ],
         "decay": [
           {
             "value": 0,
-            "centroidHz": 285,
-            "decayMs": 56,
-            "rmsDb": -13.2,
-            "crestDb": 10.5,
+            "centroidHz": 299,
+            "decayMs": 74,
+            "rmsDb": -14.4,
+            "crestDb": 10.8,
             "flatness": 0,
-            "peak": 0.517
+            "peak": 0.488,
+            "peakMs": 15.4,
+            "lrCorr": 0.006
           },
           {
             "value": 0.25,
             "centroidHz": 239,
-            "decayMs": 124,
-            "rmsDb": -11.3,
+            "decayMs": 132,
+            "rmsDb": -13.7,
             "crestDb": 8.7,
             "flatness": 0,
-            "peak": 0.568
+            "peak": 0.54,
+            "peakMs": 20.9,
+            "lrCorr": 0.138
           },
           {
             "value": 0.5,
-            "centroidHz": 238,
-            "decayMs": 258,
-            "rmsDb": -15.7,
-            "crestDb": 8.4,
+            "centroidHz": 158,
+            "decayMs": 266,
+            "rmsDb": -13.5,
+            "crestDb": 7.3,
             "flatness": 0,
-            "peak": 0.542
+            "peak": 0.56,
+            "peakMs": 28.6,
+            "lrCorr": 0.25
           },
           {
             "value": 0.75,
-            "centroidHz": 190,
-            "decayMs": 522,
+            "centroidHz": 142,
+            "decayMs": 528,
             "rmsDb": -13.4,
             "crestDb": 7.1,
             "flatness": 0,
-            "peak": 0.606
+            "peak": 0.598,
+            "peakMs": 37.6,
+            "lrCorr": 0.268
           },
           {
             "value": 1,
-            "centroidHz": 166,
-            "decayMs": 1132,
-            "rmsDb": -12.7,
-            "crestDb": 6.4,
+            "centroidHz": 139,
+            "decayMs": 1136,
+            "rmsDb": -13.3,
+            "crestDb": 6.9,
             "flatness": 0,
-            "peak": 0.623
+            "peak": 0.616,
+            "peakMs": 63.8,
+            "lrCorr": 0.318
           }
         ],
         "texture": [
@@ -707,46 +1426,56 @@
             "value": 0,
             "centroidHz": 648,
             "decayMs": 388,
-            "rmsDb": -18.8,
-            "crestDb": 10.5,
+            "rmsDb": -18.7,
+            "crestDb": 10.4,
             "flatness": 0,
-            "peak": 0.406
+            "peak": 0.406,
+            "peakMs": 24.3,
+            "lrCorr": 0.288
           },
           {
             "value": 0.25,
-            "centroidHz": 353,
-            "decayMs": 404,
-            "rmsDb": -18.1,
-            "crestDb": 9.7,
+            "centroidHz": 248,
+            "decayMs": 398,
+            "rmsDb": -17.7,
+            "crestDb": 9.1,
             "flatness": 0,
-            "peak": 0.454
+            "peak": 0.429,
+            "peakMs": 28.8,
+            "lrCorr": 0.294
           },
           {
             "value": 0.5,
-            "centroidHz": 246,
-            "decayMs": 404,
-            "rmsDb": -17.8,
-            "crestDb": 9.1,
+            "centroidHz": 156,
+            "decayMs": 398,
+            "rmsDb": -14.6,
+            "crestDb": 7.8,
             "flatness": 0,
-            "peak": 0.544
+            "peak": 0.544,
+            "peakMs": 30.1,
+            "lrCorr": 0.271
           },
           {
             "value": 0.75,
-            "centroidHz": 186,
-            "decayMs": 394,
-            "rmsDb": -11.8,
-            "crestDb": 6.5,
+            "centroidHz": 144,
+            "decayMs": 400,
+            "rmsDb": -12.6,
+            "crestDb": 6.6,
             "flatness": 0,
-            "peak": 0.613
+            "peak": 0.605,
+            "peakMs": 31.5,
+            "lrCorr": 0.255
           },
           {
             "value": 1,
-            "centroidHz": 167,
-            "decayMs": 408,
-            "rmsDb": -9.8,
-            "crestDb": 4.7,
+            "centroidHz": 143,
+            "decayMs": 404,
+            "rmsDb": -11.3,
+            "crestDb": 5.5,
             "flatness": 0,
-            "peak": 0.634
+            "peak": 0.629,
+            "peakMs": 33,
+            "lrCorr": 0.244
           }
         ],
         "drive": [
@@ -757,175 +1486,459 @@
             "rmsDb": -14.5,
             "crestDb": 9,
             "flatness": 0,
-            "peak": 0.621
+            "peak": 0.62,
+            "peakMs": 30,
+            "lrCorr": 0.269
           },
           {
             "value": 0.25,
-            "centroidHz": 250,
-            "decayMs": 418,
-            "rmsDb": -12.6,
-            "crestDb": 4.1,
+            "centroidHz": 153,
+            "decayMs": 404,
+            "rmsDb": -13.8,
+            "crestDb": 4.3,
             "flatness": 0,
-            "peak": 0.404
+            "peak": 0.404,
+            "peakMs": 32.8,
+            "lrCorr": 0.249
           },
           {
             "value": 0.5,
-            "centroidHz": 275,
-            "decayMs": 420,
-            "rmsDb": -16.2,
-            "crestDb": 3.3,
+            "centroidHz": 175,
+            "decayMs": 410,
+            "rmsDb": -14.9,
+            "crestDb": 2.6,
             "flatness": 0,
-            "peak": 0.287
+            "peak": 0.287,
+            "peakMs": 33,
+            "lrCorr": 0.246
           },
           {
             "value": 0.75,
-            "centroidHz": 273,
-            "decayMs": 422,
-            "rmsDb": -15.3,
-            "crestDb": 1.8,
+            "centroidHz": 196,
+            "decayMs": 418,
+            "rmsDb": -15.9,
+            "crestDb": 1.9,
             "flatness": 0,
-            "peak": 0.231
+            "peak": 0.231,
+            "peakMs": 33.3,
+            "lrCorr": 0.249
           },
           {
             "value": 1,
-            "centroidHz": 270,
-            "decayMs": 420,
-            "rmsDb": -16.6,
-            "crestDb": 1.5,
+            "centroidHz": 214,
+            "decayMs": 418,
+            "rmsDb": -16.7,
+            "crestDb": 1.6,
             "flatness": 0,
-            "peak": 0.197
+            "peak": 0.197,
+            "peakMs": 33.9,
+            "lrCorr": 0.252
+          }
+        ],
+        "reso": [
+          {
+            "value": 0,
+            "centroidHz": 132,
+            "decayMs": 398,
+            "rmsDb": -13.7,
+            "crestDb": 7.3,
+            "flatness": 0,
+            "peak": 0.575,
+            "peakMs": 30.9,
+            "lrCorr": 0.263
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 157,
+            "decayMs": 398,
+            "rmsDb": -13.2,
+            "crestDb": 7,
+            "flatness": 0,
+            "peak": 0.585,
+            "peakMs": 30.4,
+            "lrCorr": 0.257
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 196,
+            "decayMs": 398,
+            "rmsDb": -12.5,
+            "crestDb": 6.7,
+            "flatness": 0,
+            "peak": 0.599,
+            "peakMs": 29.9,
+            "lrCorr": 0.254
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 272,
+            "decayMs": 404,
+            "rmsDb": -11.4,
+            "crestDb": 6.3,
+            "flatness": 0,
+            "peak": 0.622,
+            "peakMs": 29,
+            "lrCorr": 0.257
+          },
+          {
+            "value": 1,
+            "centroidHz": 515,
+            "decayMs": 406,
+            "rmsDb": -8.8,
+            "crestDb": 4.5,
+            "flatness": 0,
+            "peak": 0.637,
+            "peakMs": 26.2,
+            "lrCorr": 0.311
+          }
+        ],
+        "attack": [
+          {
+            "value": 0,
+            "centroidHz": 147,
+            "decayMs": 386,
+            "rmsDb": -10.6,
+            "crestDb": 6.3,
+            "flatness": 0,
+            "peak": 0.562,
+            "peakMs": 13.3,
+            "lrCorr": 0.269
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 147,
+            "decayMs": 386,
+            "rmsDb": -10.6,
+            "crestDb": 6.2,
+            "flatness": 0,
+            "peak": 0.563,
+            "peakMs": 13.3,
+            "lrCorr": 0.27
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 147,
+            "decayMs": 396,
+            "rmsDb": -10.9,
+            "crestDb": 6.4,
+            "flatness": 0,
+            "peak": 0.567,
+            "peakMs": 20.5,
+            "lrCorr": 0.26
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 146,
+            "decayMs": 398,
+            "rmsDb": -13.5,
+            "crestDb": 7.1,
+            "flatness": 0,
+            "peak": 0.582,
+            "peakMs": 31.1,
+            "lrCorr": 0.26
+          },
+          {
+            "value": 1,
+            "centroidHz": 128,
+            "decayMs": 468,
+            "rmsDb": -30,
+            "crestDb": 11,
+            "flatness": 0,
+            "peak": 0.619,
+            "peakMs": 77.9,
+            "lrCorr": 0.296
+          }
+        ],
+        "character": [
+          {
+            "value": 0,
+            "centroidHz": 146,
+            "decayMs": 398,
+            "rmsDb": -13.4,
+            "crestDb": 7.1,
+            "flatness": 0,
+            "peak": 0.581,
+            "peakMs": 30.6,
+            "lrCorr": 1
+          },
+          {
+            "value": 0.25,
+            "centroidHz": 146,
+            "decayMs": 398,
+            "rmsDb": -13.4,
+            "crestDb": 7.1,
+            "flatness": 0,
+            "peak": 0.581,
+            "peakMs": 30.6,
+            "lrCorr": 0.959
+          },
+          {
+            "value": 0.5,
+            "centroidHz": 146,
+            "decayMs": 398,
+            "rmsDb": -13.4,
+            "crestDb": 7.1,
+            "flatness": 0,
+            "peak": 0.581,
+            "peakMs": 30.6,
+            "lrCorr": 0.747
+          },
+          {
+            "value": 0.75,
+            "centroidHz": 146,
+            "decayMs": 398,
+            "rmsDb": -13.4,
+            "crestDb": 7.1,
+            "flatness": 0,
+            "peak": 0.581,
+            "peakMs": 30.6,
+            "lrCorr": 0.342
+          },
+          {
+            "value": 1,
+            "centroidHz": 146,
+            "decayMs": 398,
+            "rmsDb": -13.4,
+            "crestDb": 7.1,
+            "flatness": 0,
+            "peak": 0.581,
+            "peakMs": 30.6,
+            "lrCorr": -0.017
           }
         ]
-      }
+      },
+      "pan": [
+        {
+          "pan": 0,
+          "lrDb": 230.9
+        },
+        {
+          "pan": 0.25,
+          "lrDb": 9.1
+        },
+        {
+          "pan": 0.5,
+          "lrDb": 1.4
+        },
+        {
+          "pan": 0.75,
+          "lrDb": -6.2
+        },
+        {
+          "pan": 1,
+          "lrDb": -229.5
+        }
+      ]
     }
   },
   "checks": [
     {
       "id": "HISS TONE brighter monotonic",
       "pass": true,
-      "detail": "10954 → 12219 → 12801 → 14397 → 16128 Hz"
+      "detail": "10908 → 11506 → 12761 → 14549 → 16620 Hz"
     },
     {
       "id": "HISS DECAY longer monotonic",
       "pass": true,
-      "detail": "8 → 20 → 54 → 144 → 386 ms"
+      "detail": "8 → 20 → 54 → 142 → 380 ms"
     },
     {
       "id": "HISS TEXTURE audible change",
       "pass": true,
-      "detail": "flatness 0.391/0.41/0.404/0.424/0.435, crest 9/10.2/12.2/13/11.5 dB, centroid 14457/14361/13732/12203/11678 Hz"
+      "detail": "flatness 0.391/0.395/0.439/0.521/0.493, crest 9.6/11.1/12.7/13.3/12.2 dB, centroid 14363/14309/13842/12360/11322 Hz"
     },
     {
       "id": "HISS DRIVE saturates (crest drops)",
       "pass": true,
-      "detail": "crest 13.8 → 8.4 → 6.4 → 5.1 → 4.3 dB"
+      "detail": "crest 14.6 → 9.4 → 6.7 → 5.4 → 4.7 dB"
     },
     {
       "id": "HISS DRIVE level stable (±3 dB)",
       "pass": true,
-      "detail": "RMS -19.1 / -16.3 / -17.3 / -17.9 / -18.4 dB"
+      "detail": "RMS -20.4 / -17.3 / -17.6 / -18.2 / -18.8 dB"
     },
     {
       "id": "DUST TONE brighter monotonic",
       "pass": true,
-      "detail": "571 → 1049 → 2156 → 4283 → 7389 Hz"
+      "detail": "618 → 1234 → 2511 → 4332 → 7455 Hz"
     },
     {
       "id": "DUST DECAY longer monotonic",
       "pass": true,
-      "detail": "14 → 36 → 90 → 234 → 596 ms"
+      "detail": "14 → 36 → 90 → 230 → 588 ms"
     },
     {
       "id": "DUST TEXTURE audible change",
       "pass": true,
-      "detail": "flatness 0.065/0.051/0.03/0.02/0.017, crest 8.4/9.2/8.5/7.9/7 dB, centroid 3112/2803/2225/2042/1874 Hz"
+      "detail": "flatness 0.059/0.054/0.041/0.028/0.022, crest 11.1/11.9/11.6/10.6/9.4 dB, centroid 3057/2975/2633/2297/2150 Hz"
     },
     {
       "id": "DUST DRIVE saturates (crest drops)",
       "pass": true,
-      "detail": "crest 11.7 → 6.5 → 4.2 → 3.5 → 3.1 dB"
+      "detail": "crest 14.8 → 8.1 → 5.8 → 4.7 → 4 dB"
     },
     {
       "id": "DUST DRIVE level stable (±3 dB)",
       "pass": true,
-      "detail": "RMS -12.3 / -12.1 / -13 / -14.2 / -15.3 dB"
+      "detail": "RMS -15.7 / -13.6 / -14.4 / -15.3 / -16.1 dB"
     },
     {
       "id": "METAL TONE brighter monotonic",
       "pass": true,
-      "detail": "561 → 898 → 1407 → 2264 → 3583 Hz"
+      "detail": "590 → 924 → 1530 → 2377 → 3817 Hz"
     },
     {
       "id": "METAL DECAY longer monotonic",
       "pass": true,
-      "detail": "20 → 50 → 126 → 328 → 840 ms"
+      "detail": "20 → 50 → 124 → 326 → 842 ms"
     },
     {
       "id": "METAL TEXTURE audible change",
       "pass": true,
-      "detail": "flatness 0/0.006/0.019/0.018/0.027, crest 5.3/6.2/6.8/5.8/4.1 dB, centroid 1301/1455/1877/2204/2374 Hz"
+      "detail": "flatness 0/0.003/0.007/0.009/0.016, crest 5.7/6.5/7.3/6.1/4.4 dB, centroid 1481/1556/1894/2165/2243 Hz"
     },
     {
       "id": "METAL DRIVE saturates (crest drops)",
       "pass": true,
-      "detail": "crest 12.9 → 7 → 5 → 3.8 → 3.3 dB"
+      "detail": "crest 12.1 → 7.2 → 5.1 → 4.1 → 3.5 dB"
     },
     {
       "id": "METAL DRIVE level stable (±3 dB)",
       "pass": true,
-      "detail": "RMS -13.7 / -12.5 / -13.6 / -14.4 / -15.5 dB"
+      "detail": "RMS -14.5 / -12.7 / -13.7 / -14.7 / -15.6 dB"
     },
     {
       "id": "ATMOS TONE brighter monotonic",
       "pass": true,
-      "detail": "69 → 213 → 410 → 765 → 1441 Hz"
+      "detail": "69 → 131 → 238 → 505 → 1207 Hz"
     },
     {
       "id": "ATMOS DECAY longer monotonic",
       "pass": true,
-      "detail": "56 → 124 → 258 → 522 → 1132 ms"
+      "detail": "74 → 132 → 266 → 528 → 1136 ms"
     },
     {
       "id": "ATMOS TEXTURE audible change",
       "pass": true,
-      "detail": "flatness 0/0/0/0/0, crest 10.5/9.7/9.1/6.5/4.7 dB, centroid 648/353/246/186/167 Hz"
+      "detail": "flatness 0/0/0/0/0, crest 10.4/9.1/7.8/6.6/5.5 dB, centroid 648/248/156/144/143 Hz"
     },
     {
       "id": "ATMOS DRIVE saturates (crest drops)",
       "pass": true,
-      "detail": "crest 9 → 4.1 → 3.3 → 1.8 → 1.5 dB"
+      "detail": "crest 9 → 4.3 → 2.6 → 1.9 → 1.6 dB"
     },
     {
       "id": "ATMOS DRIVE level stable (±3 dB)",
       "pass": true,
-      "detail": "RMS -14.5 / -12.6 / -16.2 / -15.3 / -16.6 dB"
+      "detail": "RMS -14.5 / -13.8 / -14.9 / -15.9 / -16.7 dB"
     },
     {
-      "id": "A04 proxy: four distinct timbres (centroid or decay differ ≥ 25% pairwise)",
+      "id": "HISS RESO audible change",
       "pass": true,
-      "detail": "HISS: 14268 Hz, 18 ms; DUST: 2039 Hz, 48 ms; METAL: 1606 Hz, 50 ms; ATMOS: 100 Hz, 392 ms"
+      "detail": "flatness 0.418/0.428/0.423/0.369/0.183, crest 12.4/12.3/12.1/11.5/9.3 dB"
+    },
+    {
+      "id": "HISS ATTACK slower monotonic",
+      "pass": true,
+      "detail": "10% energy at 0.6 → 1.4 → 4.4 → 13.9 → 50.4 ms"
+    },
+    {
+      "id": "HISS CHARACTER (BODY) audible change",
+      "pass": true,
+      "detail": "centroid 14165/13646/11025/6694/5134 Hz, crest 11.5/13/14.2/13.7/12.9 dB, flatness 0.396/0.456/0.485/0.327/0.133"
+    },
+    {
+      "id": "HISS PAN left→right",
+      "pass": true,
+      "detail": "215 / 7.7 / 0 / -7.7 / -215 dB (L−R)"
+    },
+    {
+      "id": "DUST RESO audible change",
+      "pass": true,
+      "detail": "flatness 0.054/0.044/0.033/0.021/0.008, crest 13.4/12.4/11.2/9.5/6.4 dB"
+    },
+    {
+      "id": "DUST ATTACK slower monotonic",
+      "pass": true,
+      "detail": "10% energy at 1.7 → 2.1 → 4.8 → 16.1 → 48.5 ms"
+    },
+    {
+      "id": "DUST CHARACTER (GRAIN) audible change",
+      "pass": true,
+      "detail": "centroid 2036/2030/2328/2363/2658 Hz, crest 8.3/9.2/10.7/12.2/13.5 dB, flatness 0.019/0.022/0.029/0.034/0.048"
+    },
+    {
+      "id": "DUST PAN left→right",
+      "pass": true,
+      "detail": "220.6 / 7.7 / 0 / -7.7 / -220.6 dB (L−R)"
+    },
+    {
+      "id": "METAL RESO audible change",
+      "pass": true,
+      "detail": "flatness 0.01/0.007/0.004/0.003/0.007, crest 6.5/6.9/6.8/6.1/3.7 dB"
+    },
+    {
+      "id": "METAL ATTACK slower monotonic",
+      "pass": true,
+      "detail": "10% energy at 2.2 → 2.6 → 5.1 → 14.7 → 47.6 ms"
+    },
+    {
+      "id": "METAL CHARACTER (RATIO) audible change",
+      "pass": true,
+      "detail": "centroid 1469/1600/1664/1840/1876 Hz, crest 7.1/6.7/6.8/6.9/6.8 dB, flatness 0.005/0.004/0.005/0.005/0.005"
+    },
+    {
+      "id": "METAL PAN left→right",
+      "pass": true,
+      "detail": "222 / 7.7 / 0 / -7.7 / -222 dB (L−R)"
+    },
+    {
+      "id": "ATMOS RESO audible change",
+      "pass": true,
+      "detail": "flatness 0/0/0/0/0, crest 7.3/7/6.7/6.3/4.5 dB"
+    },
+    {
+      "id": "ATMOS ATTACK slower monotonic",
+      "pass": true,
+      "detail": "10% energy at 13.3 → 13.3 → 20.5 → 31.1 → 77.9 ms"
+    },
+    {
+      "id": "ATMOS CHARACTER (WIDTH) audible change",
+      "pass": true,
+      "detail": "L/R correlation 1 → 0.959 → 0.747 → 0.342 → -0.017"
+    },
+    {
+      "id": "ATMOS PAN left→right",
+      "pass": true,
+      "detail": "230.9 / 9.1 / 1.4 / -6.2 / -229.5 dB (L−R)"
+    },
+    {
+      "id": "A04 proxy: four distinct timbres (centroid, decay or spectral flatness differ ≥ 25% pairwise)",
+      "pass": true,
+      "detail": "HISS: 14159 Hz, 18 ms, flatness 0.468; DUST: 2063 Hz, 48 ms, flatness 0.025; METAL: 1664 Hz, 50 ms, flatness 0.005; ATMOS: 100 Hz, 392 ms, flatness 0"
     },
     {
       "id": "A25 proxy: worst case stays below full scale (soft safety)",
       "pass": true,
-      "detail": "peak 0.939"
+      "detail": "peak 0.938"
     }
   ],
   "groove": {
-    "hits": 385,
-    "peak": 0.406,
-    "seconds": 40.2,
+    "hits": 480,
+    "peak": 0.531,
+    "seconds": 48,
     "sections": [
       "default preset",
       "Generate RHYTHM",
       "Keep + Mutate 15%",
-      "Random P-Locks (density 0.6, amount 0.45)",
-      "Generate ALL"
+      "Random P-Locks incl. pan (density 0.6, amount 0.45)",
+      "SYNTH screen Generate (sound, pan, spread, synth)",
+      "SEQ screen Generate (rhythm + P-Locks)"
     ]
   },
   "worstCase": {
     "hits": 1024,
-    "peak": 0.939,
+    "peak": 0.938,
     "seconds": 4.9
   }
 }

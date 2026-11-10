@@ -1,9 +1,12 @@
 {
-  "_doc": "Single source for macro → DSP mapping. Read by tools/render_voices.js (offline reference model) and tools/build_patches.py (Max voice patches). Exponential maps: v = lo * (hi/lo)^x. Values are first estimates — confirm by ear in Live (spec §07).",
+  "_doc": "Single source for parameter → DSP mapping. Read by tools/render_voices.js (offline reference model) and tools/build_patches.py (Max voice patches). Exponential maps: v = lo * (hi/lo)^x. Values are first estimates — confirm by ear in Live (spec §07).",
   "sampleRate": 48000,
   "envelope": {
-    "attackMs": 0.7,
-    "shape": "linear ramp to 0 over decayMs, then squared (≈ exponential, no tail click)",
+    "attackMs": [
+      0.3,
+      80.0
+    ],
+    "_doc": "ATTACK synth param maps exponentially to attackMs; then linear decay over decayMs; envelope = ramp squared",
     "minDecayMs": 8
   },
   "drive": {
@@ -24,7 +27,6 @@
         700,
         9000
       ],
-      "q": 0.2,
       "decayMs": [
         8,
         420
@@ -39,7 +41,6 @@
         450,
         7000
       ],
-      "q": 0.55,
       "decayMs": [
         15,
         650
@@ -54,7 +55,6 @@
         320,
         1900
       ],
-      "q": 0.7,
       "_doc": "toneHz = fundamental of 4 inharmonic sine partials; noise excitation band-passed at 2.2×f0; texture = noise share",
       "partialRatios": [
         1.0,
@@ -83,14 +83,9 @@
         320,
         9000
       ],
-      "q": 0.18,
       "decayMs": [
         60,
         1200
-      ],
-      "attackMs": [
-        3,
-        28
       ],
       "crackleGain": 0.25,
       "outGain": 1.2,
@@ -101,5 +96,48 @@
     "_doc": "fixed safety: out = tanh(sum * drive) * ceiling. Not a user control.",
     "drive": 1.0,
     "ceiling": 0.94
+  },
+  "reso": {
+    "_doc": "RESO synth param → svf~ resonance q = lo + (hi-lo)*reso",
+    "q": [
+      0.05,
+      0.92
+    ]
+  },
+  "pan": {
+    "_doc": "per-hit constant-power pan, centre gain = 1 (as mono v0.1): gl = sqrt2*cos(p*pi/2), gr = sqrt2*sin(p*pi/2), p = 0..1"
+  },
+  "character": {
+    "HISS": {
+      "label": "BODY",
+      "_doc": "crossfade highpass → bandpass output (thin hiss → hat with body)",
+      "bpGain": 1.6
+    },
+    "DUST": {
+      "label": "GRAIN",
+      "_doc": "c=0 smooth noise burst … c=1 sparse dust grains: noise gain = 1 - noiseCut*c, crackle density = dens[0] + (dens[1]-dens[0])*c (DUST ignores texture for crackle)",
+      "noiseCut": 0.85,
+      "dens": [
+        0.002,
+        0.06
+      ]
+    },
+    "METAL": {
+      "label": "RATIO",
+      "_doc": "inharmonicity: r' = 1 + (r-1)*(lo + (hi-lo)*c)",
+      "range": [
+        0.4,
+        1.6
+      ]
+    },
+    "ATMOS": {
+      "label": "WIDTH",
+      "_doc": "R = (1-w)*L + w*R_decorrelated"
+    }
+  },
+  "metalColor": {
+    "_doc": "METAL: (mix + bandpass(mix)*k) / (1 + norm*k), k = reso*gain, bandpass at f0*noiseBpRatio with q from RESO — resonant coloration at stable level",
+    "gain": 3.0,
+    "norm": 0.7
   }
 }

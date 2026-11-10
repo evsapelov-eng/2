@@ -1,22 +1,37 @@
 // NØIZ core — data model, defaults, validation, (de)serialization.
 // Step indices are 0-based in code, 1-based in the UI.
 
-var NOIZ_SCHEMA_VERSION = 1;
+var NOIZ_SCHEMA_VERSION = 2;
 var NOIZ_MAX_STEPS = 32;
 var NOIZ_TRACK_NAMES = ["HISS", "DUST", "METAL", "ATMOS"];
-var NOIZ_MACROS = ["tone", "decay", "texture", "drive"];
-var NOIZ_SCOPES = ["RHYTHM", "SOUND", "PLOCKS", "ALL"];
+// Lockable per step (P-Locks). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
+var NOIZ_MACROS = ["tone", "decay", "texture", "drive", "pan"];
+// Per-voice synth parameters (SYNTH screen), not lockable.
+//   reso: filter resonance · attack: envelope attack time
+//   character: per-voice meaning — HISS body, DUST grain, METAL ratio, ATMOS width
+//   spread: per-hit random stereo placement around pan (ratchets sweep across)
+var NOIZ_SYNTH = ["reso", "attack", "character", "spread"];
+// PATTERN = rhythm + P-Locks (SEQ screen); SOUND = voice sound incl. synth (SYNTH screen).
+var NOIZ_SCOPES = ["RHYTHM", "SOUND", "PLOCKS", "ALL", "PATTERN"];
 var NOIZ_VIEWS = ["SEQUENCE", "SOUND"];
 var NOIZ_MAX_RATCHET = 8;
 var NOIZ_MAX_DIV = 8;
 
 // Spec §07 default table (the JSON example in §05 is illustrative only; see docs/DECISIONS.md D4).
 var NOIZ_DEFAULT_SOUND = [
-  { tone: 0.68, decay: 0.20, texture: 0.45, drive: 0.10 },
-  { tone: 0.47, decay: 0.32, texture: 0.72, drive: 0.12 },
-  { tone: 0.56, decay: 0.25, texture: 0.36, drive: 0.28 },
-  { tone: 0.30, decay: 0.65, texture: 0.63, drive: 0.08 }
+  { tone: 0.68, decay: 0.20, texture: 0.45, drive: 0.10, pan: 0.56 },
+  { tone: 0.47, decay: 0.32, texture: 0.72, drive: 0.12, pan: 0.44 },
+  { tone: 0.56, decay: 0.25, texture: 0.36, drive: 0.28, pan: 0.5 },
+  { tone: 0.30, decay: 0.65, texture: 0.63, drive: 0.08, pan: 0.5 }
 ];
+// Defaults reproduce the v0.1 sound (resonance/attack as they were hard-wired).
+var NOIZ_DEFAULT_SYNTH = [
+  { reso: 0.17, attack: 0.15, character: 0.15, spread: 0.25 },
+  { reso: 0.58, attack: 0.15, character: 0.5, spread: 0.45 },
+  { reso: 0.45, attack: 0.15, character: 0.5, spread: 0.1 },
+  { reso: 0.15, attack: 0.74, character: 0.8, spread: 0.3 }
+];
+var NOIZ_CHARACTER_LABEL = ["BODY", "GRAIN", "RATIO", "WIDTH"];
 var NOIZ_DEFAULT_LEVEL_DB = [-12, -12, -14, -16];
 // Generation target density per voice (fraction of active steps).
 var NOIZ_DEFAULT_DENSITY = [0.5, 0.35, 0.2, 0.12];
@@ -53,6 +68,7 @@ function noizDefaultTrack(id) {
     levelDb: NOIZ_DEFAULT_LEVEL_DB[id],
     density: NOIZ_DEFAULT_DENSITY[id],
     sound: noizClone(NOIZ_DEFAULT_SOUND[id]),
+    synth: noizClone(NOIZ_DEFAULT_SYNTH[id]),
     steps: steps
   };
 }
@@ -123,6 +139,15 @@ function noizNormalizeSound(raw, def) {
   return out;
 }
 
+function noizNormalizeSynth(raw, def) {
+  var out = {};
+  for (var i = 0; i < NOIZ_SYNTH.length; i++) {
+    var k = NOIZ_SYNTH[i];
+    out[k] = noizNum(raw && raw[k], def[k], 0, 1);
+  }
+  return out;
+}
+
 function noizNormalizeTrack(raw, id) {
   var d = noizDefaultTrack(id);
   if (!raw || typeof raw !== "object") return d;
@@ -145,6 +170,7 @@ function noizNormalizeTrack(raw, id) {
     levelDb: noizNum(raw.levelDb, d.levelDb, -60, 6),
     density: noizNum(raw.density, d.density, 0.02, 0.9),
     sound: noizNormalizeSound(raw.sound, d.sound),
+    synth: noizNormalizeSynth(raw.synth, d.synth),
     steps: steps
   };
 }
@@ -228,13 +254,14 @@ function noizSerialize(state, anchorTracks, generationCounter) {
   }));
 }
 
-// Migration hook: schema 1 is the first; anything newer/foreign is rejected safely.
+// Migration: v1 (no pan/synth) → v2: missing pan/synth are filled with defaults by
+// normalization, existing values are kept. Unknown future versions are refused safely.
 function noizMigrate(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (raw.format !== undefined && raw.format !== "NOIZ") return null;
   var v = raw.schemaVersion;
   if (v === undefined) v = 1; // tolerate hand-written partial states
-  if (v !== 1) return null;   // unknown future version: refuse, keep defaults
+  if (v !== 1 && v !== 2) return null;
   return raw;
 }
 

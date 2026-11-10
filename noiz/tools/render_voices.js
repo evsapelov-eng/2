@@ -48,45 +48,63 @@ function makeSvf(freq, res) { // TPT state-variable filter; res 0..1 like svf~
 const expMap = (range, x) => range[0] * Math.pow(range[1] / range[0], x);
 
 // One hit of one voice → {L, R}. Mirrors the Max voice patch graph.
-function renderHit(voiceName, snd, amp, seed) {
+// snd: tone decay texture drive (pan unused here: per-hit pan comes in `pan`), sy: reso attack character
+function renderHit(voiceName, snd, sy, amp, pan, seed) {
   const v = MAP.voices[voiceName];
+  const CH = MAP.character[voiceName];
   const decayMs = Math.max(MAP.envelope.minDecayMs, expMap(v.decayMs, snd.decay));
-  const attMs = v.attackMs ? v.attackMs[0] + (v.attackMs[1] - v.attackMs[0]) * snd.decay : MAP.envelope.attackMs;
+  const attMs = expMap(MAP.envelope.attackMs, sy.attack);
+  const q = MAP.reso.q[0] + (MAP.reso.q[1] - MAP.reso.q[0]) * sy.reso;
   const n = Math.ceil(((attMs + decayMs) / 1000) * SR) + 64;
-  const L = new Float32Array(n), R = new Float32Array(n);
+  const out = [new Float32Array(n), new Float32Array(n)];
   const chans = v.stereo.startsWith("decorrelated") ? 2 : 1;
-  const tex = snd.texture, T = MAP.texture;
+  const tex = snd.texture, T = MAP.texture, c = sy.character;
   const g = 1 + snd.drive * MAP.drive.gainMax, comp = Math.pow(g, -(+process.env.NOIZ_COMP_EXP || MAP.drive.compExp));
   const f = expMap(v.toneHz, snd.tone);
-  for (let c = 0; c < chans; c++) {
-    const white = makeNoise(seed * 2 + c + 1), pink = makePink(makeNoise(seed * 7 + c + 3));
-    const crk = makeNoise(seed * 13 + c + 5), crkAmp = makeNoise(seed * 17 + c + 9);
-    const filt = makeSvf(voiceName === "METAL" ? f * v.noiseBpRatio : f, v.q);
-    const dens = T.crackleMaxDensity * tex;
-    let ph = (v.partialRatios || []).map(() => 0);
+  const isDust = voiceName === "DUST";
+  const ratioK = voiceName === "METAL" ? CH.range[0] + (CH.range[1] - CH.range[0]) * c : 1;
+  for (let ch = 0; ch < chans; ch++) {
+    const white = makeNoise(seed * 2 + ch + 1), pink = makePink(makeNoise(seed * 7 + ch + 3));
+    const crk = makeNoise(seed * 13 + ch + 5), crkAmp = makeNoise(seed * 17 + ch + 9);
+    const filt = makeSvf(voiceName === "METAL" ? f * v.noiseBpRatio : f, voiceName === "METAL" ? 0.7 : q);
+    const dens = isDust ? CH.dens[0] + (CH.dens[1] - CH.dens[0]) * c : T.crackleMaxDensity * tex;
+    const noiseG = isDust ? 1 - CH.noiseCut * c : 1;
+    const color = voiceName === "METAL" ? makeSvf(f * v.noiseBpRatio, q) : null;
+    const ph = (v.partialRatios || []).map(() => 0);
+    const sig = out[ch];
     for (let i = 0; i < n; i++) {
       const tMs = (i / SR) * 1000;
       const lin = tMs < attMs ? tMs / attMs : Math.max(0, 1 - (tMs - attMs) / decayMs);
       const env = amp * lin * lin;
       if (env <= 0 && tMs > attMs) break;
-      let src = (1 - tex) * white() * T.whiteGain + tex * pink() * T.pinkGain;
+      let src = ((1 - tex) * white() * T.whiteGain + tex * pink() * T.pinkGain) * noiseG;
       if (v.crackleGain > 0 && Math.abs(crk()) > 1 - dens) src += crkAmp() * v.crackleGain;
       const fo = filt(src);
       let x = v.filter === "hp" ? fo.hp : v.filter === "lp" ? fo.lp : fo.bp;
+      if (voiceName === "HISS") x = (1 - c) * fo.hp + c * fo.bp * CH.bpGain;
       if (voiceName === "METAL") {
         let part = 0;
         for (let p = 0; p < ph.length; p++) {
-          ph[p] += (2 * Math.PI * f * v.partialRatios[p]) / SR;
+          ph[p] += (2 * Math.PI * f * (1 + (v.partialRatios[p] - 1) * ratioK)) / SR;
           part += Math.sin(ph[p]) * v.partialGains[p];
         }
         x = (1 - tex) * part + tex * x * 2.5;
+        const k = sy.reso * MAP.metalColor.gain;
+        x = (x + color(x).bp * k) / (1 + MAP.metalColor.norm * k);
       }
-      const y = Math.tanh(g * x * env * v.outGain) * comp;
-      if (c === 0) L[i] = y; else R[i] = y;
+      sig[i] = Math.tanh(g * x * env * v.outGain) * comp;
     }
   }
-  if (chans === 1) R.set(L);
-  return { L, R };
+  let L = out[0], R = chans === 2 ? out[1] : out[0];
+  if (chans === 2) { // ATMOS WIDTH: R = (1-w)L + wR
+    const R2 = new Float32Array(n);
+    for (let i = 0; i < n; i++) R2[i] = (1 - c) * L[i] + c * R[i];
+    R = R2;
+  }
+  const gl = Math.SQRT2 * Math.cos((pan * Math.PI) / 2), gr = Math.SQRT2 * Math.sin((pan * Math.PI) / 2);
+  const Lo = new Float32Array(n), Ro = new Float32Array(n);
+  for (let i = 0; i < n; i++) { Lo[i] = L[i] * gl; Ro[i] = R[i] * gr; }
+  return { L: Lo, R: Ro };
 }
 
 // ---------- analysis ----------
@@ -154,29 +172,44 @@ function mixInto(L, R, hit, at, gain = 1) {
 const master = (x) => Math.tanh(x * MAP.master.drive) * MAP.master.ceiling;
 
 // ---------- main ----------
-const defaults = C.noizDefaultState().tracks.map((t) => t.sound);
+const defTracks = C.noizDefaultState().tracks;
+const defaults = defTracks.map((t) => t.sound);
+const defSynth = defTracks.map((t) => t.synth);
 const report = { model: "offline reference of spec/dsp_map.json (not Max output)", sampleRate: SR, voices: {}, checks: [] };
 const steps = [0, 0.25, 0.5, 0.75, 1];
 fs.mkdirSync(OUT, { recursive: true });
 
 NAMES.forEach((name, vi) => {
   const r = { default: {}, sweeps: {} };
-  const d = renderHit(name, defaults[vi], 1, 100 + vi);
+  const d = renderHit(name, defaults[vi], defSynth[vi], 1, 0.5, 100 + vi);
   r.default = { centroidHz: Math.round(centroidHz(d.L)), decayMs: Math.round(decayTimeMs(d.L)), rmsDb: +rmsDb(d.L.subarray(0, Math.round(SR * 0.05))).toFixed(1), peak: +peak(d.L).toFixed(3), flatness: +flatness(d.L).toFixed(3) };
-  for (const macro of C.NOIZ_MACROS) {
+  const params = ["tone", "decay", "texture", "drive", "reso", "attack", "character"];
+  for (const macro of params) {
     const gap = Math.round(SR * 0.15), seg = Math.round(SR * 1.3);
     const L = new Float32Array(seg * steps.length), R = new Float32Array(seg * steps.length);
     const m = [];
     steps.forEach((x, k) => {
-      const snd = Object.assign({}, defaults[vi], { [macro]: x });
-      const h = renderHit(name, snd, 1, 200 + vi * 10 + k);
+      const isSynth = C.NOIZ_SYNTH.includes(macro);
+      const snd = isSynth ? defaults[vi] : Object.assign({}, defaults[vi], { [macro]: x });
+      const sy = isSynth ? Object.assign({}, defSynth[vi], { [macro]: x }) : defSynth[vi];
+      const h = renderHit(name, snd, sy, 1, 0.5, 200 + vi * 10); // same noise: only the parameter changes
       mixInto(L, R, h, k * seg + gap);
       const sig = h.L;
-      m.push({ value: x, centroidHz: Math.round(centroidHz(sig)), decayMs: Math.round(decayTimeMs(sig)), rmsDb: +rmsDb(sig.subarray(0, Math.min(sig.length, Math.round(SR * 0.03)))).toFixed(1), crestDb: +crest(sig.subarray(0, Math.min(sig.length, Math.round(SR * 0.08)))).toFixed(1), flatness: +flatness(sig).toFixed(3), peak: +peak(sig).toFixed(3) });
+      const ar = h.R;
+      let etot = 0; for (let i = 0; i < sig.length; i++) etot += sig[i] * sig[i];
+      let acc = 0, pkI = 0; for (let i = 0; i < sig.length; i++) { acc += sig[i] * sig[i]; if (acc >= etot * 0.1) { pkI = i; break; } }
+      let cor = 0, ea = 0, eb = 0; for (let i = 0; i < sig.length; i++) { cor += sig[i] * ar[i]; ea += sig[i] ** 2; eb += ar[i] ** 2; }
+      m.push({ value: x, centroidHz: Math.round(centroidHz(sig)), decayMs: Math.round(decayTimeMs(sig)), rmsDb: +rmsDb(sig.subarray(0, Math.min(sig.length, Math.round(SR * 0.03)))).toFixed(1), crestDb: +crest(sig.subarray(0, Math.min(sig.length, Math.round(SR * 0.08)))).toFixed(1), flatness: +flatness(sig).toFixed(3), peak: +peak(sig).toFixed(3), peakMs: +((pkI / SR) * 1000).toFixed(1), lrCorr: +(cor / Math.sqrt(ea * eb + 1e-20)).toFixed(3) });
     });
     writeWav(path.join(OUT, `sweep_${name}_${macro}.wav`), L.map(master), R.map(master));
     r.sweeps[macro] = m;
   }
+  // pan sweep: L/R energy ratio
+  r.pan = [0, 0.25, 0.5, 0.75, 1].map((p) => {
+    const h = renderHit(name, defaults[vi], defSynth[vi], 1, p, 300 + vi);
+    const el = h.L.reduce((a, x) => a + x * x, 0), er = h.R.reduce((a, x) => a + x * x, 0);
+    return { pan: p, lrDb: +(10 * Math.log10((el + 1e-20) / (er + 1e-20))).toFixed(1) };
+  });
   writeWav(path.join(OUT, `oneshot_${name}.wav`), d.L.map(master), d.R.map(master));
   report.voices[name] = r;
 });
@@ -195,10 +228,22 @@ NAMES.forEach((n) => {
   check(`${n} DRIVE saturates (crest drops)`, crd[4] < crd[0] - 1.5, `crest ${crd.join(" → ")} dB`);
   check(`${n} DRIVE level stable (±3 dB)`, Math.max(...dr) - Math.min(...dr) <= 6, `RMS ${dr.join(" / ")} dB`);
 });
+NAMES.forEach((n) => {
+  const s = report.voices[n].sweeps;
+  const rs = s.reso.map((x) => x.flatness), rc = s.reso.map((x) => x.crestDb);
+  check(`${n} RESO audible change`, Math.abs(rs[4] - rs[0]) / Math.max(rs[0], rs[4], 1e-6) > 0.25 || Math.abs(rc[4] - rc[0]) > 1.5 || Math.abs(Math.log2((s.reso[4].centroidHz + 1) / (s.reso[0].centroidHz + 1))) > 0.25, `flatness ${rs.join("/")}, crest ${rc.join("/")} dB`);
+  check(`${n} ATTACK slower monotonic`, s.attack[4].peakMs > s.attack[0].peakMs + 15 && s.attack.every((x, i) => i === 0 || x.peakMs >= s.attack[i - 1].peakMs - 1), "10% energy at " + s.attack.map((x) => x.peakMs).join(" → ") + " ms");
+  const ch = s.character;
+  const chDelta = n === "ATMOS" ? Math.abs(ch[4].lrCorr - ch[0].lrCorr) : Math.max(Math.abs(Math.log2((ch[4].centroidHz + 1) / (ch[0].centroidHz + 1))), Math.abs(ch[4].crestDb - ch[0].crestDb) / 6, Math.abs(ch[4].flatness - ch[0].flatness) / Math.max(ch[0].flatness, ch[4].flatness, 1e-6));
+  check(`${n} CHARACTER (${MAP.character[n].label}) audible change`, chDelta > 0.25, n === "ATMOS" ? "L/R correlation " + ch.map((x) => x.lrCorr).join(" → ") : `centroid ${ch.map((x) => x.centroidHz).join("/")} Hz, crest ${ch.map((x) => x.crestDb).join("/")} dB, flatness ${ch.map((x) => x.flatness).join("/")}`);
+  const pn = report.voices[n].pan;
+  check(`${n} PAN left→right`, pn[0].lrDb > 20 && pn[4].lrDb < -20 && Math.abs(pn[2].lrDb) < 1.5, pn.map((x) => x.lrDb).join(" / ") + " dB (L−R)");
+});
 const cents = NAMES.map((n) => report.voices[n].default.centroidHz), decs = NAMES.map((n) => report.voices[n].default.decayMs);
-check("A04 proxy: four distinct timbres (centroid or decay differ ≥ 25% pairwise)",
-  NAMES.every((a, i) => NAMES.every((b, j) => i >= j || Math.abs(Math.log(cents[i] / cents[j])) > 0.22 || Math.abs(Math.log(decs[i] / decs[j])) > 0.22)),
-  NAMES.map((n, i) => `${n}: ${cents[i]} Hz, ${decs[i]} ms`).join("; "));
+const flats = NAMES.map((n) => report.voices[n].default.flatness);
+check("A04 proxy: four distinct timbres (centroid, decay or spectral flatness differ ≥ 25% pairwise)",
+  NAMES.every((a, i) => NAMES.every((b, j) => i >= j || Math.abs(Math.log(cents[i] / cents[j])) > 0.22 || Math.abs(Math.log(decs[i] / decs[j])) > 0.22 || Math.abs(Math.log((flats[i] + 1e-4) / (flats[j] + 1e-4))) > 0.4)),
+  NAMES.map((n, i) => `${n}: ${cents[i]} Hz, ${decs[i]} ms, flatness ${flats[i]}`).join("; "));
 
 // ---------- groove demo through the real core scheduler ----------
 function renderGroove(file, bpm, sections) {
@@ -212,7 +257,7 @@ function renderGroove(file, bpm, sections) {
     const evs = C.noizEventsInRange(st, 0, sec.bars * 4, { minSpacingBeats: (12 / 60000) * bpm });
     evs.forEach((e, k) => {
       const m = C.noizEventToTrigger(e);
-      const h = renderHit(NAMES[e.trackId], e.sound, m[1], 1000 + barAt * 97 + k);
+      const h = renderHit(NAMES[e.trackId], e.sound, e.synth, m[1], e.pan, 1000 + barAt * 97 + k);
       mixInto(L, R, h, Math.round((barAt * barS + e.beat * beatS) * SR));
       hits++;
     });
@@ -228,9 +273,10 @@ const sections = [{ bars: 4, state: snap() }];
 e.generate("RHYTHM"); sections.push({ bars: 4, state: snap() });
 e.keep(); e.mutate("RHYTHM", 0.15); sections.push({ bars: 4, state: snap() });
 e.setGlobal("lockDensity", 0.6); e.setGlobal("lockAmount", 0.45); e.generate("PLOCKS"); sections.push({ bars: 4, state: snap() });
-e.generate("ALL"); sections.push({ bars: 4, state: snap() });
+e.generate("SOUND"); sections.push({ bars: 4, state: snap() });
+e.generate("PATTERN"); sections.push({ bars: 4, state: snap() });
 report.groove = renderGroove(path.join(OUT, "demo_groove_124bpm.wav"), 124, sections);
-report.groove.sections = ["default preset", "Generate RHYTHM", "Keep + Mutate 15%", "Random P-Locks (density 0.6, amount 0.45)", "Generate ALL"];
+report.groove.sections = ["default preset", "Generate RHYTHM", "Keep + Mutate 15%", "Random P-Locks incl. pan (density 0.6, amount 0.45)", "SYNTH screen Generate (sound, pan, spread, synth)", "SEQ screen Generate (rhythm + P-Locks)"];
 
 // worst case A25 proxy: 4 voices × ratchet 8 × drive 100%
 const w = C.noizDefaultState();

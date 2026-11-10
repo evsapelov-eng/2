@@ -1,8 +1,8 @@
 # NØIZ — generative percussion synthesizer (Max for Live Instrument)
 
-Четыре синтезированных шумовых голоса (HISS · DUST · METAL · ATMOS), секвенсор 4 × 32 шага с независимыми Length / Division n:m, Probability, Ratchet и P-Locks на каждом шаге, Generate / Mutate / Keep / Undo на seeded RNG. Ableton Live 12, macOS.
+Четыре синтезированных шумовых голоса (HISS · DUST · METAL · ATMOS) с модулем синтеза и панорамой на каждый удар, секвенсор 4 × 32 шага с независимыми Length / Division n:m, Probability, Ratchet и P-Locks на каждом шаге, Generate / Mutate / Keep / Undo на seeded RNG. Ableton Live 12, macOS.
 
-> **Статус v0.1.1: STATIC VALID + тестовая сборка `.amxd`. Не релиз.** Ядро, DSP-граф и патчи написаны и проверены автотестами в среде без Ableton/Max. Загрузка в Max и Live, звук и интерфейс в Live — **NOT TESTED**. `.amxd` в репозитории нет намеренно: он собирается штатным Save в Live по `docs/HOST_TEST_GUIDE.md`.
+> **Статус v0.2.0: STATIC VALID + тестовая сборка `.amxd`. Не релиз.** Ядро, DSP-граф и патчи написаны и проверены автотестами в среде без Ableton/Max. Загрузка в Max и Live, звук и интерфейс в Live — **NOT TESTED**. `.amxd` в репозитории нет намеренно: он собирается штатным Save в Live по `docs/HOST_TEST_GUIDE.md`.
 
 ## Что внутри
 
@@ -15,14 +15,14 @@
 | `max/noiz_ui.js` | диагностический интерфейс для `[jsui]` |
 | `js/src/` | исходники ядра: модель, планировщик, генератор, движок |
 | `spec/dsp_map.json` | единая таблица «макрос → DSP» для патчей и эталонного рендера |
-| `tests/` | 58 автотестов (Node, без зависимостей) |
+| `tests/` | 82 автотеста (Node, без зависимостей) |
 | `tools/` | генератор патчей, валидатор, эталонный рендер звука |
 | `dist/NOIZ/` | тестовая сборка: `NØIZ.amxd`, `NØIZ P1 hello.amxd` + зависимости; zip рядом |
 | `docs/` | ТЗ, решения, архитектура, план, приёмка, инструкция для Live |
 
 ## Быстрый старт — тестовая сборка
 
-Скачайте **`dist/NOIZ_v0.1.1_test_build.zip`**, распакуйте папку `NOIZ` целиком, перетащите `NØIZ.amxd` на MIDI-дорожку Live 12, нажмите Play. Сначала можно проверить `NØIZ P1 hello.amxd` (кнопка → «пшик»). Инструкция и что делать при проблемах — `dist/NOIZ/README_FIRST.txt`.
+Скачайте **`dist/NOIZ_v0.2.0_test_build.zip`**, распакуйте папку `NOIZ` целиком, перетащите `NØIZ.amxd` на MIDI-дорожку Live 12, нажмите Play. Сначала можно проверить `NØIZ P1 hello.amxd` (кнопка → «пшик»). Инструкция и что делать при проблемах — `dist/NOIZ/README_FIRST.txt`.
 
 Сборка создана скриптом (`npm run dist`), не штатным Save в Live и не заморожена — в Live пока не проверялась.
 
@@ -34,14 +34,12 @@
 2. Полное устройство: новый *Max Instrument*, *Save As* `NOIZ.amxd` в папку `noiz/max/`, вставить `noiz_main.maxpat`, включить *Open in Presentation*, Save.
 3. Play в Live → играет встроенный паттерн → GENERATE / MUTATE / KEEP / UNDO.
 
-## Управление (диагностический UI 760 × 169)
+## Управление (760 × 169, два экрана)
 
-- клик по шагу — вкл/выкл; **option+клик** — выбрать шаг (режим STEP, P-Lock)
-- в режиме STEP слева VEL / PROB / RAT шага; CLR — убрать P-Locks шага; BASE — назад
-- имя дорожки — выбрать голос; **M** mute, **R** защита ритма, **S** защита звука и P-Locks
-- ноды TONE/DECAY/TEXTURE/DRIVE: вертикальное перетаскивание по всей ноде, Shift — точно, двойной клик — по умолчанию
-- LEN / DIV / DENS — вертикальное перетаскивание по строке
-- RHY/SND/PLK/ALL — область для GENERATE/MUTATE; при PLK/ALL видны LK DENS и LK AMT
+- **SEQ / SYNTH** — экраны. GENERATE / MUTATE действуют на видимое: SEQ → ритм + P-Locks, SYNTH → звук (тембр, синтез, панорама).
+- **SEQ:** клик по шагу — вкл/выкл; **option+клик** — режим STEP (P-Locks шага, VEL/PROB/RAT слева, «x» — выход, CLR — стереть); имя — выбор голоса; **M** mute; **L** защита голоса; LEN/DIV — перетаскивание; ноды TONE/DECAY/TEXTURE/DRIVE/PAN.
+- **SYNTH:** голос слева; 10 нод: TONE, DECAY, TEXTURE, DRIVE, RESO, ATTACK, BODY|GRAIN|RATIO|WIDTH, PAN, SPREAD, LEVEL; превью огибающей по реальным значениям.
+- Ноды: вертикальное перетаскивание по всей ноде, Shift — точно, двойной клик — по умолчанию. Значения в реальных единицах (Гц, мс, дБ, L/R).
 
 ## Разработка
 

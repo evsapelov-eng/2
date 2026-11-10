@@ -32,6 +32,26 @@ function noizProbabilityPasses(seed, trackId, cycleIndex, stepIndex, probability
   return noizHash01([seed, trackId, cycleIndex, stepIndex, NOIZ_EVENT_KIND_PROB]) < probability;
 }
 
+// Stereo position of one hit, 0..1. Base = effective pan (track pan or its P-Lock).
+// spread > 0 moves each hit deterministically around the base:
+//  - single hit: f(seed, track, cycle, step) in [-spread, +spread]
+//  - ratchet: sub-hits sweep across the field (direction chosen per step) → fast pans
+var NOIZ_EVENT_KIND_PAN = 3;
+function noizHitPan(seed, track, cycleIndex, stepIndex, ratchetIndex, ratchetCount, basePan) {
+  var p = basePan * 2 - 1;
+  var sp = track.synth ? track.synth.spread : 0;
+  if (sp > 0) {
+    var h = noizHash01([seed, track.id, cycleIndex, stepIndex, NOIZ_EVENT_KIND_PAN]);
+    if (ratchetCount > 1) {
+      var dir = h < 0.5 ? -1 : 1;
+      p += sp * dir * (-1 + (2 * ratchetIndex) / (ratchetCount - 1));
+    } else {
+      p += sp * (h * 2 - 1);
+    }
+  }
+  return (noizClamp(p, -1, 1) + 1) / 2;
+}
+
 // Effective ratchet count given a minimum spacing between sub-hits (in beats).
 // Fallback (documented): if the step is too short for r sub-hits, reduce r to the
 // largest count that respects the spacing (minimum 1). Spacing never collapses.
@@ -75,6 +95,7 @@ function noizEventsInRange(state, a, b, opts) {
         if (pos < a || pos >= b) continue;
         if (passed === null) passed = noizProbabilityPasses(seed, tr.id, cyc, idx, st.probability);
         if (!passed) break;
+        var snd = noizEffectiveSound(tr, st);  // P-Locks apply to the whole ratchet cluster
         events.push({
           trackId: tr.id,
           beat: pos,
@@ -83,7 +104,9 @@ function noizEventsInRange(state, a, b, opts) {
           ratchetIndex: i,
           ratchetCount: r,
           velocity: st.velocity,
-          sound: noizEffectiveSound(tr, st),  // P-Locks apply to the whole ratchet cluster
+          sound: snd,
+          synth: tr.synth,
+          pan: noizHitPan(seed, tr, cyc, idx, i, r, snd.pan),
           levelDb: tr.levelDb
         });
       }

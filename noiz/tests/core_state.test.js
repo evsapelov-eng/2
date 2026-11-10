@@ -134,10 +134,37 @@ test("BASE vs STEP mode: macro edits route to track sound or to the selected ste
   assert.strictEqual(Object.keys(e.state.tracks[1].steps[2].pLocks).length, 0);
 });
 
-test("trigger message: amplitude follows velocity curve and level, sound = effective values", () => {
-  const ev = { trackId: 2, velocity: 1, levelDb: -6, sound: { tone: 0.5, decay: 0.25, texture: 0.1, drive: 0 } };
+test("trigger message: amp from velocity+level, effective sound, per-hit pan, voice synth", () => {
+  const ev = { trackId: 2, velocity: 1, levelDb: -6, pan: 0.25, synth: { reso: 0.4, attack: 0.1, character: 0.9, spread: 0 },
+    sound: { tone: 0.5, decay: 0.25, texture: 0.1, drive: 0, pan: 0.5 } };
   const m = C.noizEventToTrigger(ev);
+  assert.strictEqual(m.length, 10);
   assert.strictEqual(m[0], 2);
   assert.ok(Math.abs(m[1] - Math.pow(10, -6 / 20)) < 1e-4);
-  deq(m.slice(2), [0.5, 0.25, 0.1, 0]);
+  deq(m.slice(2), [0.5, 0.25, 0.1, 0, 0.25, 0.4, 0.1, 0.9]);
+});
+
+test("schema v1 Live Sets migrate to v2: pattern kept, pan/synth get defaults", () => {
+  const v1 = { format: "NOIZ", schemaVersion: 1, tracks: [{ length: 7, sound: { tone: 0.1, decay: 0.2, texture: 0.3, drive: 0.4 },
+    steps: [{ on: true, pLocks: { tone: 0.9 } }] }] };
+  const e = new C.NoizEngine();
+  assert.ok(e.restore(JSON.stringify(v1)).ok);
+  const t = e.state.tracks[0];
+  assert.strictEqual(t.length, 7);
+  assert.strictEqual(t.sound.tone, 0.1);
+  assert.strictEqual(t.sound.pan, 0.56);
+  deq(t.synth, C.NOIZ_DEFAULT_SYNTH[0]);
+  assert.strictEqual(t.steps[0].pLocks.tone, 0.9);
+  assert.strictEqual(JSON.parse(e.serialize()).schemaVersion, 2);
+});
+
+test("SYNTH params: setSynth/resetSynth with one undo entry each; hold locks rhythm and sound", () => {
+  const e = new C.NoizEngine();
+  e.setSynth(1, "reso", 0.9);
+  assert.strictEqual(e.state.tracks[1].synth.reso, 0.9);
+  e.resetSynth(1, "reso");
+  assert.strictEqual(e.state.tracks[1].synth.reso, C.NOIZ_DEFAULT_SYNTH[1].reso);
+  assert.strictEqual(e.undoStack.length, 2);
+  e.setHold(3, true);
+  assert.ok(e.state.tracks[3].locks.rhythm && e.state.tracks[3].locks.sound);
 });

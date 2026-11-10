@@ -84,22 +84,37 @@ function noizShallowKeys(o) {
 // N\u00d8IZ core \u2014 data model, defaults, validation, (de)serialization.
 // Step indices are 0-based in code, 1-based in the UI.
 
-var NOIZ_SCHEMA_VERSION = 1;
+var NOIZ_SCHEMA_VERSION = 2;
 var NOIZ_MAX_STEPS = 32;
 var NOIZ_TRACK_NAMES = ["HISS", "DUST", "METAL", "ATMOS"];
-var NOIZ_MACROS = ["tone", "decay", "texture", "drive"];
-var NOIZ_SCOPES = ["RHYTHM", "SOUND", "PLOCKS", "ALL"];
+// Lockable per step (P-Locks). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
+var NOIZ_MACROS = ["tone", "decay", "texture", "drive", "pan"];
+// Per-voice synth parameters (SYNTH screen), not lockable.
+//   reso: filter resonance \u00b7 attack: envelope attack time
+//   character: per-voice meaning \u2014 HISS body, DUST grain, METAL ratio, ATMOS width
+//   spread: per-hit random stereo placement around pan (ratchets sweep across)
+var NOIZ_SYNTH = ["reso", "attack", "character", "spread"];
+// PATTERN = rhythm + P-Locks (SEQ screen); SOUND = voice sound incl. synth (SYNTH screen).
+var NOIZ_SCOPES = ["RHYTHM", "SOUND", "PLOCKS", "ALL", "PATTERN"];
 var NOIZ_VIEWS = ["SEQUENCE", "SOUND"];
 var NOIZ_MAX_RATCHET = 8;
 var NOIZ_MAX_DIV = 8;
 
 // Spec \u00a707 default table (the JSON example in \u00a705 is illustrative only; see docs/DECISIONS.md D4).
 var NOIZ_DEFAULT_SOUND = [
-  { tone: 0.68, decay: 0.20, texture: 0.45, drive: 0.10 },
-  { tone: 0.47, decay: 0.32, texture: 0.72, drive: 0.12 },
-  { tone: 0.56, decay: 0.25, texture: 0.36, drive: 0.28 },
-  { tone: 0.30, decay: 0.65, texture: 0.63, drive: 0.08 }
+  { tone: 0.68, decay: 0.20, texture: 0.45, drive: 0.10, pan: 0.56 },
+  { tone: 0.47, decay: 0.32, texture: 0.72, drive: 0.12, pan: 0.44 },
+  { tone: 0.56, decay: 0.25, texture: 0.36, drive: 0.28, pan: 0.5 },
+  { tone: 0.30, decay: 0.65, texture: 0.63, drive: 0.08, pan: 0.5 }
 ];
+// Defaults reproduce the v0.1 sound (resonance/attack as they were hard-wired).
+var NOIZ_DEFAULT_SYNTH = [
+  { reso: 0.17, attack: 0.15, character: 0.15, spread: 0.25 },
+  { reso: 0.58, attack: 0.15, character: 0.5, spread: 0.45 },
+  { reso: 0.45, attack: 0.15, character: 0.5, spread: 0.1 },
+  { reso: 0.15, attack: 0.74, character: 0.8, spread: 0.3 }
+];
+var NOIZ_CHARACTER_LABEL = ["BODY", "GRAIN", "RATIO", "WIDTH"];
 var NOIZ_DEFAULT_LEVEL_DB = [-12, -12, -14, -16];
 // Generation target density per voice (fraction of active steps).
 var NOIZ_DEFAULT_DENSITY = [0.5, 0.35, 0.2, 0.12];
@@ -136,6 +151,7 @@ function noizDefaultTrack(id) {
     levelDb: NOIZ_DEFAULT_LEVEL_DB[id],
     density: NOIZ_DEFAULT_DENSITY[id],
     sound: noizClone(NOIZ_DEFAULT_SOUND[id]),
+    synth: noizClone(NOIZ_DEFAULT_SYNTH[id]),
     steps: steps
   };
 }
@@ -206,6 +222,15 @@ function noizNormalizeSound(raw, def) {
   return out;
 }
 
+function noizNormalizeSynth(raw, def) {
+  var out = {};
+  for (var i = 0; i < NOIZ_SYNTH.length; i++) {
+    var k = NOIZ_SYNTH[i];
+    out[k] = noizNum(raw && raw[k], def[k], 0, 1);
+  }
+  return out;
+}
+
 function noizNormalizeTrack(raw, id) {
   var d = noizDefaultTrack(id);
   if (!raw || typeof raw !== "object") return d;
@@ -228,6 +253,7 @@ function noizNormalizeTrack(raw, id) {
     levelDb: noizNum(raw.levelDb, d.levelDb, -60, 6),
     density: noizNum(raw.density, d.density, 0.02, 0.9),
     sound: noizNormalizeSound(raw.sound, d.sound),
+    synth: noizNormalizeSynth(raw.synth, d.synth),
     steps: steps
   };
 }
@@ -311,13 +337,14 @@ function noizSerialize(state, anchorTracks, generationCounter) {
   }));
 }
 
-// Migration hook: schema 1 is the first; anything newer/foreign is rejected safely.
+// Migration: v1 (no pan/synth) \u2192 v2: missing pan/synth are filled with defaults by
+// normalization, existing values are kept. Unknown future versions are refused safely.
 function noizMigrate(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (raw.format !== undefined && raw.format !== "NOIZ") return null;
   var v = raw.schemaVersion;
   if (v === undefined) v = 1; // tolerate hand-written partial states
-  if (v !== 1) return null;   // unknown future version: refuse, keep defaults
+  if (v !== 1 && v !== 2) return null;
   return raw;
 }
 
@@ -368,6 +395,26 @@ function noizProbabilityPasses(seed, trackId, cycleIndex, stepIndex, probability
   return noizHash01([seed, trackId, cycleIndex, stepIndex, NOIZ_EVENT_KIND_PROB]) < probability;
 }
 
+// Stereo position of one hit, 0..1. Base = effective pan (track pan or its P-Lock).
+// spread > 0 moves each hit deterministically around the base:
+//  - single hit: f(seed, track, cycle, step) in [-spread, +spread]
+//  - ratchet: sub-hits sweep across the field (direction chosen per step) \u2192 fast pans
+var NOIZ_EVENT_KIND_PAN = 3;
+function noizHitPan(seed, track, cycleIndex, stepIndex, ratchetIndex, ratchetCount, basePan) {
+  var p = basePan * 2 - 1;
+  var sp = track.synth ? track.synth.spread : 0;
+  if (sp > 0) {
+    var h = noizHash01([seed, track.id, cycleIndex, stepIndex, NOIZ_EVENT_KIND_PAN]);
+    if (ratchetCount > 1) {
+      var dir = h < 0.5 ? -1 : 1;
+      p += sp * dir * (-1 + (2 * ratchetIndex) / (ratchetCount - 1));
+    } else {
+      p += sp * (h * 2 - 1);
+    }
+  }
+  return (noizClamp(p, -1, 1) + 1) / 2;
+}
+
 // Effective ratchet count given a minimum spacing between sub-hits (in beats).
 // Fallback (documented): if the step is too short for r sub-hits, reduce r to the
 // largest count that respects the spacing (minimum 1). Spacing never collapses.
@@ -411,6 +458,7 @@ function noizEventsInRange(state, a, b, opts) {
         if (pos < a || pos >= b) continue;
         if (passed === null) passed = noizProbabilityPasses(seed, tr.id, cyc, idx, st.probability);
         if (!passed) break;
+        var snd = noizEffectiveSound(tr, st);  // P-Locks apply to the whole ratchet cluster
         events.push({
           trackId: tr.id,
           beat: pos,
@@ -419,7 +467,9 @@ function noizEventsInRange(state, a, b, opts) {
           ratchetIndex: i,
           ratchetCount: r,
           velocity: st.velocity,
-          sound: noizEffectiveSound(tr, st),  // P-Locks apply to the whole ratchet cluster
+          sound: snd,
+          synth: tr.synth,
+          pan: noizHitPan(seed, tr, cyc, idx, i, r, snd.pan),
           levelDb: tr.levelDb
         });
       }
@@ -559,9 +609,9 @@ var NOIZ_MIN_HITS = [3, 2, 1, 1];
 var NOIZ_POLY_LENGTHS = [12, 13, 14, 15, 11, 7, 5];
 var NOIZ_POLY_DIVS = [{ n: 3, m: 4 }, { n: 5, m: 4 }, { n: 7, m: 4 }, { n: 3, m: 2 }];
 
-function noizScopeRhythm(scope) { return scope === "RHYTHM" || scope === "ALL"; }
+function noizScopeRhythm(scope) { return scope === "RHYTHM" || scope === "ALL" || scope === "PATTERN"; }
 function noizScopeSound(scope) { return scope === "SOUND" || scope === "ALL"; }
-function noizScopePLocks(scope) { return scope === "PLOCKS" || scope === "ALL"; }
+function noizScopePLocks(scope) { return scope === "PLOCKS" || scope === "ALL" || scope === "PATTERN"; }
 
 function noizStepWeight(trackId, idx) {
   return NOIZ_PROFILE[trackId][idx % 4] * NOIZ_BAR_EMPH[trackId][Math.floor(idx / 4) % 4];
@@ -649,10 +699,16 @@ function noizLimitStacking(tracks, rng, extreme) {
 }
 
 var NOIZ_SOUND_RANGES = [
-  { tone: [0.45, 0.9], decay: [0.06, 0.4], texture: [0.15, 0.85], drive: [0, 0.35] },
-  { tone: [0.25, 0.75], decay: [0.15, 0.5], texture: [0.4, 0.95], drive: [0, 0.35] },
-  { tone: [0.3, 0.85], decay: [0.1, 0.55], texture: [0.1, 0.7], drive: [0.05, 0.5] },
-  { tone: [0.1, 0.55], decay: [0.4, 0.9], texture: [0.3, 0.9], drive: [0, 0.25] }
+  { tone: [0.45, 0.9], decay: [0.06, 0.4], texture: [0.15, 0.85], drive: [0, 0.35], pan: [0.3, 0.7] },
+  { tone: [0.25, 0.75], decay: [0.15, 0.5], texture: [0.4, 0.95], drive: [0, 0.35], pan: [0.25, 0.75] },
+  { tone: [0.3, 0.85], decay: [0.1, 0.55], texture: [0.1, 0.7], drive: [0.05, 0.5], pan: [0.35, 0.65] },
+  { tone: [0.1, 0.55], decay: [0.4, 0.9], texture: [0.3, 0.9], drive: [0, 0.25], pan: [0.4, 0.6] }
+];
+var NOIZ_SYNTH_RANGES = [
+  { reso: [0.05, 0.55], attack: [0.0, 0.3], character: [0.0, 0.8], spread: [0.0, 0.6] },
+  { reso: [0.3, 0.85], attack: [0.0, 0.35], character: [0.2, 0.9], spread: [0.15, 0.8] },
+  { reso: [0.4, 0.9], attack: [0.0, 0.25], character: [0.15, 0.9], spread: [0.0, 0.45] },
+  { reso: [0.05, 0.6], attack: [0.45, 0.9], character: [0.4, 1.0], spread: [0.1, 0.6] }
 ];
 
 function noizGenerateTrackSound(track, rng) {
@@ -662,10 +718,15 @@ function noizGenerateTrackSound(track, rng) {
     track.sound[k] = noizRound(rng.range(r[k][0], r[k][1]), 3);
   }
   if (rng.chance(0.06)) track.sound.drive = noizRound(rng.range(0.5, 0.75), 3); // occasional dirt
+  var sr = NOIZ_SYNTH_RANGES[track.id];
+  for (var j = 0; j < NOIZ_SYNTH.length; j++) {
+    var sk = NOIZ_SYNTH[j];
+    track.synth[sk] = noizRound(rng.range(sr[sk][0], sr[sk][1]), 3);
+  }
 }
 
 // Weights for which macros a random P-Lock touches (avoid DRIVE everywhere).
-var NOIZ_LOCK_WEIGHTS = { tone: 0.38, decay: 0.34, texture: 0.2, drive: 0.08 };
+var NOIZ_LOCK_WEIGHTS = { tone: 0.3, decay: 0.27, texture: 0.16, drive: 0.07, pan: 0.2 };
 
 function noizRandomLockFor(track, step, rng, lockAmount) {
   var locks = {};
@@ -680,6 +741,7 @@ function noizRandomLockFor(track, step, rng, lockAmount) {
     keys.splice(pick, 1);
     var dev = rng.range(-lockAmount, lockAmount);
     if (k === "drive" && lockAmount < 0.8) dev = Math.min(dev, 0.35);
+    if (k === "pan") dev = rng.range(-1, 1) * Math.min(0.5, lockAmount * 1.4); // audible placement
     locks[k] = noizRound(noizClamp01(track.sound[k] + dev), 3);
   }
   return locks;
@@ -813,6 +875,10 @@ function noizMutateSound(track, amount, rng) {
     if (k === "drive" && amount < 0.8) v = Math.min(v, Math.max(track.sound[k], 0.7));
     track.sound[k] = noizRound(noizClamp01(v), 3);
   }
+  for (var j = 0; j < NOIZ_SYNTH.length; j++) {
+    var sk = NOIZ_SYNTH[j];
+    track.synth[sk] = noizRound(noizClamp01(track.synth[sk] + rng.gauss() * 0.14 * amount), 3);
+  }
 }
 
 function noizMutatePLocks(track, amount, rng, lockDensity, lockAmount) {
@@ -860,6 +926,7 @@ function noizMutateFromAnchor(currentTracks, anchorTracks, amount, scope, rng, o
     }
     if (noizScopeSound(scope) && !tr.locks.sound) {
       tr.sound = noizClone(an.sound);
+      tr.synth = noizClone(an.synth);
       noizMutateSound(tr, amount, rng);
     }
     if (noizScopePLocks(scope) && !tr.locks.sound) {
@@ -932,6 +999,11 @@ NoizEngine.prototype._nextSeed = function () {
   this.generationCounter++;
   this.state.global.seed = noizHashInts([this.state.global.seed, this.generationCounter, 0x4e30]) >>> 0;
   return this.state.global.seed;
+};
+
+// Scope follows the screen: SEQ \u2192 PATTERN (rhythm + P-Locks), SYNTH \u2192 SOUND.
+NoizEngine.prototype.contextScope = function () {
+  return this.state.global.activeView === "SOUND" ? "SOUND" : "PATTERN";
 };
 
 NoizEngine.prototype._opts = function () {
@@ -1029,6 +1101,10 @@ NoizEngine.prototype.setDivision = function (t, n, m) {
 NoizEngine.prototype.setDensity = function (t, d) {
   this._edit(function () { this._track(t).density = noizClamp(+d, 0.02, 0.9); }, "track");
 };
+// One "protect this track" switch (UI L): locks rhythm and sound (+P-Locks) together.
+NoizEngine.prototype.setHold = function (t, on) {
+  this._edit(function () { var tr = this._track(t); tr.locks.rhythm = !!on; tr.locks.sound = !!on; }, "lock");
+};
 NoizEngine.prototype.setLock = function (t, which, on) {
   this._edit(function () {
     var tr = this._track(t);
@@ -1045,6 +1121,15 @@ NoizEngine.prototype.setMute = function (t, on) { this._track(t).mute = !!on; th
 NoizEngine.prototype.setSound = function (t, key, v) {
   if (NOIZ_MACROS.indexOf(key) < 0) return;
   this._edit(function () { this._track(t).sound[key] = noizClamp01(+v); }, "sound");
+};
+// Synth parameter of a voice (SYNTH screen).
+NoizEngine.prototype.setSynth = function (t, key, v) {
+  if (NOIZ_SYNTH.indexOf(key) < 0) return;
+  this._edit(function () { this._track(t).synth[key] = noizClamp01(+v); }, "synth");
+};
+NoizEngine.prototype.resetSynth = function (t, key) {
+  if (NOIZ_SYNTH.indexOf(key) < 0) return;
+  this.setSynth(t, key, NOIZ_DEFAULT_SYNTH[noizClamp(t | 0, 0, 3)][key]);
 };
 // P-Lock (STEP mode) \u2014 only the selected step.
 NoizEngine.prototype.setPLock = function (t, s, key, v) {
@@ -1154,10 +1239,13 @@ NoizEngine.prototype.restore = function (text) {
 };
 
 // Trigger message for the DSP: amplitude already includes velocity curve and level.
+// Layout (10 values): track amp tone decay texture drive pan reso attack character
 function noizEventToTrigger(ev) {
   var amp = Math.pow(noizClamp01(ev.velocity), 1.5) * noizDbToAmp(ev.levelDb);
+  var sy = ev.synth || NOIZ_DEFAULT_SYNTH[ev.trackId];
   return [ev.trackId, noizRound(amp, 5), noizRound(ev.sound.tone, 4), noizRound(ev.sound.decay, 4),
-    noizRound(ev.sound.texture, 4), noizRound(ev.sound.drive, 4)];
+    noizRound(ev.sound.texture, 4), noizRound(ev.sound.drive, 4), noizRound(ev.pan === undefined ? 0.5 : ev.pan, 4),
+    noizRound(sy.reso, 4), noizRound(sy.attack, 4), noizRound(sy.character, 4)];
 }
 
 // ---- js/max_adapter.js ----
@@ -1175,11 +1263,13 @@ function noizEventToTrigger(ev) {
 //   toggle <track> <step>  stepset <track> <step> <field> <value>
 //   tracklength <track> <n>  division <track> <n> <m>  density <track> <0..1>
 //   level <track> <dB>  mute <track> <0|1>  lockr <track> <0|1>  locks <track> <0|1>
-//   macro <tone|decay|texture|drive> <0..1>   macroreset <key>
+//   macro <tone|decay|texture|drive|pan> <0..1>   macroreset <key>   (BASE or STEP P-Lock)
+//   synth <reso|attack|character|spread> <0..1>   synthreset <key>  (selected voice)
+//   hold <track> <0|1>  (lock rhythm + sound together)
 //   gesture <1|0>   clearsteplocks   cleartracklocks   motion <0|1>
 //   bang (re-send UI state)   dump (post state JSON to the Max Console)
 //
-// Outlet 0 \u2192 DSP:   trig <track> <amp> <tone> <decay> <texture> <drive> <delayMs>
+// Outlet 0 \u2192 DSP:   trig <track> <amp> <tone> <decay> <texture> <drive> <pan> <reso> <attack> <character> <delayMs>
 //                   (delay last: the patch unpacks right-to-left into [pipe], track triggers)
 //                   flush                          (drop queued events: stop/seek)
 // Outlet 1 \u2192 UI:    bind <globalName>   refresh    playhead <s0> <s1> <s2> <s3>
@@ -1213,7 +1303,8 @@ function publishUi() {
     canUndo: engine.canUndo(),
     pending: engine.pending,
     playing: engine.transportPlaying,
-    tempo: engine.tempo
+    tempo: engine.tempo,
+    defaults: { levelDb: NOIZ_DEFAULT_LEVEL_DB }
   });
   ui.version++;
   outlet(1, "refresh");
@@ -1246,7 +1337,7 @@ function tick(bars, beats, units, resolution, tempo) {
   if (engine.flushRequested) outlet(0, "flush");
   for (var i = 0; i < evs.length; i++) {
     var m = noizEventToTrigger(evs[i]);
-    outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], noizRound(evs[i].delayMs, 3));
+    outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], noizRound(evs[i].delayMs, 3));
   }
   // playhead (only on change)
   var ph = [];
@@ -1268,8 +1359,9 @@ function loopstart(v) { loopInfo.start = v; engine.setLoop(loopInfo.on, loopInfo
 function looplength(v) { loopInfo.length = v; engine.setLoop(loopInfo.on, loopInfo.start, loopInfo.length); }
 
 // ---------- commands ----------
-function generate() { engine.generate(); }
-function mutate() { engine.mutate(); }
+// Scope follows the visible screen: SEQ \u2192 rhythm + P-Locks, SYNTH \u2192 voice sound.
+function generate() { engine.generate(engine.contextScope()); }
+function mutate() { engine.mutate(engine.contextScope()); }
 function keep() { engine.keep(); }
 function undo() { engine.undo(); }
 function scope(s) { engine.setGlobal("randomScope", String(s)); }
@@ -1288,6 +1380,9 @@ function division(t, n, m) { engine.setDivision(t, n, m); }
 function density(t, v) { engine.setDensity(t, v); }
 function level(t, db) { engine.setLevel(t, db); }
 function mute(t, v) { engine.setMute(t, v); }
+function hold(t, v) { engine.setHold(t, v); }
+function synth(key, v) { engine.setSynth(engine.state.global.selectedTrack, String(key), v); }
+function synthreset(key) { engine.resetSynth(engine.state.global.selectedTrack, String(key)); }
 function lockr(t, v) { engine.setLock(t, "rhythm", v); }
 function locks(t, v) { engine.setLock(t, "sound", v); }
 function macro(key, v) { engine.setMacro(String(key), v); }

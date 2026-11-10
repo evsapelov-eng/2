@@ -264,3 +264,33 @@ test("while playing, Generate is applied at the next bar; stopped → immediatel
     return st.on;
   }));
 });
+
+test("PATTERN scope (SEQ screen): new rhythm + P-Locks, base sound and synth untouched", () => {
+  const e = new C.NoizEngine();
+  e.setGlobal("lockDensity", 0.5);
+  e.setGlobal("lockAmount", 0.4);
+  const sound = J(e.state.tracks.map((t) => [t.sound, t.synth]));
+  e.generate("PATTERN");
+  assert.strictEqual(J(e.state.tracks.map((t) => [t.sound, t.synth])), sound);
+  const locks = e.state.tracks.reduce((n, t) => n + t.steps.filter((s) => Object.keys(s.pLocks).length).length, 0);
+  assert.ok(locks > 0);
+});
+
+test("SOUND scope (SYNTH screen): generates pan, spread and synth params; rhythm untouched", () => {
+  const e = new C.NoizEngine();
+  const rhythm = e.state.tracks.map(rhythmOf);
+  const pans = new Set(), spreads = new Set();
+  for (let i = 0; i < 8; i++) {
+    e.generate("SOUND");
+    deq(e.state.tracks.map(rhythmOf), rhythm);
+    e.state.tracks.forEach((t) => { pans.add(t.sound.pan); spreads.add(t.synth.spread); });
+  }
+  assert.ok(pans.size > 10 && spreads.size > 10);
+});
+
+test("contextScope follows the screen", () => {
+  const e = new C.NoizEngine();
+  assert.strictEqual(e.contextScope(), "PATTERN");
+  e.setGlobal("activeView", "SOUND");
+  assert.strictEqual(e.contextScope(), "SOUND");
+});

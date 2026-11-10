@@ -61,6 +61,11 @@ NoizEngine.prototype._nextSeed = function () {
   return this.state.global.seed;
 };
 
+// Scope follows the screen: SEQ → PATTERN (rhythm + P-Locks), SYNTH → SOUND.
+NoizEngine.prototype.contextScope = function () {
+  return this.state.global.activeView === "SOUND" ? "SOUND" : "PATTERN";
+};
+
 NoizEngine.prototype._opts = function () {
   return { lockDensity: this.state.global.lockDensity, lockAmount: this.state.global.lockAmount };
 };
@@ -156,6 +161,10 @@ NoizEngine.prototype.setDivision = function (t, n, m) {
 NoizEngine.prototype.setDensity = function (t, d) {
   this._edit(function () { this._track(t).density = noizClamp(+d, 0.02, 0.9); }, "track");
 };
+// One "protect this track" switch (UI L): locks rhythm and sound (+P-Locks) together.
+NoizEngine.prototype.setHold = function (t, on) {
+  this._edit(function () { var tr = this._track(t); tr.locks.rhythm = !!on; tr.locks.sound = !!on; }, "lock");
+};
 NoizEngine.prototype.setLock = function (t, which, on) {
   this._edit(function () {
     var tr = this._track(t);
@@ -172,6 +181,15 @@ NoizEngine.prototype.setMute = function (t, on) { this._track(t).mute = !!on; th
 NoizEngine.prototype.setSound = function (t, key, v) {
   if (NOIZ_MACROS.indexOf(key) < 0) return;
   this._edit(function () { this._track(t).sound[key] = noizClamp01(+v); }, "sound");
+};
+// Synth parameter of a voice (SYNTH screen).
+NoizEngine.prototype.setSynth = function (t, key, v) {
+  if (NOIZ_SYNTH.indexOf(key) < 0) return;
+  this._edit(function () { this._track(t).synth[key] = noizClamp01(+v); }, "synth");
+};
+NoizEngine.prototype.resetSynth = function (t, key) {
+  if (NOIZ_SYNTH.indexOf(key) < 0) return;
+  this.setSynth(t, key, NOIZ_DEFAULT_SYNTH[noizClamp(t | 0, 0, 3)][key]);
 };
 // P-Lock (STEP mode) — only the selected step.
 NoizEngine.prototype.setPLock = function (t, s, key, v) {
@@ -281,8 +299,11 @@ NoizEngine.prototype.restore = function (text) {
 };
 
 // Trigger message for the DSP: amplitude already includes velocity curve and level.
+// Layout (10 values): track amp tone decay texture drive pan reso attack character
 function noizEventToTrigger(ev) {
   var amp = Math.pow(noizClamp01(ev.velocity), 1.5) * noizDbToAmp(ev.levelDb);
+  var sy = ev.synth || NOIZ_DEFAULT_SYNTH[ev.trackId];
   return [ev.trackId, noizRound(amp, 5), noizRound(ev.sound.tone, 4), noizRound(ev.sound.decay, 4),
-    noizRound(ev.sound.texture, 4), noizRound(ev.sound.drive, 4)];
+    noizRound(ev.sound.texture, 4), noizRound(ev.sound.drive, 4), noizRound(ev.pan === undefined ? 0.5 : ev.pan, 4),
+    noizRound(sy.reso, 4), noizRound(sy.attack, 4), noizRound(sy.character, 4)];
 }

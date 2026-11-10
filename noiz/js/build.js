@@ -29,7 +29,11 @@ fs.writeFileSync(path.join(OUT, "noiz_engine.js"), ascii(header + parts.join("\n
 
 const uiSrc = path.join(__dirname, "ui", "noiz_ui.js");
 if (fs.existsSync(uiSrc)) {
-  const t = fs.readFileSync(uiSrc, "utf8");
+  const map = JSON.parse(fs.readFileSync(path.join(ROOT, "spec", "dsp_map.json"), "utf8"));
+  const unitMap = { envelope: map.envelope, character: map.character, voices: {} };
+  for (const [k, v] of Object.entries(map.voices)) unitMap.voices[k] = { toneHz: v.toneHz, decayMs: v.decayMs };
+  const t = "// injected from spec/dsp_map.json (display units only)\nvar NOIZ_DSP_MAP = " + JSON.stringify(unitMap) + ";\n\n" +
+    fs.readFileSync(uiSrc, "utf8");
   es5Check("noiz_ui.js", t);
   fs.writeFileSync(path.join(OUT, "noiz_ui.js"), ascii(header + t));
 }
