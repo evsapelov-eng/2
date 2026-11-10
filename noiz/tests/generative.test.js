@@ -206,8 +206,8 @@ test("A13: Random P-Locks Density=1, Amount>0 → locks on active steps, rhythm/
   assert.strictEqual(J(e.state.tracks.map((t) => t.sound)), sound);
   e.state.tracks.forEach((t) => t.steps.forEach((s, i) => {
     const n = Object.keys(s.pLocks).length;
-    if (i < t.length && s.on) assert.ok(n >= 1, t.name + " step " + i + " has no lock");
-    else assert.strictEqual(n, 0);
+    if (i < t.length) assert.ok(n >= 1, t.name + " step " + i + " has no lock"); // lanes cover the whole cycle
+    else assert.strictEqual(n, 0, "nothing beyond the track length");
   }));
   // drive is not slammed to 100% everywhere
   const drives = [];
@@ -313,4 +313,88 @@ test("random P-Locks reach synth parameters too", () => {
     e.state.tracks.forEach((t) => t.steps.forEach((s) => Object.keys(s.pLocks).forEach((k) => seen.add(k))));
   }
   for (const k of C.NOIZ_LOCKABLE) assert.ok(seen.has(k), "never locked: " + k);
+});
+
+const lanesOf = (t, k) => t.steps.slice(0, t.length).map((s) => s.pLocks[k]);
+const sd = (a) => { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); };
+
+test("GENERATE draws per-step lanes: decay, pan, reso, attack (and the rest) get real step-to-step variation", () => {
+  const e = new C.NoizEngine();
+  const counts = {}, spreads = {};
+  for (const k of C.NOIZ_LOCKABLE) { counts[k] = 0; spreads[k] = []; }
+  const N = 20;
+  for (let i = 0; i < N; i++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t) => {
+      for (const k of C.NOIZ_LOCKABLE) {
+        const lane = lanesOf(t, k);
+        if (lane.every((v) => typeof v === "number")) { counts[k]++; spreads[k].push(sd(lane)); }
+      }
+    });
+  }
+  for (const k of C.NOIZ_LOCKABLE) {
+    const share = counts[k] / (N * 4);
+    assert.ok(share > 0.55, `${k}: lane in only ${(share * 100).toFixed(0)}% of voices`);
+    const meanSd = spreads[k].reduce((a, b) => a + b, 0) / spreads[k].length;
+    assert.ok(meanSd > (k === "drive" ? 0.03 : 0.07), `${k}: lanes too flat (sd ${meanSd.toFixed(3)})`);
+  }
+});
+
+test("every GENERATE gives a different lane picture", () => {
+  const e = new C.NoizEngine();
+  const pics = new Set();
+  for (let i = 0; i < 12; i++) {
+    e.generate("ALL");
+    pics.add(JSON.stringify(e.state.tracks.map((t) => ["decay", "pan", "reso", "attack"].map((k) => lanesOf(t, k)))));
+  }
+  assert.strictEqual(pics.size, 12);
+});
+
+test("pan lanes use the stereo field (some voices swing wide L/R)", () => {
+  const e = new C.NoizEngine();
+  let wide = 0;
+  for (let i = 0; i < 20; i++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t) => {
+      const lane = lanesOf(t, "pan");
+      if (lane.every((v) => typeof v === "number") && Math.max(...lane) - Math.min(...lane) > 0.5) wide++;
+    });
+  }
+  assert.ok(wide > 15, "wide pan lanes: " + wide);
+});
+
+test("MUTATE keeps lanes recognisable at small amounts and varies them at large ones", () => {
+  const e = new C.NoizEngine();
+  e.generate("ALL");
+  e.keep();
+  const anchor = JSON.parse(J(e.anchorTracks));
+  const dist = () => {
+    let d = 0, n = 0;
+    e.state.tracks.forEach((t, k) => t.steps.slice(0, t.length).forEach((s, i) => {
+      for (const key of Object.keys(s.pLocks)) {
+        const a = anchor[k].steps[i].pLocks[key];
+        if (a !== undefined && anchor[k].length === t.length) { d += Math.abs(a - s.pLocks[key]); n++; }
+      }
+    }));
+    return d / Math.max(1, n);
+  };
+  e.mutate("ALL", 0.1); const small = dist();
+  e.mutate("ALL", 0.9); const big = dist();
+  assert.ok(small < 0.06, "small mutate moved lanes by " + small);
+  assert.ok(big > small, `big ${big} vs small ${small}`);
+});
+
+test("lanes keep their shape near the range ends (no half-flattened lanes)", () => {
+  const e = new C.NoizEngine();
+  let clipped = 0, total = 0;
+  for (let i = 0; i < 20; i++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t) => ["attack", "drive", "spread"].forEach((k) => {
+      const lane = lanesOf(t, k);
+      if (!lane.every((v) => typeof v === "number")) return;
+      total += lane.length;
+      clipped += lane.filter((v) => v <= 0 || v >= 1).length;
+    }));
+  }
+  assert.ok(clipped / total < 0.08, `clipped ${(100 * clipped / total).toFixed(1)}% of lane values`);
 });

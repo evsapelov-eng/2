@@ -178,14 +178,31 @@ NoizEngine.prototype.setLevel = function (t, db) { this._track(t).levelDb = noiz
 NoizEngine.prototype.setMute = function (t, on) { this._track(t).mute = !!on; this._changed("mix"); };
 
 // Base macro (BASE mode) — changes the track sound.
+// Turning a voice knob moves the whole per-step lane of that parameter with it
+// (shape kept, clamped to 0..1), so the voice knob stays meaningful with lanes.
+function noizShiftLane(track, key, delta) {
+  if (!delta) return;
+  for (var i = 0; i < NOIZ_MAX_STEPS; i++) {
+    var pl = track.steps[i].pLocks;
+    if (pl.hasOwnProperty(key)) pl[key] = noizRound(noizClamp01(pl[key] + delta), 4);
+  }
+}
 NoizEngine.prototype.setSound = function (t, key, v) {
   if (NOIZ_MACROS.indexOf(key) < 0) return;
-  this._edit(function () { this._track(t).sound[key] = noizClamp01(+v); }, "sound");
+  this._edit(function () {
+    var tr = this._track(t), nv = noizClamp01(+v);
+    noizShiftLane(tr, key, nv - tr.sound[key]);
+    tr.sound[key] = nv;
+  }, "sound");
 };
 // Synth parameter of a voice (SYNTH screen).
 NoizEngine.prototype.setSynth = function (t, key, v) {
   if (NOIZ_SYNTH.indexOf(key) < 0) return;
-  this._edit(function () { this._track(t).synth[key] = noizClamp01(+v); }, "synth");
+  this._edit(function () {
+    var tr = this._track(t), nv = noizClamp01(+v);
+    noizShiftLane(tr, key, nv - tr.synth[key]);
+    tr.synth[key] = nv;
+  }, "synth");
 };
 NoizEngine.prototype.resetSynth = function (t, key) {
   if (NOIZ_SYNTH.indexOf(key) < 0) return;

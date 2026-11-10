@@ -144,7 +144,7 @@ test("trigger message: amp from velocity+level, effective sound, per-hit pan, vo
   deq(m.slice(2), [0.5, 0.25, 0.1, 0, 0.25, 0.4, 0.1, 0.9]);
 });
 
-test("schema v1 Live Sets migrate to v2: pattern kept, pan/synth get defaults", () => {
+test("schema v1 Live Sets migrate to v3: pattern kept, pan/synth get defaults", () => {
   const v1 = { format: "NOIZ", schemaVersion: 1, tracks: [{ length: 7, sound: { tone: 0.1, decay: 0.2, texture: 0.3, drive: 0.4 },
     steps: [{ on: true, pLocks: { tone: 0.9 } }] }] };
   const e = new C.NoizEngine();
@@ -155,7 +155,8 @@ test("schema v1 Live Sets migrate to v2: pattern kept, pan/synth get defaults", 
   assert.strictEqual(t.sound.pan, 0.56);
   deq(t.synth, C.NOIZ_DEFAULT_SYNTH[0]);
   assert.strictEqual(t.steps[0].pLocks.tone, 0.9);
-  assert.strictEqual(JSON.parse(e.serialize()).schemaVersion, 2);
+  assert.strictEqual(JSON.parse(e.serialize()).schemaVersion, 3);
+  assert.strictEqual(e.state.global.lockDensity, 0.75); // old hidden settings → lane defaults
 });
 
 test("SYNTH params: setSynth/resetSynth with one undo entry each; hold locks rhythm and sound", () => {
@@ -204,4 +205,14 @@ test("lane drawing: one gesture writes a parameter across many steps = one undo 
   assert.strictEqual(e.state.tracks[0].steps[15].pLocks.pan, undefined);
   e.undo(); e.undo();
   assert.strictEqual(Object.keys(e.state.tracks[0].steps[5].pLocks).length, 0);
+});
+
+test("voice knob moves the whole per-step lane, keeping its shape", () => {
+  const e = new C.NoizEngine();
+  for (let s = 0; s < 16; s++) e.setPLock(0, s, "decay", 0.2 + 0.02 * s);
+  e.setSound(0, "decay", e.state.tracks[0].sound.decay + 0.1);
+  const v = e.state.tracks[0].steps.slice(0, 16).map((x) => x.pLocks.decay);
+  v.forEach((x, s) => assert.ok(Math.abs(x - (0.3 + 0.02 * s)) < 1e-6, `step ${s}: ${x}`));
+  e.setSynth(0, "reso", 0.9); // no lane for reso: only the voice value changes
+  assert.strictEqual(e.state.tracks[0].steps[0].pLocks.reso, undefined);
 });

@@ -144,6 +144,80 @@ function noizGenerateTrackSound(track, rng) {
 var NOIZ_LOCK_WEIGHTS = { tone: 0.2, decay: 0.18, texture: 0.11, drive: 0.05, pan: 0.15,
   reso: 0.1, attack: 0.07, character: 0.09, spread: 0.05 };
 
+
+// ---------- per-step parameter lanes ----------
+// GENERATE gives most parameters of every voice its own per-step "lane" (P-Locks on
+// every step of the cycle), with a random shape and depth, so each press draws a new
+// picture for tone, decay, texture, drive, pan, reso, attack, character and spread.
+// lockDensity = probability that a parameter gets a lane; lockAmount scales the depth.
+
+// depth range (fraction of the 0..1 range, ± around the voice value) per parameter
+var NOIZ_LANE_DEPTH = {
+  tone: [0.12, 0.4], decay: [0.15, 0.5], texture: [0.15, 0.5], drive: [0.05, 0.22], pan: [0.35, 1.0],
+  reso: [0.15, 0.55], attack: [0.1, 0.45], character: [0.15, 0.5], spread: [0.15, 0.5]
+};
+var NOIZ_LANE_STYLES = ["random", "ramp", "alternate", "wave", "accent", "walk"];
+// style weights per parameter (same order as NOIZ_LANE_STYLES)
+var NOIZ_LANE_STYLE_W = {
+  tone: [3, 2, 1, 2, 2, 3], decay: [3, 1, 2, 2, 3, 2], texture: [3, 1, 1, 2, 2, 3], drive: [2, 1, 1, 1, 3, 1],
+  pan: [3, 1, 4, 3, 1, 2], reso: [2, 2, 1, 3, 3, 2], attack: [2, 2, 2, 2, 3, 1], character: [3, 2, 1, 2, 2, 3],
+  spread: [3, 1, 2, 2, 2, 2]
+};
+
+// Shape value in [-1, 1] for each of L steps.
+function noizLaneShape(style, L, rng) {
+  var out = [], i;
+  if (style === "random") {
+    for (i = 0; i < L; i++) out.push(rng.range(-1, 1));
+  } else if (style === "ramp") {
+    var dir = rng.chance(0.5) ? 1 : -1;
+    for (i = 0; i < L; i++) out.push(dir * (L > 1 ? -1 + (2 * i) / (L - 1) : 0));
+  } else if (style === "alternate") {
+    var per = rng.pick([2, 2, 3, 4]), sg = rng.chance(0.5) ? 1 : -1;
+    for (i = 0; i < L; i++) out.push(sg * ((i % per) < per / 2 ? 1 : -1) * rng.range(0.7, 1));
+  } else if (style === "wave") {
+    var period = rng.pick([3, 4, 5, 6, 8, 12, 16]), phase = rng.range(0, Math.PI * 2);
+    for (i = 0; i < L; i++) out.push(Math.sin(phase + (2 * Math.PI * i) / period));
+  } else if (style === "accent") {
+    for (i = 0; i < L; i++) out.push(rng.chance(0.28) ? (rng.chance(0.7) ? 1 : -1) * rng.range(0.6, 1) : rng.range(-0.15, 0.15));
+  } else { // walk
+    var x = rng.range(-0.5, 0.5);
+    for (i = 0; i < L; i++) { x = noizClamp(x + rng.range(-0.45, 0.45), -1, 1); out.push(x); }
+  }
+  return out;
+}
+
+// Draws one lane of `key` on a track: values for every step of the cycle.
+function noizDrawLane(track, key, rng, depthScale) {
+  var L = track.length;
+  var w = NOIZ_LANE_STYLE_W[key] || [1, 1, 1, 1, 1, 1];
+  var style = NOIZ_LANE_STYLES[rng.weighted(w)];
+  var dr = NOIZ_LANE_DEPTH[key];
+  var depth = rng.range(dr[0], dr[1]) * depthScale;
+  var base = key === "pan" ? 0.5 + (noizBaseParam(track, key) - 0.5) * 0.5 : noizBaseParam(track, key);
+  // keep the whole shape inside 0..1 (a voice value near 0 or 1 would flatten half of it)
+  var room = Math.min(depth, 0.5);
+  base = noizClamp(base, room, 1 - room);
+  var shape = noizLaneShape(style, L, rng);
+  for (var i = 0; i < NOIZ_MAX_STEPS; i++) {
+    var st = track.steps[i];
+    if (i < L) st.pLocks[key] = noizRound(noizClamp01(base + depth * shape[i]), 3);
+    else delete st.pLocks[key];
+  }
+  return style;
+}
+
+// Random per-step lanes for one track. Never touches on/length/base sound/ratios.
+function noizGenerateTrackPLocks(track, rng, lockDensity, lockAmount) {
+  for (var i = 0; i < NOIZ_MAX_STEPS; i++) track.steps[i].pLocks = {};
+  if (lockAmount <= 0 || lockDensity <= 0) return;
+  var depthScale = Math.min(2, lockAmount / 0.5); // lockAmount 0.5 = nominal depth
+  for (var k = 0; k < NOIZ_LOCKABLE.length; k++) {
+    if (rng.chance(lockDensity)) noizDrawLane(track, NOIZ_LOCKABLE[k], rng, depthScale);
+  }
+}
+
+// Single-step random lock (used by MUTATE to add a few new values).
 function noizRandomLockFor(track, step, rng, lockAmount) {
   var locks = {};
   var nParams = rng.weighted([0.4, 0.32, 0.18, 0.1]) + 1;
@@ -157,20 +231,10 @@ function noizRandomLockFor(track, step, rng, lockAmount) {
     keys.splice(pick, 1);
     var dev = rng.range(-lockAmount, lockAmount);
     if (k === "drive" && lockAmount < 0.8) dev = Math.min(dev, 0.35);
-    if (k === "pan") dev = rng.range(-1, 1) * Math.min(0.5, lockAmount * 1.4); // audible placement
+    if (k === "pan") dev = rng.range(-1, 1) * Math.min(0.5, lockAmount * 1.4);
     locks[k] = noizRound(noizClamp01(noizBaseParam(track, k) + dev), 3);
   }
   return locks;
-}
-
-// Random P-Locks for one track. Never touches on/length/base sound/ratios.
-function noizGenerateTrackPLocks(track, rng, lockDensity, lockAmount) {
-  for (var i = 0; i < NOIZ_MAX_STEPS; i++) {
-    var s = track.steps[i];
-    s.pLocks = {};
-    if (i >= track.length || !s.on) continue;
-    if (lockAmount > 0 && rng.chance(lockDensity)) s.pLocks = noizRandomLockFor(track, s, rng, lockAmount);
-  }
 }
 
 // GENERATE: returns new tracks array (input untouched). Respects locks.
@@ -191,8 +255,8 @@ function noizGenerate(tracks, scope, rng, opts) {
     done.push(tr);
     if (noizScopeSound(scope) && !tr.locks.sound) noizGenerateTrackSound(tr, rng);
     if (noizScopePLocks(scope) && !tr.locks.sound) {
-      noizGenerateTrackPLocks(tr, rng, noizIsNum(opts.lockDensity) ? opts.lockDensity : 0.35,
-        noizIsNum(opts.lockAmount) ? opts.lockAmount : 0.25);
+      noizGenerateTrackPLocks(tr, rng, noizIsNum(opts.lockDensity) ? opts.lockDensity : 0.75,
+        noizIsNum(opts.lockAmount) ? opts.lockAmount : 0.5);
     }
   }
   if (noizScopeRhythm(scope)) noizLimitStacking(next, rng, false);
@@ -299,17 +363,21 @@ function noizMutateSound(track, amount, rng) {
 
 function noizMutatePLocks(track, amount, rng, lockDensity, lockAmount) {
   if (amount <= 0) return;
-  for (var i = 0; i < track.length; i++) {
-    var s = track.steps[i];
-    if (!s.on) continue;
-    var keys = noizShallowKeys(s.pLocks);
-    if (keys.length) {
-      if (rng.chance(amount * 0.25)) { s.pLocks = {}; continue; }  // dosed removal
-      for (var j = 0; j < keys.length; j++) {
-        s.pLocks[keys[j]] = noizRound(noizClamp01(s.pLocks[keys[j]] + rng.range(-1, 1) * amount * Math.max(lockAmount, 0.05)), 3);
+  var depthScale = Math.min(2, lockAmount / 0.5);
+  for (var k = 0; k < NOIZ_LOCKABLE.length; k++) {
+    var key = NOIZ_LOCKABLE[k], has = false, i;
+    for (i = 0; i < track.length; i++) if (track.steps[i].pLocks.hasOwnProperty(key)) has = true;
+    if (rng.chance(amount * 0.35)) {            // redraw / add / drop a whole lane
+      if (has && rng.chance(0.25)) { for (i = 0; i < NOIZ_MAX_STEPS; i++) delete track.steps[i].pLocks[key]; }
+      else if (rng.chance(Math.max(lockDensity, 0.3))) noizDrawLane(track, key, rng, depthScale);
+      continue;
+    }
+    if (!has) continue;
+    for (i = 0; i < track.length; i++) {       // nudge the existing values
+      var pl = track.steps[i].pLocks;
+      if (pl.hasOwnProperty(key) && rng.chance(0.3 + amount * 0.7)) {
+        pl[key] = noizRound(noizClamp01(pl[key] + rng.range(-1, 1) * amount * 0.3 * depthScale), 3);
       }
-    } else if (lockAmount > 0 && rng.chance(amount * lockDensity * 0.5)) {
-      s.pLocks = noizRandomLockFor(track, s, rng, lockAmount * Math.max(amount, 0.3));
     }
   }
 }
