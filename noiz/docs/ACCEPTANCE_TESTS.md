@@ -2,7 +2,7 @@
 
 Статусы: **PASS / FAIL / NOT TESTED**. «Static proxy» — проверено автотестом или офлайн-моделью, что **не заменяет** host-проверку (ТЗ §15: unit tests не имеют права заменять host validated). Колонка «Host» заполняется после проверки в Live по `HOST_TEST_GUIDE.md`.
 
-Версия: 0.2.0 · дата: 2026-11-10 · Live/Max на стороне разработки: нет.
+Версия: 0.3.0 · дата: 2026-11-10 · Live/Max на стороне разработки: нет.
 
 | ID | Проверка | Static proxy (доказательство) | Host (Live 12) |
 |---|---|---|---|
@@ -28,7 +28,7 @@
 | A20 | Save / reopen Live Set | PASS (только сериализация и `getvalueof/setvalueof`) | NOT TESTED — главный риск: Blob-параметр (`MAX_API_TO_VERIFY.md` #7–8) |
 | A21 | Full editor close/reopen | — (полный редактор — P6) | NOT TESTED |
 | A22 | 4 ноды: drag, Shift, double-click | PASS: `ui_shim.test.js` (один gesture = одна запись Undo) | NOT TESTED |
-| A23 | Аудиореактивный клубок | — (P7, после стабильного DSP) | NOT TESTED |
+| A23 | Аудиореактивный клубок | — (P7). Частично: картинка SYNTH отражает параметры через модель звука (`ui_shim.test.js`), но не реальный сигнал | NOT TESTED |
 | A24 | Выключить анимацию → звук тот же | — (P7) | NOT TESTED |
 | A25 | 4 голоса + ratchet 8 + Drive 100% | PASS: эталонная модель, пик 0.939 < 1 | NOT TESTED |
 | A26 | UI в типичной ширине устройства | PASS (статически): presentation ≤ 169 px, `devicewidth` 760 | NOT TESTED |
@@ -37,7 +37,7 @@
 
 | Статус | Значение сейчас |
 |---|---|
-| STATIC VALID | **PASS** — 82 автотеста (в т.ч. исполнение патчей голосов в `tools/maxsim.js`), 38 DSP-проверок, 6 патчей без ошибок связей |
+| STATIC VALID | **PASS** — 88 автотестов (в т.ч. исполнение патчей голосов в `tools/maxsim.js`), 38 DSP-проверок, 6 патчей без ошибок связей |
 | MAX LOAD VALID | NOT TESTED |
 | LIVE LOAD VALID | NOT TESTED |
 | AUDIO VALID | NOT TESTED |

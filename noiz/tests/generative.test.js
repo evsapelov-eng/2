@@ -288,9 +288,29 @@ test("SOUND scope (SYNTH screen): generates pan, spread and synth params; rhythm
   assert.ok(pans.size > 10 && spreads.size > 10);
 });
 
-test("contextScope follows the screen", () => {
+test("GENERATE (ALL, any screen) changes rhythm, base sound, synth params and per-step locks of every unlocked voice", () => {
   const e = new C.NoizEngine();
-  assert.strictEqual(e.contextScope(), "PATTERN");
-  e.setGlobal("activeView", "SOUND");
-  assert.strictEqual(e.contextScope(), "SOUND");
+  for (const view of ["SEQUENCE", "SOUND"]) {
+    e.setGlobal("activeView", view);
+    assert.strictEqual(e.contextScope(), "ALL");
+    const before = JSON.parse(J(e.state.tracks));
+    e.generate(e.contextScope());
+    e.state.tracks.forEach((t, i) => {
+      assert.notStrictEqual(rhythmOf(t), rhythmOf(before[i]), t.name + " rhythm");
+      for (const k of ["tone", "decay", "texture", "drive", "pan"]) assert.notStrictEqual(t.sound[k], before[i].sound[k], t.name + " " + k);
+      for (const k of ["reso", "attack", "character", "spread"]) assert.notStrictEqual(t.synth[k], before[i].synth[k], t.name + " " + k);
+    });
+  }
+});
+
+test("random P-Locks reach synth parameters too", () => {
+  const e = new C.NoizEngine();
+  e.setGlobal("lockDensity", 1);
+  e.setGlobal("lockAmount", 0.5);
+  const seen = new Set();
+  for (let i = 0; i < 6; i++) {
+    e.generate("ALL");
+    e.state.tracks.forEach((t) => t.steps.forEach((s) => Object.keys(s.pLocks).forEach((k) => seen.add(k))));
+  }
+  for (const k of C.NOIZ_LOCKABLE) assert.ok(seen.has(k), "never locked: " + k);
 });

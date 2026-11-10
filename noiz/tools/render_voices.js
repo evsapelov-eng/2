@@ -18,93 +18,16 @@ const OUT = path.join(ROOT, "renders");
 const NAMES = ["HISS", "DUST", "METAL", "ATMOS"];
 const C = loadCore();
 
-// ---------- DSP primitives ----------
-function makeNoise(seed) {
-  const r = new C.NoizRng(seed);
-  return () => r.next() * 2 - 1;
-}
-function makePink(white) { // Paul Kellet's refined method
-  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-  return () => {
-    const w = white();
-    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759;
-    b2 = 0.969 * b2 + w * 0.153852; b3 = 0.8665 * b3 + w * 0.3104856;
-    b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
-    const p = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362; b6 = w * 0.115926;
-    return p * 0.11;
-  };
-}
-function makeSvf(freq, res) { // TPT state-variable filter; res 0..1 like svf~
-  const g = Math.tan(Math.PI * Math.min(freq, SR * 0.45) / SR);
-  const k = 2 * (1 - Math.min(res, 0.98));
-  const a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2;
-  let ic1 = 0, ic2 = 0;
-  return (x) => {
-    const v3 = x - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
-    ic1 = 2 * v1 - ic1; ic2 = 2 * v2 - ic2;
-    return { lp: v2, bp: v1, hp: x - k * v1 - v2 };
-  };
-}
-const expMap = (range, x) => range[0] * Math.pow(range[1] / range[0], x);
 
-// One hit of one voice → {L, R}. Mirrors the Max voice patch graph.
-// snd: tone decay texture drive (pan unused here: per-hit pan comes in `pan`), sy: reso attack character
+// One hit of one voice → {L, R}: the shared ES5 model (js/shared/noiz_dsp_model.js),
+// the same code the device UI uses for its waveform/spectrum preview.
+const vm = require("vm");
+const MODEL = vm.createContext({});
+vm.runInContext(fs.readFileSync(path.join(ROOT, "js", "shared", "noiz_dsp_model.js"), "utf8"), MODEL);
 function renderHit(voiceName, snd, sy, amp, pan, seed) {
-  const v = MAP.voices[voiceName];
-  const CH = MAP.character[voiceName];
-  const decayMs = Math.max(MAP.envelope.minDecayMs, expMap(v.decayMs, snd.decay));
-  const attMs = expMap(MAP.envelope.attackMs, sy.attack);
-  const q = MAP.reso.q[0] + (MAP.reso.q[1] - MAP.reso.q[0]) * sy.reso;
-  const n = Math.ceil(((attMs + decayMs) / 1000) * SR) + 64;
-  const out = [new Float32Array(n), new Float32Array(n)];
-  const chans = v.stereo.startsWith("decorrelated") ? 2 : 1;
-  const tex = snd.texture, T = MAP.texture, c = sy.character;
-  const g = 1 + snd.drive * MAP.drive.gainMax, comp = Math.pow(g, -(+process.env.NOIZ_COMP_EXP || MAP.drive.compExp));
-  const f = expMap(v.toneHz, snd.tone);
-  const isDust = voiceName === "DUST";
-  const ratioK = voiceName === "METAL" ? CH.range[0] + (CH.range[1] - CH.range[0]) * c : 1;
-  for (let ch = 0; ch < chans; ch++) {
-    const white = makeNoise(seed * 2 + ch + 1), pink = makePink(makeNoise(seed * 7 + ch + 3));
-    const crk = makeNoise(seed * 13 + ch + 5), crkAmp = makeNoise(seed * 17 + ch + 9);
-    const filt = makeSvf(voiceName === "METAL" ? f * v.noiseBpRatio : f, voiceName === "METAL" ? 0.7 : q);
-    const dens = isDust ? CH.dens[0] + (CH.dens[1] - CH.dens[0]) * c : T.crackleMaxDensity * tex;
-    const noiseG = isDust ? 1 - CH.noiseCut * c : 1;
-    const color = voiceName === "METAL" ? makeSvf(f * v.noiseBpRatio, q) : null;
-    const ph = (v.partialRatios || []).map(() => 0);
-    const sig = out[ch];
-    for (let i = 0; i < n; i++) {
-      const tMs = (i / SR) * 1000;
-      const lin = tMs < attMs ? tMs / attMs : Math.max(0, 1 - (tMs - attMs) / decayMs);
-      const env = amp * lin * lin;
-      if (env <= 0 && tMs > attMs) break;
-      let src = ((1 - tex) * white() * T.whiteGain + tex * pink() * T.pinkGain) * noiseG;
-      if (v.crackleGain > 0 && Math.abs(crk()) > 1 - dens) src += crkAmp() * v.crackleGain;
-      const fo = filt(src);
-      let x = v.filter === "hp" ? fo.hp : v.filter === "lp" ? fo.lp : fo.bp;
-      if (voiceName === "HISS") x = (1 - c) * fo.hp + c * fo.bp * CH.bpGain;
-      if (voiceName === "METAL") {
-        let part = 0;
-        for (let p = 0; p < ph.length; p++) {
-          ph[p] += (2 * Math.PI * f * (1 + (v.partialRatios[p] - 1) * ratioK)) / SR;
-          part += Math.sin(ph[p]) * v.partialGains[p];
-        }
-        x = (1 - tex) * part + tex * x * 2.5;
-        const k = sy.reso * MAP.metalColor.gain;
-        x = (x + color(x).bp * k) / (1 + MAP.metalColor.norm * k);
-      }
-      sig[i] = Math.tanh(g * x * env * v.outGain) * comp;
-    }
-  }
-  let L = out[0], R = chans === 2 ? out[1] : out[0];
-  if (chans === 2) { // ATMOS WIDTH: R = (1-w)L + wR
-    const R2 = new Float32Array(n);
-    for (let i = 0; i < n; i++) R2[i] = (1 - c) * L[i] + c * R[i];
-    R = R2;
-  }
-  const gl = Math.SQRT2 * Math.cos((pan * Math.PI) / 2), gr = Math.SQRT2 * Math.sin((pan * Math.PI) / 2);
-  const Lo = new Float32Array(n), Ro = new Float32Array(n);
-  for (let i = 0; i < n; i++) { Lo[i] = L[i] * gl; Ro[i] = R[i] * gr; }
-  return { L: Lo, R: Ro };
+  const p = Object.assign({}, snd, sy, { amp, pan });
+  const h = MODEL.noizModelHit(MAP, voiceName, p, SR, 0, seed);
+  return { L: Float32Array.from(h.L), R: Float32Array.from(h.R) };
 }
 
 // ---------- analysis ----------

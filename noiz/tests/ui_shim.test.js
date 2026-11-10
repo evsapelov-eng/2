@@ -69,7 +69,7 @@ function boot() {
       eng[sel](...args);
     }
   };
-  const draw = () => { mg.reset(); ui.paint(); };
+  const draw = () => { mg.reset(); ui.PREVIEW_MIN_MS = 0; ui.paint(); };
   return { eng, ui, mg, uiOut, send, draw, tasks };
 }
 
@@ -77,7 +77,7 @@ function boot() {
 const GRID_X = 172, GRID_Y = 22, CELL = 16, GAP = 3, ROW_H = 32;
 const cell = (t, s) => [GRID_X + s * (CELL + GAP) + 5, GRID_Y + t * ROW_H + 5];
 const seqNode = (m) => [528 + m * 45.6 + 22, 84 + 20];
-const synthNode = (n) => [130 + n * 62.2 + 30, 66 + 20];
+const synthNode = (n) => [130 + n * 62.2 + 30, 98 + 18];
 const click = (b, [x, y], opt = 0) => b.ui.onclick(x, y, 1, 0, 0, 0, opt, 0);
 const last = (b) => b.uiOut[b.uiOut.length - 1].slice(1);
 
@@ -98,7 +98,7 @@ test("simplified UI: removed controls are gone, M and L per voice work", () => {
   const b = boot();
   b.draw();
   const svg = b.mg.svg();
-  for (const gone of [">RHY<", ">SND<", ">PLK<", ">ALL<", "LK DENS", "LK AMT", ">DENS<", ">R<", ">S<", ">BASE<"]) {
+  for (const gone of [">RHY<", ">SND<", ">PLK<", ">ALL<", "LK DENS", "LK AMT", ">DENS<", ">R<", ">S<", ">BASE<", "ACTS ON"]) {
     assert.ok(!svg.includes(gone), "should be removed: " + gone);
   }
   const fx = GRID_X + 16 * (CELL + GAP) + 3;
@@ -121,7 +121,7 @@ test("node drag = one gesture: macro values while dragging, gesture 0 on mouse u
   b.ui.ondrag(nx, ny - 40, 0, 0, 0, 0, 0, 0);
   const sels = b.uiOut.map((m) => m[1]);
   deq(b.uiOut[0].slice(1), ["gesture", 1]);
-  assert.strictEqual(sels.filter((x) => x === "macro").length, 21);
+  assert.strictEqual(sels.filter((x) => x === "param").length, 21);
   deq(last(b), ["gesture", 0]);
   b.send();
   assert.ok(JSON.parse(b.eng.getvalueof()).tracks[0].sound.tone > 0.9);
@@ -166,15 +166,15 @@ test("STEP mode left panel edits velocity / probability / ratchet", () => {
 test("SYNTH screen: tab switch, voice select, all 10 nodes write the right parameter", () => {
   const b = boot();
   b.draw();
-  click(b, [86, 58]);                     // SYNTH tab
+  click(b, [96, 58]);                     // SYNTH tab
   b.send(); b.draw();
-  assert.ok(b.mg.svg().includes("HISS  SYNTH"));
+  assert.ok(b.mg.svg().includes("HISS  /  BASE   SYNTH"));
   click(b, [30, 134]);                    // voice list: METAL (y = 104 + 2*15)
   b.send(); b.draw();
-  assert.ok(b.mg.svg().includes("METAL  SYNTH"));
+  assert.ok(b.mg.svg().includes("METAL  /  BASE   SYNTH"));
   assert.ok(b.mg.svg().includes("RATIO"), "METAL character label");
-  const expect = [["macro", "tone"], ["macro", "decay"], ["macro", "texture"], ["macro", "drive"], ["synth", "reso"],
-    ["synth", "attack"], ["synth", "character"], ["macro", "pan"], ["synth", "spread"], ["level", null]];
+  const expect = [["param", "tone"], ["param", "decay"], ["param", "texture"], ["param", "drive"], ["param", "reso"],
+    ["param", "attack"], ["param", "character"], ["param", "pan"], ["param", "spread"], ["level", null]];
   expect.forEach(([sel, key], n) => {
     const [nx, ny] = synthNode(n);
     b.ui.onclick(nx, ny, 1, 0, 0, 0, 0, 0);
@@ -199,24 +199,95 @@ test("SYNTH screen: tab switch, voice select, all 10 nodes write the right param
   fs.writeFileSync(path.join(OUT, "ui_preview_synth.svg"), b.mg.svg());
 });
 
-test("GENERATE on SYNTH screen changes sound, not rhythm; on SEQ changes rhythm, not sound", () => {
+test("GENERATE from the UI changes rhythm and sound together", () => {
   const b = boot();
   b.draw();
   const snap = () => JSON.parse(b.eng.getvalueof()).tracks;
   const rhythm = (ts) => JSON.stringify(ts.map((t) => t.steps.map((s) => s.on)));
   const sound = (ts) => JSON.stringify(ts.map((t) => [t.sound, t.synth]));
-  let before = snap();
-  click(b, [86, 58]); b.send(); b.draw();   // SYNTH
-  click(b, [540, 18]); b.send(); b.draw();   // GENERATE
-  let after = snap();
-  assert.strictEqual(rhythm(after), rhythm(before));
-  assert.notStrictEqual(sound(after), sound(before));
-  before = after;
-  click(b, [36, 58]); b.send(); b.draw();   // SEQ
+  const before = snap();
   click(b, [540, 18]); b.send(); b.draw();
-  after = snap();
+  const after = snap();
   assert.notStrictEqual(rhythm(after), rhythm(before));
-  assert.strictEqual(sound(after), sound(before));
+  assert.notStrictEqual(sound(after), sound(before));
+});
+
+test("SYNTH picture: every one of the 10 knobs changes the waveform/spectrum picture", () => {
+  const b = boot();
+  b.draw();
+  click(b, [96, 58]); b.send(); b.draw();          // SYNTH
+  const sig = () => {
+    const pv = b.ui.previewFor(JSON.parse(b.eng.getvalueof()).global, true);
+    let eL = 0, eR = 0;
+    pv.data.L.forEach((x) => { eL += x * x; }); pv.data.R.forEach((x) => { eR += x * x; });
+    return { n: pv.data.L.length, eL, eR, spec: pv.spec.map((x) => Math.log10(x + 1e-15)), zc: pv.data.L.slice(pv.start, pv.start + 220).reduce((a, x, i, arr) => a + (i && (x < 0) !== (arr[i - 1] < 0) ? 1 : 0), 0), t10: (() => { let a = 0; for (let i = 0; i < pv.data.L.length; i++) { a += pv.data.L[i] ** 2; if (a > eL * 0.1) return i; } return 0; })() };
+  };
+  const diff = (a, z) => Math.max(Math.abs(a.n - z.n) / Math.max(a.n, z.n), Math.abs(a.eL - z.eL) / Math.max(a.eL, z.eL),
+    Math.abs(a.eR - z.eR) / Math.max(a.eR, z.eR), a.spec.reduce((m, x, i) => Math.max(m, Math.abs(x - z.spec[i])), 0) / 3,
+    Math.abs(a.zc - z.zc) / Math.max(1, a.zc, z.zc), Math.abs(a.t10 - z.t10) / Math.max(1, a.t10, z.t10));
+  for (let t = 0; t < 4; t++) {
+    click(b, [30, 104 + t * 15]); b.send(); b.draw();
+    const ref = sig();
+    for (let n = 0; n < 10; n++) {
+      const [nx, ny] = synthNode(n);
+      const svg0 = b.mg.svg();
+      b.ui.onclick(nx, ny, 1, 0, 0, 0, 0, 0);
+      b.ui.ondrag(nx, ny - 300, 0, 0, 0, 0, 0, 0);     // to 100%
+      b.send(); b.draw();
+      if (n === 8) { // SPREAD acts across hits: shown by the pan/spread strip under the wave
+        const strip = (svg) => (svg.match(/stroke-width="3"[^>]*>/g) || []).join("") + (svg.match(/<path d="M[^"]*" fill="none" stroke="rgba\(244,244,240,0.45\)" stroke-width="3"\/>/g) || []).join("");
+        assert.notStrictEqual(strip(b.mg.svg()), strip(svg0), "spread strip did not change");
+        b.ui.ondblclick(nx, ny); b.send(); b.draw();
+        continue;
+      }
+      const d = diff(ref, sig());
+      assert.ok(d > 0.05, `voice ${t} knob ${n}: picture did not change (${d.toFixed(4)})`);
+      b.ui.ondblclick(nx, ny); b.send(); b.draw();      // back to default
+    }
+  }
+  fs.mkdirSync(OUT, { recursive: true });
+  fs.writeFileSync(path.join(OUT, "ui_preview_synth.svg"), b.mg.svg());
+});
+
+test("LANE screen: pick a parameter and draw per-step values across steps in one gesture", () => {
+  const b = boot();
+  b.draw();
+  click(b, [62, 58]); b.send(); b.draw();          // LANE
+  assert.ok(b.mg.svg().includes("PER STEP"));
+  click(b, [132 + 5 * 43 + 20, 14]); b.draw();     // RES
+  const colX = (s) => 136 + s * 38 + 10;
+  b.ui.onclick(colX(0), 80, 1, 0, 0, 0, 0, 0);       // top of column 1 = 100%
+  for (let s = 1; s < 8; s++) b.ui.ondrag(colX(s), 80 + s * 8, 1, 0, 0, 0, 0, 0);
+  b.ui.ondrag(colX(7), 140, 0, 0, 0, 0, 0, 0);
+  const gestures = b.uiOut.filter((m) => m[1] === "gesture").map((m) => m[2]);
+  deq(gestures, [1, 0]);
+  b.send(); b.draw();
+  let st = JSON.parse(b.eng.getvalueof());
+  const locks = st.tracks[0].steps.slice(0, 8).map((x) => x.pLocks.reso);
+  assert.ok(locks.every((v) => typeof v === "number"), "all 8 steps got a value: " + locks);
+  assert.ok(locks[0] > locks[5], "drawn slope");
+  assert.strictEqual(st.tracks[0].steps[8].pLocks.reso, undefined);
+  // option-click removes the value of one step
+  b.ui.onclick(colX(3), 100, 1, 0, 0, 0, 1, 0); b.send(); b.draw();
+  st = JSON.parse(b.eng.getvalueof());
+  assert.strictEqual(st.tracks[0].steps[3].pLocks.reso, undefined);
+  fs.mkdirSync(OUT, { recursive: true });
+  fs.writeFileSync(path.join(OUT, "ui_preview_lane.svg"), b.mg.svg());
+});
+
+test("SYNTH in STEP mode edits P-Locks of the selected step (incl. synth params)", () => {
+  const b = boot();
+  b.draw();
+  click(b, cell(1, 5), 1); b.send(); b.draw();      // option-click DUST step 6
+  click(b, [96, 58]); b.send(); b.draw();          // SYNTH keeps the step selection
+  assert.ok(b.mg.svg().includes("DUST  /  STEP 06"));
+  const [nx, ny] = synthNode(4);                     // RESO
+  b.ui.onclick(nx, ny, 1, 0, 0, 0, 0, 0);
+  b.ui.ondrag(nx, ny - 300, 0, 0, 0, 0, 0, 0);
+  b.send();
+  const t = JSON.parse(b.eng.getvalueof()).tracks[1];
+  assert.strictEqual(t.steps[5].pLocks.reso, 1);
+  assert.notStrictEqual(t.synth.reso, 1);
 });
 
 test("preview render of the SEQ screen (for review only)", () => {

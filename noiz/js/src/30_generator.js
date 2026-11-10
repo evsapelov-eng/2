@@ -141,12 +141,13 @@ function noizGenerateTrackSound(track, rng) {
 }
 
 // Weights for which macros a random P-Lock touches (avoid DRIVE everywhere).
-var NOIZ_LOCK_WEIGHTS = { tone: 0.3, decay: 0.27, texture: 0.16, drive: 0.07, pan: 0.2 };
+var NOIZ_LOCK_WEIGHTS = { tone: 0.2, decay: 0.18, texture: 0.11, drive: 0.05, pan: 0.15,
+  reso: 0.1, attack: 0.07, character: 0.09, spread: 0.05 };
 
 function noizRandomLockFor(track, step, rng, lockAmount) {
   var locks = {};
-  var nParams = rng.weighted([0.55, 0.3, 0.12, 0.03]) + 1;
-  var keys = NOIZ_MACROS.slice();
+  var nParams = rng.weighted([0.4, 0.32, 0.18, 0.1]) + 1;
+  var keys = NOIZ_LOCKABLE.slice();
   for (var n = 0; n < nParams; n++) {
     var w = [];
     for (var j = 0; j < keys.length; j++) w.push(NOIZ_LOCK_WEIGHTS[keys[j]]);
@@ -157,7 +158,7 @@ function noizRandomLockFor(track, step, rng, lockAmount) {
     var dev = rng.range(-lockAmount, lockAmount);
     if (k === "drive" && lockAmount < 0.8) dev = Math.min(dev, 0.35);
     if (k === "pan") dev = rng.range(-1, 1) * Math.min(0.5, lockAmount * 1.4); // audible placement
-    locks[k] = noizRound(noizClamp01(track.sound[k] + dev), 3);
+    locks[k] = noizRound(noizClamp01(noizBaseParam(track, k) + dev), 3);
   }
   return locks;
 }

@@ -135,8 +135,8 @@ test("BASE vs STEP mode: macro edits route to track sound or to the selected ste
 });
 
 test("trigger message: amp from velocity+level, effective sound, per-hit pan, voice synth", () => {
-  const ev = { trackId: 2, velocity: 1, levelDb: -6, pan: 0.25, synth: { reso: 0.4, attack: 0.1, character: 0.9, spread: 0 },
-    sound: { tone: 0.5, decay: 0.25, texture: 0.1, drive: 0, pan: 0.5 } };
+  const ev = { trackId: 2, velocity: 1, levelDb: -6, pan: 0.25,
+    sound: { tone: 0.5, decay: 0.25, texture: 0.1, drive: 0, pan: 0.5, reso: 0.4, attack: 0.1, character: 0.9, spread: 0 } };
   const m = C.noizEventToTrigger(ev);
   assert.strictEqual(m.length, 10);
   assert.strictEqual(m[0], 2);
@@ -167,4 +167,41 @@ test("SYNTH params: setSynth/resetSynth with one undo entry each; hold locks rhy
   assert.strictEqual(e.undoStack.length, 2);
   e.setHold(3, true);
   assert.ok(e.state.tracks[3].locks.rhythm && e.state.tracks[3].locks.sound);
+});
+
+test("every sound AND synth parameter can be locked per step and reaches the trigger of that step only", () => {
+  const e = new C.NoizEngine();
+  const t = e.state.tracks[1];
+  t.steps.forEach((st) => { st.on = true; st.probability = 1; st.ratchet = 1; st.pLocks = {}; });
+  e.setGlobal("selectedTrack", 1);
+  e.setGlobal("selectedStep", 3);
+  for (const [k, v] of [["reso", 0.99], ["attack", 0.8], ["character", 0.05], ["spread", 0], ["tone", 0.1]]) e.setParam(k, v);
+  const ev = C.noizEventsInRange(e.state, 0, 4).filter((x) => x.trackId === 1);
+  for (const x of ev) {
+    const m = C.noizEventToTrigger(x);
+    if (x.stepIndex === 3) deq([m[2], m[7], m[8], m[9]], [0.1, 0.99, 0.8, 0.05]);
+    else deq([m[2], m[7], m[8], m[9]], [t.sound.tone, t.synth.reso, t.synth.attack, t.synth.character]);
+  }
+  // base values untouched
+  deq(t.synth, C.NOIZ_DEFAULT_SYNTH[1]);
+  // BASE mode routes synth keys to the voice, sound keys to sound
+  e.setGlobal("selectedStep", -1);
+  e.setParam("reso", 0.3); e.setParam("drive", 0.7);
+  assert.strictEqual(t.synth.reso, 0.3);
+  assert.strictEqual(t.sound.drive, 0.7);
+  e.resetParam("reso");
+  assert.strictEqual(t.synth.reso, C.NOIZ_DEFAULT_SYNTH[1].reso);
+});
+
+test("lane drawing: one gesture writes a parameter across many steps = one undo entry", () => {
+  const e = new C.NoizEngine();
+  e.beginGesture();
+  for (let s = 0; s < 16; s++) e.setLane(0, s, "pan", s / 15);
+  e.endGesture();
+  assert.strictEqual(e.undoStack.length, 1);
+  assert.strictEqual(e.state.tracks[0].steps[15].pLocks.pan, 1);
+  e.clearLock(0, 15, "pan");
+  assert.strictEqual(e.state.tracks[0].steps[15].pLocks.pan, undefined);
+  e.undo(); e.undo();
+  assert.strictEqual(Object.keys(e.state.tracks[0].steps[5].pLocks).length, 0);
 });

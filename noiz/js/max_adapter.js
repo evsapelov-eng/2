@@ -15,6 +15,8 @@
 //   macro <tone|decay|texture|drive|pan> <0..1>   macroreset <key>   (BASE or STEP P-Lock)
 //   synth <reso|attack|character|spread> <0..1>   synthreset <key>  (selected voice)
 //   hold <track> <0|1>  (lock rhythm + sound together)
+//   param <key> <0..1>  paramreset <key>   any of tone decay texture drive pan reso attack character spread
+//   lane <track> <step> <key> <0..1>   clearlock <track> <step> <key>
 //   gesture <1|0>   clearsteplocks   cleartracklocks   motion <0|1>
 //   bang (re-send UI state)   dump (post state JSON to the Max Console)
 //
@@ -130,6 +132,12 @@ function density(t, v) { engine.setDensity(t, v); }
 function level(t, db) { engine.setLevel(t, db); }
 function mute(t, v) { engine.setMute(t, v); }
 function hold(t, v) { engine.setHold(t, v); }
+// any lockable parameter, BASE or STEP P-Lock depending on the selected step
+function param(key, v) { engine.setParam(String(key), v); }
+function paramreset(key) { engine.resetParam(String(key)); }
+// LANE screen: draw / clear one parameter on a given step
+function lane(t, s, key, v) { engine.setLane(t, s, String(key), v); }
+function clearlock(t, s, key) { engine.clearLock(t, s, String(key)); }
 function synth(key, v) { engine.setSynth(engine.state.global.selectedTrack, String(key), v); }
 function synthreset(key) { engine.resetSynth(engine.state.global.selectedTrack, String(key)); }
 function lockr(t, v) { engine.setLock(t, "rhythm", v); }

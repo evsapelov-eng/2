@@ -87,16 +87,18 @@ function noizShallowKeys(o) {
 var NOIZ_SCHEMA_VERSION = 2;
 var NOIZ_MAX_STEPS = 32;
 var NOIZ_TRACK_NAMES = ["HISS", "DUST", "METAL", "ATMOS"];
-// Lockable per step (P-Locks). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
+// Base sound params (track.sound). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
 var NOIZ_MACROS = ["tone", "decay", "texture", "drive", "pan"];
 // Per-voice synth parameters (SYNTH screen), not lockable.
 //   reso: filter resonance \u00b7 attack: envelope attack time
 //   character: per-voice meaning \u2014 HISS body, DUST grain, METAL ratio, ATMOS width
 //   spread: per-hit random stereo placement around pan (ratchets sweep across)
 var NOIZ_SYNTH = ["reso", "attack", "character", "spread"];
+// Every sound/synth parameter can be locked per step (P-Locks).
+var NOIZ_LOCKABLE = NOIZ_MACROS.concat(NOIZ_SYNTH);
 // PATTERN = rhythm + P-Locks (SEQ screen); SOUND = voice sound incl. synth (SYNTH screen).
 var NOIZ_SCOPES = ["RHYTHM", "SOUND", "PLOCKS", "ALL", "PATTERN"];
-var NOIZ_VIEWS = ["SEQUENCE", "SOUND"];
+var NOIZ_VIEWS = ["SEQUENCE", "SOUND", "LANES"];
 var NOIZ_MAX_RATCHET = 8;
 var NOIZ_MAX_DIV = 8;
 
@@ -193,8 +195,8 @@ function noizEnum(v, list, def) { return list.indexOf(v) >= 0 ? v : def; }
 function noizNormalizePLocks(raw) {
   var out = {};
   if (!raw || typeof raw !== "object") return out;
-  for (var i = 0; i < NOIZ_MACROS.length; i++) {
-    var k = NOIZ_MACROS[i];
+  for (var i = 0; i < NOIZ_LOCKABLE.length; i++) {
+    var k = NOIZ_LOCKABLE[i];
     // Absence differs from 0: only finite numbers become locks.
     if (Object.prototype.hasOwnProperty.call(raw, k) && noizIsNum(raw[k])) out[k] = noizClamp01(raw[k]);
   }
@@ -292,13 +294,18 @@ function noizValidateAndNormalize(raw) {
   };
 }
 
-// Effective sound of an event: {...track.sound, ...step.pLocks}. Pure.
+// Base value of any lockable parameter of a track.
+function noizBaseParam(track, k) {
+  return NOIZ_SYNTH.indexOf(k) >= 0 ? track.synth[k] : track.sound[k];
+}
+
+// Effective sound of an event: {...track.sound, ...track.synth, ...step.pLocks}. Pure.
 function noizEffectiveSound(track, step) {
   var out = {};
-  for (var i = 0; i < NOIZ_MACROS.length; i++) {
-    var k = NOIZ_MACROS[i];
+  for (var i = 0; i < NOIZ_LOCKABLE.length; i++) {
+    var k = NOIZ_LOCKABLE[i];
     out[k] = (step && step.pLocks && Object.prototype.hasOwnProperty.call(step.pLocks, k))
-      ? step.pLocks[k] : track.sound[k];
+      ? step.pLocks[k] : noizBaseParam(track, k);
   }
   return out;
 }
@@ -400,9 +407,9 @@ function noizProbabilityPasses(seed, trackId, cycleIndex, stepIndex, probability
 //  - single hit: f(seed, track, cycle, step) in [-spread, +spread]
 //  - ratchet: sub-hits sweep across the field (direction chosen per step) \u2192 fast pans
 var NOIZ_EVENT_KIND_PAN = 3;
-function noizHitPan(seed, track, cycleIndex, stepIndex, ratchetIndex, ratchetCount, basePan) {
+function noizHitPan(seed, track, cycleIndex, stepIndex, ratchetIndex, ratchetCount, basePan, spread) {
   var p = basePan * 2 - 1;
-  var sp = track.synth ? track.synth.spread : 0;
+  var sp = spread || 0;
   if (sp > 0) {
     var h = noizHash01([seed, track.id, cycleIndex, stepIndex, NOIZ_EVENT_KIND_PAN]);
     if (ratchetCount > 1) {
@@ -468,8 +475,7 @@ function noizEventsInRange(state, a, b, opts) {
           ratchetCount: r,
           velocity: st.velocity,
           sound: snd,
-          synth: tr.synth,
-          pan: noizHitPan(seed, tr, cyc, idx, i, r, snd.pan),
+          pan: noizHitPan(seed, tr, cyc, idx, i, r, snd.pan, snd.spread),
           levelDb: tr.levelDb
         });
       }
@@ -726,12 +732,13 @@ function noizGenerateTrackSound(track, rng) {
 }
 
 // Weights for which macros a random P-Lock touches (avoid DRIVE everywhere).
-var NOIZ_LOCK_WEIGHTS = { tone: 0.3, decay: 0.27, texture: 0.16, drive: 0.07, pan: 0.2 };
+var NOIZ_LOCK_WEIGHTS = { tone: 0.2, decay: 0.18, texture: 0.11, drive: 0.05, pan: 0.15,
+  reso: 0.1, attack: 0.07, character: 0.09, spread: 0.05 };
 
 function noizRandomLockFor(track, step, rng, lockAmount) {
   var locks = {};
-  var nParams = rng.weighted([0.55, 0.3, 0.12, 0.03]) + 1;
-  var keys = NOIZ_MACROS.slice();
+  var nParams = rng.weighted([0.4, 0.32, 0.18, 0.1]) + 1;
+  var keys = NOIZ_LOCKABLE.slice();
   for (var n = 0; n < nParams; n++) {
     var w = [];
     for (var j = 0; j < keys.length; j++) w.push(NOIZ_LOCK_WEIGHTS[keys[j]]);
@@ -742,7 +749,7 @@ function noizRandomLockFor(track, step, rng, lockAmount) {
     var dev = rng.range(-lockAmount, lockAmount);
     if (k === "drive" && lockAmount < 0.8) dev = Math.min(dev, 0.35);
     if (k === "pan") dev = rng.range(-1, 1) * Math.min(0.5, lockAmount * 1.4); // audible placement
-    locks[k] = noizRound(noizClamp01(track.sound[k] + dev), 3);
+    locks[k] = noizRound(noizClamp01(noizBaseParam(track, k) + dev), 3);
   }
   return locks;
 }
@@ -1002,9 +1009,9 @@ NoizEngine.prototype._nextSeed = function () {
 };
 
 // Scope follows the screen: SEQ \u2192 PATTERN (rhythm + P-Locks), SYNTH \u2192 SOUND.
-NoizEngine.prototype.contextScope = function () {
-  return this.state.global.activeView === "SOUND" ? "SOUND" : "PATTERN";
-};
+// v0.3: GENERATE / MUTATE change everything (rhythm, sound, synth, per-step locks)
+// on every screen; the L switch protects a voice.
+NoizEngine.prototype.contextScope = function () { return "ALL"; };
 
 NoizEngine.prototype._opts = function () {
   return { lockDensity: this.state.global.lockDensity, lockAmount: this.state.global.lockAmount };
@@ -1131,9 +1138,33 @@ NoizEngine.prototype.resetSynth = function (t, key) {
   if (NOIZ_SYNTH.indexOf(key) < 0) return;
   this.setSynth(t, key, NOIZ_DEFAULT_SYNTH[noizClamp(t | 0, 0, 3)][key]);
 };
+// Any lockable parameter, routed by BASE/STEP mode (the one call the UI uses).
+NoizEngine.prototype.setParam = function (key, v) {
+  var g = this.state.global;
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
+  if (g.selectedStep >= 0) this.setPLock(g.selectedTrack, g.selectedStep, key, v);
+  else if (NOIZ_SYNTH.indexOf(key) >= 0) this.setSynth(g.selectedTrack, key, v);
+  else this.setSound(g.selectedTrack, key, v);
+};
+NoizEngine.prototype.resetParam = function (key) {
+  var g = this.state.global;
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
+  if (g.selectedStep >= 0) {
+    var self = this;
+    this._edit(function () { delete self._step(g.selectedTrack, g.selectedStep).pLocks[key]; }, "plock");
+  } else if (NOIZ_SYNTH.indexOf(key) >= 0) this.resetSynth(g.selectedTrack, key);
+  else this.setSound(g.selectedTrack, key, NOIZ_DEFAULT_SOUND[g.selectedTrack][key]);
+};
+// Draw one parameter over several steps in one gesture (LANES screen).
+NoizEngine.prototype.setLane = function (t, s, key, v) { this.setPLock(t, s, key, v); };
+NoizEngine.prototype.clearLock = function (t, s, key) {
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
+  this._edit(function () { delete this._step(t, s).pLocks[key]; }, "plock");
+};
+
 // P-Lock (STEP mode) \u2014 only the selected step.
 NoizEngine.prototype.setPLock = function (t, s, key, v) {
-  if (NOIZ_MACROS.indexOf(key) < 0) return;
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
   this._edit(function () { this._step(t, s).pLocks[key] = noizClamp01(+v); }, "plock");
 };
 NoizEngine.prototype.clearStepLocks = function (t, s) {
@@ -1242,10 +1273,11 @@ NoizEngine.prototype.restore = function (text) {
 // Layout (10 values): track amp tone decay texture drive pan reso attack character
 function noizEventToTrigger(ev) {
   var amp = Math.pow(noizClamp01(ev.velocity), 1.5) * noizDbToAmp(ev.levelDb);
-  var sy = ev.synth || NOIZ_DEFAULT_SYNTH[ev.trackId];
-  return [ev.trackId, noizRound(amp, 5), noizRound(ev.sound.tone, 4), noizRound(ev.sound.decay, 4),
-    noizRound(ev.sound.texture, 4), noizRound(ev.sound.drive, 4), noizRound(ev.pan === undefined ? 0.5 : ev.pan, 4),
-    noizRound(sy.reso, 4), noizRound(sy.attack, 4), noizRound(sy.character, 4)];
+  var s = ev.sound, d = NOIZ_DEFAULT_SYNTH[ev.trackId];
+  var syn = function (k) { return noizIsNum(s[k]) ? s[k] : d[k]; };
+  return [ev.trackId, noizRound(amp, 5), noizRound(s.tone, 4), noizRound(s.decay, 4),
+    noizRound(s.texture, 4), noizRound(s.drive, 4), noizRound(ev.pan === undefined ? 0.5 : ev.pan, 4),
+    noizRound(syn("reso"), 4), noizRound(syn("attack"), 4), noizRound(syn("character"), 4)];
 }
 
 // ---- js/max_adapter.js ----
@@ -1266,6 +1298,8 @@ function noizEventToTrigger(ev) {
 //   macro <tone|decay|texture|drive|pan> <0..1>   macroreset <key>   (BASE or STEP P-Lock)
 //   synth <reso|attack|character|spread> <0..1>   synthreset <key>  (selected voice)
 //   hold <track> <0|1>  (lock rhythm + sound together)
+//   param <key> <0..1>  paramreset <key>   any of tone decay texture drive pan reso attack character spread
+//   lane <track> <step> <key> <0..1>   clearlock <track> <step> <key>
 //   gesture <1|0>   clearsteplocks   cleartracklocks   motion <0|1>
 //   bang (re-send UI state)   dump (post state JSON to the Max Console)
 //
@@ -1381,6 +1415,12 @@ function density(t, v) { engine.setDensity(t, v); }
 function level(t, db) { engine.setLevel(t, db); }
 function mute(t, v) { engine.setMute(t, v); }
 function hold(t, v) { engine.setHold(t, v); }
+// any lockable parameter, BASE or STEP P-Lock depending on the selected step
+function param(key, v) { engine.setParam(String(key), v); }
+function paramreset(key) { engine.resetParam(String(key)); }
+// LANE screen: draw / clear one parameter on a given step
+function lane(t, s, key, v) { engine.setLane(t, s, String(key), v); }
+function clearlock(t, s, key) { engine.clearLock(t, s, String(key)); }
 function synth(key, v) { engine.setSynth(engine.state.global.selectedTrack, String(key), v); }
 function synthreset(key) { engine.resetSynth(engine.state.global.selectedTrack, String(key)); }
 function lockr(t, v) { engine.setLock(t, "rhythm", v); }

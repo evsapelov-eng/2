@@ -62,9 +62,9 @@ NoizEngine.prototype._nextSeed = function () {
 };
 
 // Scope follows the screen: SEQ → PATTERN (rhythm + P-Locks), SYNTH → SOUND.
-NoizEngine.prototype.contextScope = function () {
-  return this.state.global.activeView === "SOUND" ? "SOUND" : "PATTERN";
-};
+// v0.3: GENERATE / MUTATE change everything (rhythm, sound, synth, per-step locks)
+// on every screen; the L switch protects a voice.
+NoizEngine.prototype.contextScope = function () { return "ALL"; };
 
 NoizEngine.prototype._opts = function () {
   return { lockDensity: this.state.global.lockDensity, lockAmount: this.state.global.lockAmount };
@@ -191,9 +191,33 @@ NoizEngine.prototype.resetSynth = function (t, key) {
   if (NOIZ_SYNTH.indexOf(key) < 0) return;
   this.setSynth(t, key, NOIZ_DEFAULT_SYNTH[noizClamp(t | 0, 0, 3)][key]);
 };
+// Any lockable parameter, routed by BASE/STEP mode (the one call the UI uses).
+NoizEngine.prototype.setParam = function (key, v) {
+  var g = this.state.global;
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
+  if (g.selectedStep >= 0) this.setPLock(g.selectedTrack, g.selectedStep, key, v);
+  else if (NOIZ_SYNTH.indexOf(key) >= 0) this.setSynth(g.selectedTrack, key, v);
+  else this.setSound(g.selectedTrack, key, v);
+};
+NoizEngine.prototype.resetParam = function (key) {
+  var g = this.state.global;
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
+  if (g.selectedStep >= 0) {
+    var self = this;
+    this._edit(function () { delete self._step(g.selectedTrack, g.selectedStep).pLocks[key]; }, "plock");
+  } else if (NOIZ_SYNTH.indexOf(key) >= 0) this.resetSynth(g.selectedTrack, key);
+  else this.setSound(g.selectedTrack, key, NOIZ_DEFAULT_SOUND[g.selectedTrack][key]);
+};
+// Draw one parameter over several steps in one gesture (LANES screen).
+NoizEngine.prototype.setLane = function (t, s, key, v) { this.setPLock(t, s, key, v); };
+NoizEngine.prototype.clearLock = function (t, s, key) {
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
+  this._edit(function () { delete this._step(t, s).pLocks[key]; }, "plock");
+};
+
 // P-Lock (STEP mode) — only the selected step.
 NoizEngine.prototype.setPLock = function (t, s, key, v) {
-  if (NOIZ_MACROS.indexOf(key) < 0) return;
+  if (NOIZ_LOCKABLE.indexOf(key) < 0) return;
   this._edit(function () { this._step(t, s).pLocks[key] = noizClamp01(+v); }, "plock");
 };
 NoizEngine.prototype.clearStepLocks = function (t, s) {
@@ -302,8 +326,9 @@ NoizEngine.prototype.restore = function (text) {
 // Layout (10 values): track amp tone decay texture drive pan reso attack character
 function noizEventToTrigger(ev) {
   var amp = Math.pow(noizClamp01(ev.velocity), 1.5) * noizDbToAmp(ev.levelDb);
-  var sy = ev.synth || NOIZ_DEFAULT_SYNTH[ev.trackId];
-  return [ev.trackId, noizRound(amp, 5), noizRound(ev.sound.tone, 4), noizRound(ev.sound.decay, 4),
-    noizRound(ev.sound.texture, 4), noizRound(ev.sound.drive, 4), noizRound(ev.pan === undefined ? 0.5 : ev.pan, 4),
-    noizRound(sy.reso, 4), noizRound(sy.attack, 4), noizRound(sy.character, 4)];
+  var s = ev.sound, d = NOIZ_DEFAULT_SYNTH[ev.trackId];
+  var syn = function (k) { return noizIsNum(s[k]) ? s[k] : d[k]; };
+  return [ev.trackId, noizRound(amp, 5), noizRound(s.tone, 4), noizRound(s.decay, 4),
+    noizRound(s.texture, 4), noizRound(s.drive, 4), noizRound(ev.pan === undefined ? 0.5 : ev.pan, 4),
+    noizRound(syn("reso"), 4), noizRound(syn("attack"), 4), noizRound(syn("character"), 4)];
 }

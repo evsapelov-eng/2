@@ -37,9 +37,9 @@ function noizProbabilityPasses(seed, trackId, cycleIndex, stepIndex, probability
 //  - single hit: f(seed, track, cycle, step) in [-spread, +spread]
 //  - ratchet: sub-hits sweep across the field (direction chosen per step) → fast pans
 var NOIZ_EVENT_KIND_PAN = 3;
-function noizHitPan(seed, track, cycleIndex, stepIndex, ratchetIndex, ratchetCount, basePan) {
+function noizHitPan(seed, track, cycleIndex, stepIndex, ratchetIndex, ratchetCount, basePan, spread) {
   var p = basePan * 2 - 1;
-  var sp = track.synth ? track.synth.spread : 0;
+  var sp = spread || 0;
   if (sp > 0) {
     var h = noizHash01([seed, track.id, cycleIndex, stepIndex, NOIZ_EVENT_KIND_PAN]);
     if (ratchetCount > 1) {
@@ -105,8 +105,7 @@ function noizEventsInRange(state, a, b, opts) {
           ratchetCount: r,
           velocity: st.velocity,
           sound: snd,
-          synth: tr.synth,
-          pan: noizHitPan(seed, tr, cyc, idx, i, r, snd.pan),
+          pan: noizHitPan(seed, tr, cyc, idx, i, r, snd.pan, snd.spread),
           levelDb: tr.levelDb
         });
       }

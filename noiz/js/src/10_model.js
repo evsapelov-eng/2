@@ -4,16 +4,18 @@
 var NOIZ_SCHEMA_VERSION = 2;
 var NOIZ_MAX_STEPS = 32;
 var NOIZ_TRACK_NAMES = ["HISS", "DUST", "METAL", "ATMOS"];
-// Lockable per step (P-Locks). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
+// Base sound params (track.sound). pan: 0 = hard left, 0.5 = centre, 1 = hard right.
 var NOIZ_MACROS = ["tone", "decay", "texture", "drive", "pan"];
 // Per-voice synth parameters (SYNTH screen), not lockable.
 //   reso: filter resonance · attack: envelope attack time
 //   character: per-voice meaning — HISS body, DUST grain, METAL ratio, ATMOS width
 //   spread: per-hit random stereo placement around pan (ratchets sweep across)
 var NOIZ_SYNTH = ["reso", "attack", "character", "spread"];
+// Every sound/synth parameter can be locked per step (P-Locks).
+var NOIZ_LOCKABLE = NOIZ_MACROS.concat(NOIZ_SYNTH);
 // PATTERN = rhythm + P-Locks (SEQ screen); SOUND = voice sound incl. synth (SYNTH screen).
 var NOIZ_SCOPES = ["RHYTHM", "SOUND", "PLOCKS", "ALL", "PATTERN"];
-var NOIZ_VIEWS = ["SEQUENCE", "SOUND"];
+var NOIZ_VIEWS = ["SEQUENCE", "SOUND", "LANES"];
 var NOIZ_MAX_RATCHET = 8;
 var NOIZ_MAX_DIV = 8;
 
@@ -110,8 +112,8 @@ function noizEnum(v, list, def) { return list.indexOf(v) >= 0 ? v : def; }
 function noizNormalizePLocks(raw) {
   var out = {};
   if (!raw || typeof raw !== "object") return out;
-  for (var i = 0; i < NOIZ_MACROS.length; i++) {
-    var k = NOIZ_MACROS[i];
+  for (var i = 0; i < NOIZ_LOCKABLE.length; i++) {
+    var k = NOIZ_LOCKABLE[i];
     // Absence differs from 0: only finite numbers become locks.
     if (Object.prototype.hasOwnProperty.call(raw, k) && noizIsNum(raw[k])) out[k] = noizClamp01(raw[k]);
   }
@@ -209,13 +211,18 @@ function noizValidateAndNormalize(raw) {
   };
 }
 
-// Effective sound of an event: {...track.sound, ...step.pLocks}. Pure.
+// Base value of any lockable parameter of a track.
+function noizBaseParam(track, k) {
+  return NOIZ_SYNTH.indexOf(k) >= 0 ? track.synth[k] : track.sound[k];
+}
+
+// Effective sound of an event: {...track.sound, ...track.synth, ...step.pLocks}. Pure.
 function noizEffectiveSound(track, step) {
   var out = {};
-  for (var i = 0; i < NOIZ_MACROS.length; i++) {
-    var k = NOIZ_MACROS[i];
+  for (var i = 0; i < NOIZ_LOCKABLE.length; i++) {
+    var k = NOIZ_LOCKABLE[i];
     out[k] = (step && step.pLocks && Object.prototype.hasOwnProperty.call(step.pLocks, k))
-      ? step.pLocks[k] : track.sound[k];
+      ? step.pLocks[k] : noizBaseParam(track, k);
   }
   return out;
 }

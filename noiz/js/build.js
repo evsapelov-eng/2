@@ -11,7 +11,9 @@ const ROOT = path.join(__dirname, "..");
 const OUT = path.join(ROOT, "max");
 
 function es5Check(file, text) {
-  const banned = [/\blet\s/, /\bconst\s/, /=>/, /\bclass\s/, /`/, /Math\.imul/, /\.\.\.[a-zA-Z_]/, /Math\.random/];
+  const banned = [/\blet\s/, /\bconst\s/, /=>/, /\bclass\s/, /`/, /Math\.imul/, /\.\.\.[a-zA-Z_]/, /Math\.random/,
+    /Math\.(tanh|log10|log2|sign|hypot|trunc|cbrt|fround|expm1|log1p)\b/, /Array\.from/, /\.includes\(/, /padStart/,
+    /Object\.assign/, /Number\.isFinite/, /\.findIndex\(/];
   const bad = banned.filter((re) => re.test(text.replace(/\/\/.*$/gm, "")));
   if (bad.length) throw new Error(`${file}: non-ES5/forbidden construct ${bad.join(", ")}`);
 }
@@ -30,9 +32,9 @@ fs.writeFileSync(path.join(OUT, "noiz_engine.js"), ascii(header + parts.join("\n
 const uiSrc = path.join(__dirname, "ui", "noiz_ui.js");
 if (fs.existsSync(uiSrc)) {
   const map = JSON.parse(fs.readFileSync(path.join(ROOT, "spec", "dsp_map.json"), "utf8"));
-  const unitMap = { envelope: map.envelope, character: map.character, voices: {} };
-  for (const [k, v] of Object.entries(map.voices)) unitMap.voices[k] = { toneHz: v.toneHz, decayMs: v.decayMs };
-  const t = "// injected from spec/dsp_map.json (display units only)\nvar NOIZ_DSP_MAP = " + JSON.stringify(unitMap) + ";\n\n" +
+  const strip = (o) => JSON.parse(JSON.stringify(o, (k, v) => (k === "_doc" ? undefined : v)));
+  const t = "// injected from spec/dsp_map.json (units + preview model)\nvar NOIZ_DSP_MAP = " + JSON.stringify(strip(map)) + ";\n\n" +
+    "// ---- js/shared/noiz_dsp_model.js ----\n" + fs.readFileSync(path.join(__dirname, "shared", "noiz_dsp_model.js"), "utf8") + "\n" +
     fs.readFileSync(uiSrc, "utf8");
   es5Check("noiz_ui.js", t);
   fs.writeFileSync(path.join(OUT, "noiz_ui.js"), ascii(header + t));
