@@ -69,6 +69,7 @@ def amp_env(P, x, y, decay_ms_box, attack_ms=None):
     P.connect(lg, 0, ge, 1)
     busy = P.obj("thispoly~", x + 160, y + 150)
     P.connect(lg, 0, busy, 0)
+    P._gate = lg   # gate signal (1 → 0 at the end of the note), reused by extra layers
     return ge
 
 
@@ -133,62 +134,36 @@ def finish(P, sig, amp_box, x, y, drive_boxes=None, out_gain=1.0):
     P.connect(va, 0, o, 0)
 
 
-def build_kick_like(name, with_click):
-    v = MAP["voices"][name]
+def lin_expr(r):
+    return "expr %s+%s*$f1" % (f(r[0]), f(r[1] - r[0]))
+
+
+def depth_expr(r):
+    """sweep semis range → *~ factor for the 2^x = dbtoa(6.0206 x) trick."""
+    return "expr (%s+%s*$f1)/12.*%s" % (f(r[0]), f(r[1] - r[0]), f(LN2_DB))
+
+
+def build_sub():
+    v = MAP["voices"]["SUB"]
     P = Patcher((40, 40, 1300, 900))
-    trig, prm, env = voice_head(P, name)
-    amp = prm  # outlet 0 of params = amp
+    trig, prm, env = voice_head(P, "SUB")   # params: tune decay sweep drive
     f0 = P.obj(expmap(v["tuneHz"]), 400, 150, 200)
     P.connect(prm, 1, f0, 0)
-    if name == "PUNCH":
-        depth = P.obj("expr (%s+%s*$f1)/12.*%s" % (f(v["sweepSemis"][0]), f(v["sweepSemis"][1] - v["sweepSemis"][0]), f(LN2_DB)), 620, 150, 220)
-        P.connect(prm, 2, depth, 0)
-        sw = P.obj("expr max(%s\\,%s-%s*$f1)*%s" % (f(v["sweepMs"]["min"]), f(v["sweepMs"]["a"]), f(v["sweepMs"]["b"]), f(TAU60)), 20, 300, 220)
-        P.connect(env, 2, sw, 0)
-        dec = P.obj(expmap(v["decayMs"]), 220, 300, 180)
-        P.connect(env, 3, dec, 0)
-        drv_t = P.obj("t f f", 860, 150, 50)
-        P.connect(prm, 4, drv_t, 0)
-        pre = P.obj("expr 1.+$f1*%s" % f(MAP["drive"]["gainMax"]), 860, 180, 120)
-        comp = P.obj("expr pow(1.+$f1*%s\\,-%s)" % (f(MAP["drive"]["gainMax"]), f(MAP["drive"]["compExp"])), 990, 180, 170)
-        P.connect(drv_t, 1, pre, 0); P.connect(drv_t, 0, comp, 0)
-        drive = (pre, comp)
-        osc = sweep_osc(P, 420, 300, trig_bang=trig_b(P, trig), f0_box=f0, depth_box_or_semis=depth, sweep_ms_box_or_const=sw)
-    else:  # SUB: fixed small sweep, no drive (tanh with gain 1 like the model)
-        dec = P.obj(expmap(v["decayMs"]), 220, 300, 180)
-        P.connect(env, 2, dec, 0)
-        drive = None
-        osc = sweep_osc(P, 420, 300, trig_bang=trig_b(P, trig), f0_box=f0, depth_box_or_semis=float(v["sweepSemis"]), sweep_ms_box_or_const=float(v["sweepMs"]))
+    depth = P.obj(depth_expr(v["sweepSemisRange"]), 620, 150, 220)
+    P.connect(prm, 3, depth, 0)
+    drv_t = P.obj("t f f", 860, 150, 50)
+    P.connect(prm, 4, drv_t, 0)
+    pre = P.obj(lin_expr(v["driveGain"]), 860, 180, 120)
+    comp = P.obj("expr pow(%s+%s*$f1\\,-0.3)" % (f(v["driveGain"][0]), f(v["driveGain"][1] - v["driveGain"][0])), 990, 180, 170)
+    P.connect(drv_t, 1, pre, 0); P.connect(drv_t, 0, comp, 0)
+    dec = P.obj(expmap(v["decayMs"]), 220, 300, 180)
+    P.connect(env, 2, dec, 0)
+    osc = sweep_osc(P, 420, 300, trig_bang=trig_b(P, trig), f0_box=f0, depth_box_or_semis=depth, sweep_ms_box_or_const=float(v["sweepMs"]))
     ge = amp_env(P, 20, 400, dec)
     body = P.obj("*~", 420, 520, 40)
-    P.connect(osc, 0, body, 0)
-    P.connect(ge, 0, body, 1)
-    sig = body
-    if with_click:
-        nz = P.obj("noise~", 700, 300)
-        hp = P.obj("svf~ %s 0.3" % f(v["clickHpHz"]), 700, 330)
-        P.connect(nz, 0, hp, 0)
-        cm = P.msg("1, 0 %s" % f(v["clickMs"]), 860, 300)
-        P.connect(trig_b(P, trig), 0, cm, 0)
-        cl = P.obj("line~", 860, 330, 50)
-        P.connect(cm, 0, cl, 0)
-        ce = P.obj("*~", 700, 370, 40)
-        P.connect(hp, 1, ce, 0)  # svf~ outlet 1 = highpass (VERIFY)
-        P.connect(cl, 0, ce, 1)
-        cg = P.obj("*~ 0.", 700, 400)
-        P.connect(ce, 0, cg, 0)
-        cgain = P.obj("expr $f1*%s" % f(v["clickGain"]), 1000, 150, 110)
-        P.connect(prm, 5, cgain, 0)
-        P.connect(cgain, 0, cg, 1)
-        mix = P.obj("+~", 420, 560, 40)
-        P.connect(body, 0, mix, 0); P.connect(cg, 0, mix, 1)
-        sig = mix
-    if drive is None:  # SUB: tanh(x) like the model (g = 1)
-        th = P.obj("tanh~", 420, 600)
-        P.connect(sig, 0, th, 0)
-        sig = th
-    finish(P, sig, amp, 420, 640, drive_boxes=drive, out_gain=v["outGain"])
-    return P.dump(os.path.join(OUT, "kore_voice_%s.maxpat" % name.lower().replace(" ", "")))
+    P.connect(osc, 0, body, 0); P.connect(ge, 0, body, 1)
+    finish(P, body, prm, 420, 560, drive_boxes=(pre, comp), out_gain=v["outGain"])
+    return P.dump(os.path.join(OUT, "kore_voice_sub.maxpat"))
 
 
 def trig_b(P, trig):
@@ -202,20 +177,24 @@ def trig_b(P, trig):
 def build_tom(name):
     v = MAP["voices"][name]
     P = Patcher((40, 40, 1300, 900))
-    trig, prm, env = voice_head(P, name)
+    trig, prm, env = voice_head(P, name)   # params: tune decay sweep tone snap
     f0 = P.obj(expmap(v["tuneHz"]), 400, 150, 200)
     P.connect(prm, 1, f0, 0)
+    depth = P.obj(depth_expr(v["sweepSemisRange"]), 620, 120, 220)
+    P.connect(prm, 3, depth, 0)
     tone_t = P.obj("t f f f", 620, 150, 70)
-    P.connect(prm, 3, tone_t, 0)
-    q = P.obj("expr %s+%s*$f1" % (f(v["q"][0]), f(v["q"][1] - v["q"][0])), 620, 180, 120)
+    P.connect(prm, 4, tone_t, 0)
+    q = P.obj(lin_expr(v["q"]), 620, 180, 120)
     sg = P.obj("expr 1.-0.6*$f1", 750, 180, 100)
     ng = P.obj("expr $f1*%s" % f(v["noiseGain"]), 860, 180, 100)
     P.connect(tone_t, 2, q, 0); P.connect(tone_t, 1, sg, 0); P.connect(tone_t, 0, ng, 0)
+    snapg = P.obj("expr $f1*%s" % f(v["snapGain"]), 980, 180, 110)
+    P.connect(prm, 5, snapg, 0)
     bpf = P.obj("* %s" % f(v["noiseBpRatio"]), 400, 180)
     P.connect(f0, 0, bpf, 0)
     dec = P.obj(expmap(v["decayMs"]), 220, 300, 180)
     P.connect(env, 2, dec, 0)
-    osc = sweep_osc(P, 420, 300, trig_bang=trig_b(P, trig), f0_box=f0, depth_box_or_semis=float(v["sweepSemis"]), sweep_ms_box_or_const=float(v["sweepMs"]))
+    osc = sweep_osc(P, 420, 300, trig_bang=trig_b(P, trig), f0_box=f0, depth_box_or_semis=depth, sweep_ms_box_or_const=float(v["sweepMs"]))
     sm = P.obj("*~ 1.", 420, 520)
     P.connect(osc, 0, sm, 0); P.connect(sg, 0, sm, 1)
     nz = P.obj("noise~", 700, 300)
@@ -228,23 +207,45 @@ def build_tom(name):
     ge = amp_env(P, 20, 400, dec)
     body = P.obj("*~", 420, 600, 40)
     P.connect(mix, 0, body, 0); P.connect(ge, 0, body, 1)
-    finish(P, body, prm, 420, 640, out_gain=v["outGain"])
+    # SNAP: the band-passed noise with its own very short exponential burst (not gated by DECAY)
+    t60 = v["snapTauMs"] * TAU60
+    sm_msg = P.msg("0, -60 %s -120 %s" % (f(t60), f(t60)), 860, 300)
+    P.connect(trig_b(P, trig), 0, sm_msg, 0)
+    sl = P.obj("line~", 860, 330, 50)
+    P.connect(sm_msg, 0, sl, 0)
+    sdb = P.obj("dbtoa~", 860, 360)
+    P.connect(sl, 0, sdb, 0)
+    s1 = P.obj("*~", 860, 400, 40)
+    P.connect(bp, 2, s1, 0); P.connect(sdb, 0, s1, 1)
+    s2 = P.obj("*~ 0.", 860, 430)
+    P.connect(s1, 0, s2, 0); P.connect(snapg, 0, s2, 1)
+    s3 = P.obj("*~", 860, 460, 40)
+    P.connect(s2, 0, s3, 0); P.connect(P._gate, 0, s3, 1)   # snap ends with the note
+    s2 = s3
+    tot = P.obj("+~", 420, 640, 40)
+    P.connect(body, 0, tot, 0); P.connect(s2, 0, tot, 1)
+    finish(P, tot, prm, 420, 680, out_gain=v["outGain"])
     return P.dump(os.path.join(OUT, "kore_voice_%s.maxpat" % name.lower().replace(" ", "")))
 
 
 def build_hat():
     v = MAP["voices"]["HAT"]
     P = Patcher((40, 40, 1100, 800))
-    trig, prm, env = voice_head(P, "HAT")
+    trig, prm, env = voice_head(P, "HAT")   # params: tone decay reso open ; list[6] = open articulation
     th = P.obj(expmap(v["toneHz"]), 400, 150, 200)
     P.connect(prm, 1, th, 0)
-    # decay with OPEN articulation: closed d, open d*openFactor  (open arrives first: unpack is right-to-left)
-    dec = P.obj("expr %s*pow(%s/%s\\,$f1)*(1.+%s*$f2)" % (f(v["decayMs"][0]), f(v["decayMs"][1]), f(v["decayMs"][0]), f(v["openFactor"] - 1)), 20, 300, 300)
+    q = P.obj(lin_expr(v["q"]), 620, 150, 120)
+    P.connect(prm, 3, q, 0)
+    # closed: decay ; open: decay * openFactor(OPEN)   ($f2 = articulation, $f3 = OPEN; both arrive first)
+    lo, hi = v["decayMs"]
+    o0, o1 = v["openFactor"]
+    dec = P.obj("expr %s*pow(%s/%s\\,$f1)*(1.+(%s+%s*$f3-1.)*$f2)" % (f(lo), f(hi), f(lo), f(o0), f(o1 - o0)), 20, 300, 360)
     P.connect(env, 6, dec, 1)
+    P.connect(env, 4, dec, 2)
     P.connect(env, 2, dec, 0)
     nz = P.obj("noise~", 420, 300)
-    hp = P.obj("svf~ 8000. %s" % f(v["q"]), 420, 330)
-    P.connect(nz, 0, hp, 0); P.connect(th, 0, hp, 1)
+    hp = P.obj("svf~ 8000. 0.3", 420, 330)
+    P.connect(nz, 0, hp, 0); P.connect(th, 0, hp, 1); P.connect(q, 0, hp, 2)
     ge = amp_env(P, 20, 400, dec, attack_ms=0.3)
     body = P.obj("*~", 420, 600, 40)
     P.connect(hp, 1, body, 0); P.connect(ge, 0, body, 1)
@@ -255,12 +256,12 @@ def build_hat():
 def build_rumble():
     v = MAP["voices"]["RUMBLE"]
     P = Patcher((40, 40, 1100, 800))
-    P.comment("KØRE RUMBLE bus (not per hit). In 1: PUNCH audio · In 2: RUMBLE step 'amp amount tail duck x x open' · "
-              "In 3: bang on every PUNCH hit (duck). Feedback bounded (fbMax).", 20, 8, 900)
-    i_sig = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": ["signal"], "patching_rect": [20, 40, 30, 30], "comment": "PUNCH audio"})
+    P.comment("KØRE RUMBLE bus (not per hit). In 1: kick audio · In 2: RUMBLE step 'amp amount tail duck tone drive open' · "
+              "In 3: kick proximity signal (1 at a kick → 0 after the release) for the duck. Feedback bounded (fbMax).", 20, 8, 1000)
+    i_sig = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": ["signal"], "patching_rect": [20, 40, 30, 30], "comment": "kick audio"})
     i_msg = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": [""], "patching_rect": [400, 40, 30, 30], "comment": "RUMBLE step"})
-    i_duck = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": [""], "patching_rect": [760, 40, 30, 30], "comment": "PUNCH hit"})
-    lp = P.obj("svf~ %s %s" % (f(v["lowpassHz"]), f(v["lowpassQ"])), 20, 90)
+    i_prox = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": ["signal"], "patching_rect": [760, 40, 30, 30], "comment": "kick proximity"})
+    lp = P.obj("svf~ 220. %s" % f(v["lowpassQ"]), 20, 90)
     P.connect(i_sig, 0, lp, 0)
     fbsum = P.obj("+~", 20, 130, 40)
     P.connect(lp, 0, fbsum, 0)
@@ -274,7 +275,7 @@ def build_rumble():
     P.connect(ts, 0, half, 0)
     fb = P.obj("*~ 0.", 180, 280)
     P.connect(half, 0, fb, 0)
-    P.connect(fb, 0, fbsum, 1)  # bounded feedback through tapin~/tapout~
+    P.connect(fb, 0, fbsum, 1)
     up = P.obj("unpack 0. 0. 0. 0. 0. 0. 0.", 400, 90, 260)
     P.connect(i_msg, 0, up, 0)
     avg = (v["tapsMs"][0] + v["tapsMs"][1]) / 2.0
@@ -293,30 +294,135 @@ def build_rumble():
     P.connect(up, 1, am, 0)
     al = P.obj("line~", 400, 280, 50)
     P.connect(am, 0, al, 0)
-    dstore = P.obj("f %s" % f(v.get("defaultDuck", 0.6)), 760, 130)
-    P.connect(up, 3, dstore, 1)
-    P.connect(i_duck, 0, dstore, 0)
-    dx = P.obj("expr 1.-$f1", 760, 160, 90)
-    P.connect(dstore, 0, dx, 0)
-    dm = P.msg("$1 %s 1 %s" % (f(v["duckAttackMs"]), f(v["duckReleaseMs"])), 760, 190)
-    P.connect(dx, 0, dm, 0)
-    dl = P.obj("line~", 760, 220, 50)
-    P.connect(dm, 0, dl, 0)
-    one = P.msg("1", 860, 190)
-    lb = P.obj("loadbang", 860, 160)
-    P.connect(lb, 0, one, 0)
-    P.connect(one, 0, dl, 0)
-    g1 = P.obj("*~", 20, 330, 40)
-    P.connect(half, 0, g1, 0); P.connect(gl, 0, g1, 1)
-    g2 = P.obj("*~", 20, 360, 40)
-    P.connect(g1, 0, g2, 0); P.connect(dl, 0, g2, 1)
-    g3 = P.obj("*~", 20, 390, 40)
+    lpf = P.obj(expmap(v["lowpassHz"]), 640, 130, 200)
+    P.connect(up, 4, lpf, 0)
+    P.connect(lpf, 0, lp, 1)
+    drv_t = P.obj("t f f", 860, 130, 50)
+    P.connect(up, 5, drv_t, 0)
+    pre = P.obj(expmap(v["driveGain"]), 860, 160, 180)
+    comp = P.obj("expr pow(%s*pow(%s/%s\\,$f1)\\,-0.3)" % (f(v["driveGain"][0]), f(v["driveGain"][1]), f(v["driveGain"][0])), 860, 190, 230)
+    P.connect(drv_t, 1, pre, 0); P.connect(drv_t, 0, comp, 0)
+    dpre = P.obj("*~ 1.", 20, 320)
+    dth = P.obj("tanh~", 20, 350)
+    dcomp = P.obj("*~ 1.", 20, 380)
+    P.connect(half, 0, dpre, 0); P.chain(dpre, dth, dcomp)
+    P.connect(pre, 0, dpre, 1); P.connect(comp, 0, dcomp, 1)
+    # duck from the kick proximity: g = 1 - duck * prox
+    dk = P.obj("*~ %s" % f(v["defaults"]["duck"]), 760, 250)
+    P.connect(i_prox, 0, dk, 0)
+    P.connect(up, 3, dk, 1)
+    dg = P.obj("!-~ 1.", 760, 280)
+    P.connect(dk, 0, dg, 0)
+    g1 = P.obj("*~", 20, 420, 40)
+    P.connect(dcomp, 0, g1, 0); P.connect(gl, 0, g1, 1)
+    g2 = P.obj("*~", 20, 450, 40)
+    P.connect(g1, 0, g2, 0); P.connect(dg, 0, g2, 1)
+    g3 = P.obj("*~", 20, 480, 40)
     P.connect(g2, 0, g3, 0); P.connect(al, 0, g3, 1)
-    wet = P.obj("*~ %s" % f(v["wetGain"]), 20, 420)
+    wet = P.obj("*~ %s" % f(v["wetGain"]), 20, 510)
     P.connect(g3, 0, wet, 0)
-    o = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [20, 460, 30, 30], "comment": "RUMBLE out"})
+    o = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [20, 550, 30, 30], "comment": "RUMBLE out"})
     P.connect(wet, 0, o, 0)
     return P.dump(os.path.join(OUT, "kore_rumble.maxpat"))
+
+
+def build_kick():
+    """Sample-accurate kick: transport-locked bar phase → 16 steps → on a step with a hit
+    (pattern buffer) hold step+amp (sah~); time since the hit (samples) indexes the
+    rendered kick buffer. Out 1: kick audio. Out 2: kick proximity (1 at the hit → 0
+    after the duck release) for the low-end coordinator."""
+    P = Patcher((40, 40, 1200, 900))
+    P.comment("KØRE kick player (signal domain, sample-accurate). Messages: set <buffer>, level <amp>, tempo <bpm>, "
+              "sr <rate>, playing <0|1>. Buffers ---kick_a/---kick_b (sound) and ---kpat (16-step pattern) are written by kore_engine.js.", 20, 8, 1100)
+    P.obj("buffer~ ---kick_a 2000", 900, 40, 200)
+    P.obj("buffer~ ---kick_b 2000", 900, 70, 200)
+    P.obj("buffer~ ---kpat 1", 900, 100, 200)
+    i_msg = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": [""], "patching_rect": [400, 40, 30, 30], "comment": "messages"})
+    rt = P.obj("route set level tempo sr playing", 400, 80, 260)
+    P.connect(i_msg, 0, rt, 0)
+    ph = P.obj("phasor~ 1n @lock 1", 20, 80, 150)
+    s16 = P.obj("*~ 16.", 20, 120)
+    P.connect(ph, 0, s16, 0)
+    step = P.obj("trunc~", 20, 150)
+    P.connect(s16, 0, step, 0)
+    frac = P.obj("-~", 120, 150, 40)
+    P.connect(s16, 0, frac, 0); P.connect(step, 0, frac, 1)
+    ch = P.obj("change~", 20, 180)
+    P.connect(step, 0, ch, 0)
+    bnd = P.obj("abs~", 20, 210)
+    P.connect(ch, 0, bnd, 0)
+    pat = P.obj("index~ ---kpat", 200, 180, 120)
+    P.connect(step, 0, pat, 0)
+    on = P.obj(">~ 0.", 200, 210)
+    P.connect(pat, 0, on, 0)
+    trg = P.obj("*~", 20, 240, 40)
+    P.connect(bnd, 0, trg, 0); P.connect(on, 0, trg, 1)
+    hs = P.obj("sah~ 0.5", 20, 270)
+    P.connect(step, 0, hs, 0); P.connect(trg, 0, hs, 1)
+    ha = P.obj("sah~ 0.5", 200, 270)
+    P.connect(pat, 0, ha, 0); P.connect(trg, 0, ha, 1)
+    ds = P.obj("-~", 20, 300, 40)
+    P.connect(step, 0, ds, 0); P.connect(hs, 0, ds, 1)
+    w1 = P.obj("+~ 16.", 20, 330)
+    P.connect(ds, 0, w1, 0)
+    w2 = P.obj("%~ 16.", 20, 360)
+    P.connect(w1, 0, w2, 0)
+    t16 = P.obj("+~", 20, 390, 40)
+    P.connect(w2, 0, t16, 0); P.connect(frac, 0, t16, 1)
+    tS = P.obj("*~ 6000.", 20, 420)       # × samples per 16th (from tempo and sr)
+    P.connect(t16, 0, tS, 0)
+    kb = P.obj("index~ ---kick_a", 20, 460, 140)
+    P.connect(tS, 0, kb, 0)
+    sp = P.obj("prepend set", 400, 120)
+    P.connect(rt, 0, sp, 0); P.connect(sp, 0, kb, 0)
+    va = P.obj("*~", 20, 500, 40)
+    P.connect(kb, 0, va, 0); P.connect(ha, 0, va, 1)
+    lm = P.msg("$1 20", 480, 120)
+    P.connect(rt, 1, lm, 0)
+    ll = P.obj("line~", 480, 150, 50)
+    P.connect(lm, 0, ll, 0)
+    vl = P.obj("*~", 20, 530, 40)
+    P.connect(va, 0, vl, 0); P.connect(ll, 0, vl, 1)
+    pm = P.msg("$1 10", 720, 120)
+    P.connect(rt, 4, pm, 0)
+    pl = P.obj("line~", 720, 150, 50)
+    P.connect(pm, 0, pl, 0)
+    vp = P.obj("*~", 20, 560, 40)
+    P.connect(vl, 0, vp, 0); P.connect(pl, 0, vp, 1)
+    o1 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [20, 600, 30, 30], "comment": "kick audio"})
+    P.connect(vp, 0, o1, 0)
+    # samples per 16th = sr*15/tempo ; 1/release in samples = 1000/(rel*sr)
+    tf = P.obj("f 120.", 560, 200)
+    P.connect(rt, 2, tf, 0)
+    srt = P.obj("t b f f", 640, 200, 70)
+    P.connect(rt, 3, srt, 0)
+    spx = P.obj("expr $f2*15./$f1", 560, 240, 140)
+    P.connect(tf, 0, spx, 0)
+    P.connect(srt, 2, spx, 1)
+    P.connect(srt, 0, tf, 0)
+    P.connect(spx, 0, tS, 1)
+    rel = MAP["lowEnd"]["duckReleaseMs"]
+    irx = P.obj("expr 1000./(%s*$f1)" % f(rel), 720, 240, 160)
+    P.connect(srt, 1, irx, 0)
+    lb = P.obj("loadbang", 900, 160)
+    dsr = P.msg("sr 48000.", 900, 190)
+    P.connect(lb, 0, dsr, 0); P.connect(dsr, 0, rt, 0)
+    # proximity = clip(1 - t/release) while a kick has played (ha > 0)
+    px = P.obj("*~ 0.", 300, 460)
+    P.connect(tS, 0, px, 0); P.connect(irx, 0, px, 1)
+    pr = P.obj("!-~ 1.", 300, 490)
+    P.connect(px, 0, pr, 0)
+    pc = P.obj("clip~ 0. 1.", 300, 520)
+    P.connect(pr, 0, pc, 0)
+    act = P.obj(">~ 0.", 420, 490)
+    P.connect(ha, 0, act, 0)
+    pa = P.obj("*~", 300, 550, 40)
+    P.connect(pc, 0, pa, 0); P.connect(act, 0, pa, 1)
+    pp = P.obj("*~", 300, 580, 40)
+    P.connect(pa, 0, pp, 0); P.connect(pl, 0, pp, 1)
+    o2 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [300, 620, 30, 30], "comment": "kick proximity"})
+    P.connect(pp, 0, o2, 0)
+    return P.dump(os.path.join(OUT, "kore_kick.maxpat"))
 
 
 # ---------------------------------------------------------------- main
@@ -359,7 +465,7 @@ def build_main():
           saved_attribute_attributes={"valueof": {"parameter_longname": "kore_state", "parameter_shortname": "state",
                                                   "parameter_type": 3, "parameter_invisible": 1, "parameter_initial_enable": 0}})
     # events → high-priority pipe → voices
-    rt = P.obj("route trig flush", 20, 360, 140)
+    rt = P.obj("route trig flush", 20, 360, 140)   # outlet 2 = everything else (kickbuf, kicklevel)
     P.connect(eng, 0, rt, 0)
     nv = 8  # track amp p0..p4 open
     up = P.obj("unpack 0" + " 0." * nv, 20, 400, 300)
@@ -375,65 +481,77 @@ def build_main():
     rv = P.obj("route 0 1 2 3 4 5", 20, 520, 200)
     P.connect(pk2, 0, rv, 0)
     voices = {}
-    specs = [(0, "punch", 6), (1, "sub", 3), (3, "toml", 4), (4, "tomh", 4), (5, "hat", 1)]
+    specs = [(1, "sub", 3), (3, "toml", 4), (4, "tomh", 4), (5, "hat", 1)]   # PUNCH: signal-domain player below
     for k, (idx, nm, n) in enumerate(specs):
-        x = 20 + k * 210
+        x = 240 + k * 210
         pn = P.obj("prepend note", x, 600)
-        if idx == 0:
-            tlb = P.obj("t l b", x, 560, 50)
-            P.connect(rv, 0, tlb, 0)
-            P.connect(tlb, 0, pn, 0)
-            voices["punch_hit"] = tlb
-        else:
-            P.connect(rv, idx, pn, 0)
+        P.connect(rv, idx, pn, 0)
         poly = P.obj("poly~ kore_voice_%s %d @steal 1" % (nm, n), x, 640, 200)
         P.connect(pn, 0, poly, 0)
         voices[nm] = poly
     P.comment("HAT = 1 instance + steal: a new hat retriggers the same envelope → closed chokes open", 1080, 680, 300)
-    # RUMBLE bus fed by PUNCH
+    # KICK: sample-accurate player (kore_kick) fed by the engine's buffers
+    kick = P.obj("kore_kick", 20, 640, 120)
+    kb = [b for b in P.boxes if b["box"]["id"] == kick][0]["box"]
+    kb.update({"numinlets": 1, "numoutlets": 2, "outlettype": ["signal", "signal"]})
+    kr = P.obj("route kickbuf kicklevel", 340, 400, 180)
+    P.connect(rt, 2, kr, 0)
+    ks = P.obj("prepend set", 340, 440)
+    kl = P.obj("prepend level", 460, 440)
+    P.connect(kr, 0, ks, 0); P.connect(kr, 1, kl, 0)
+    P.connect(ks, 0, kick, 0); P.connect(kl, 0, kick, 0)
+    ktempo = P.obj("prepend tempo", 200, 240)
+    P.connect(tr, 4, ktempo, 0); P.connect(ktempo, 0, kick, 0)
+    dsp = P.obj("dspstate~", 200, 560)
+    P.connect(lb, 0, dsp, 0)
+    ksr = P.obj("prepend sr", 200, 590)
+    P.connect(dsp, 1, ksr, 0); P.connect(ksr, 0, kick, 0); P.connect(ksr, 0, eng, 0)
+    bn = P.msg("bufnames ---kick_a ---kick_b ---kpat", 600, 40)
+    P.connect(dev, 0, bn, 0); P.connect(lb, 0, bn, 0); P.connect(bn, 0, eng, 0)
+    # RUMBLE bus fed by the kick
     rum = P.obj("kore_rumble", 1100, 600, 120)
     rum_box = [b for b in P.boxes if b["box"]["id"] == rum][0]["box"]
     rum_box.update({"numinlets": 3, "numoutlets": 1, "outlettype": ["signal"]})
-    P.connect(voices["punch"], 0, rum, 0)
+    P.connect(kick, 0, rum, 0)
     P.connect(rv, 2, rum, 1)
-    P.connect(voices["punch_hit"], 1, rum, 2)
-    # low-end coordinator: SUB duck on every PUNCH hit
+    P.connect(kick, 1, rum, 2)
+    # low-end coordinator: SUB duck from the kick proximity (sample-accurate)
     le = MAP["lowEnd"]
-    sdm = P.msg("%s %s 1 %s" % (f(1 - le["subDuckDepth"]), f(le["subDuckAttackMs"]), f(le["subDuckReleaseMs"])), 240, 700)
-    P.connect(voices["punch_hit"], 1, sdm, 0)
-    sdl = P.obj("line~", 240, 730, 50)
-    P.connect(sdm, 0, sdl, 0)
-    one = P.msg("1", 340, 700)
-    P.connect(lb, 0, one, 0); P.connect(one, 0, sdl, 0)
+    sd1 = P.obj("*~ %s" % f(le["subDuckDepth"]), 240, 700)
+    P.connect(kick, 1, sd1, 0)
+    sd2 = P.obj("!-~ 1.", 240, 730)
+    P.connect(sd1, 0, sd2, 0)
     subd = P.obj("*~", 240, 760, 40)
-    P.connect(voices["sub"], 0, subd, 0); P.connect(sdl, 0, subd, 1)
-    # mix → DC block → soft safety → plugout~ (mono low end on both channels)
-    srcs = [(voices["punch"], 0), (subd, 0), (rum, 0), (voices["toml"], 0), (voices["tomh"], 0), (voices["hat"], 0)]
+    P.connect(voices["sub"], 0, subd, 0); P.connect(sd2, 0, subd, 1)
+    srcs = [(kick, 0), (subd, 0), (rum, 0), (voices["toml"], 0), (voices["tomh"], 0), (voices["hat"], 0)]
     acc = srcs[0]
-    for j, s in enumerate(srcs[1:]):
-        a = P.obj("+~", 20 + j * 60, 820, 40)
-        P.connect(acc[0], acc[1], a, 0); P.connect(s[0], s[1], a, 1)
-        acc = (a, 0)
+    for j, s_ in enumerate(srcs[1:]):
+        a_ = P.obj("+~", 20 + j * 60, 820, 40)
+        P.connect(acc[0], acc[1], a_, 0); P.connect(s_[0], s_[1], a_, 1)
+        acc = (a_, 0)
     dc = P.obj("svf~ %s 0.05" % f(le["dcBlockHz"]), 20, 860)
     P.connect(acc[0], acc[1], dc, 0)
     md = P.obj("*~ %s" % f(MAP["master"]["drive"]), 20, 890)
     th = P.obj("tanh~", 20, 920)
     ce = P.obj("*~ %s" % f(MAP["master"]["ceiling"]), 20, 950)
-    P.connect(dc, 1, md, 0)  # highpass output
+    P.connect(dc, 1, md, 0)
     P.chain(md, th, ce)
     po = P.obj("plugout~", 20, 990)
     P.connect(ce, 0, po, 0); P.connect(ce, 0, po, 1)
-    # telemetry (UI only)
     pa = P.obj("peakamp~ 33", 200, 960)
     P.connect(ce, 0, pa, 0)
     pm1 = P.obj("prepend meter", 200, 990)
     P.connect(pa, 0, pm1, 0); P.connect(pm1, 0, eng, 0)
     pk_ = P.obj("peakamp~ 33", 360, 960)
-    P.connect(voices["punch"], 0, pk_, 0)
+    P.connect(kick, 0, pk_, 0)
     pm2 = P.obj("prepend kickmeter", 360, 990)
     P.connect(pk_, 0, pm2, 0); P.connect(pm2, 0, eng, 0)
     st = P.obj("route sync pending error", 260, 360, 180)
     P.connect(eng, 2, st, 0)
+    syu = P.obj("unpack 0 0.", 600, 400, 80)
+    P.connect(st, 0, syu, 0)
+    kpl = P.obj("prepend playing", 600, 430)
+    P.connect(syu, 0, kpl, 0); P.connect(kpl, 0, kick, 0)
     pr = P.obj("print KØRE", 420, 400)
     P.connect(st, 2, pr, 0)
     # UI: compact strip in the device + expanded editor in its own window (pcontrol open/close)
@@ -479,7 +597,6 @@ def editor_subpatcher(P, x, y):
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    files = [build_kick_like("PUNCH", True), build_kick_like("SUB", False), build_tom("TOM L"), build_tom("TOM H"),
-             build_hat(), build_rumble(), build_main()]
+    files = [build_kick(), build_sub(), build_tom("TOM L"), build_tom("TOM H"), build_hat(), build_rumble(), build_main()]
     for p in files:
         print("wrote", os.path.relpath(p, ROOT))

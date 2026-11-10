@@ -35,7 +35,8 @@ function makeShim(w, h) {
 function boot(mode) {
   const globals = {}, engOut = [], uiOut = [];
   const common = { post() {}, notifyclients() {}, arrayfromargs: (a) => Array.prototype.slice.call(a),
-    Global: function (n) { return (globals[n] = globals[n] || {}); }, Task: function (fn) { this.fn = fn; this.repeat = () => {}; this.cancel = () => {}; } };
+    Global: function (n) { return (globals[n] = globals[n] || {}); }, Task: function (fn) { this.fn = fn; this.repeat = () => {}; this.cancel = () => {}; this.schedule = () => {}; },
+    Buffer: function () { this.send = () => {}; this.poke = () => {}; } };
   const eng = vm.createContext(Object.assign({}, common, { outlet: (...a) => engOut.push(a) }));
   vm.runInContext(fs.readFileSync(path.join(MAXDIR, "kore_engine.js"), "utf8"), eng);
   const [w, h] = mode === "editor" ? [1200, 760] : [760, 169];
@@ -110,8 +111,9 @@ test("editor SOUND: every PUNCH node changes the waveform/pitch picture (model-d
   assert.ok(b.mg.svg().includes("PITCH vs TIME"));
   const sig = () => { const pv = b.ui.previewFor(b.state().global, true); return J([pv.data.L.length, pv.data.L.slice(0, 4000).map((x) => +x.toFixed(4)), (pv.data.pitch || []).slice(0, 2000).map((x) => +x.toFixed(2))]); };
   const ref = sig();
-  for (let n = 0; n < 5; n++) {
-    const x = 24 + n * 134 + 64, y = 460;
+  const nKeys = 8, nw = Math.min(134, 790 / (nKeys + 1));
+  for (let n = 0; n < nKeys; n++) {
+    const x = 24 + n * nw + nw / 2, y = 450;
     b.click(x, y); b.dragTo(x, 100); b.send(); b.draw();
     assert.notStrictEqual(sig(), ref, "node " + n + " did not change the picture");
     b.ui.ondblclick(x, y); b.send(); b.draw();
@@ -133,18 +135,19 @@ test("editor SOUND works for every voice (incl. RUMBLE tail and HAT spectrum)", 
 test("editor LANES: draw a parameter across steps in one gesture; option-click clears one", () => {
   const b = boot("editor");
   b.draw(); b.click(608, 30); b.send(); b.draw();          // LANES
-  b.click(24 + 2 * 118 + 50, 122); b.draw();               // PUNCH: DECAY lane
+  b.click(24 + 3 * 118 + 50, 86); b.send(); b.draw();      // TOM L
+  b.click(24 + 1 * 118 + 50, 122); b.draw();               // DECAY lane
   const colX = (s) => 60 + s * 66 + 20;
   b.click(colX(0), 220);
   for (let s = 1; s < 16; s++) b.dragTo(colX(s), 220 + s * 15, false);
   b.dragTo(colX(15), 480);
   deq(b.uiOut.filter((m) => m[1] === "gesture").map((m) => m[2]), [1, 0]);
   b.send(); b.draw();
-  let t = b.state().tracks[0];
+  let t = b.state().tracks[3];
   const lane = t.steps.slice(0, 16).map((s) => s.pLocks.decay);
   assert.ok(lane.every((v) => typeof v === "number") && lane[0] > lane[12]);
   b.click(colX(4), 300, 1); b.send();
-  assert.strictEqual(b.state().tracks[0].steps[4].pLocks.decay, undefined);
+  assert.strictEqual(b.state().tracks[3].steps[4].pLocks.decay, undefined);
   fs.mkdirSync(OUT, { recursive: true });
   b.draw(); fs.writeFileSync(path.join(OUT, "ui_editor_lanes.svg"), b.mg.svg());
 });
@@ -157,4 +160,31 @@ test("editor bottom bar: style and kick/sub interaction route to the engine", ()
   b.click(700, 30); b.send(); b.draw();                    // GENERATE
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(path.join(OUT, "ui_editor_sequence.svg"), b.mg.svg());
+});
+
+test("SOUND graph handles: dragging the PITCH and WAVE handles changes the right kick params", () => {
+  const b = boot("editor");
+  b.draw(); b.click(496, 30); b.send(); b.draw();
+  const handles = () => b.ui.hits.filter((h) => h.kind === "handle");
+  const byKey = (k) => handles().find((h) => h.key === k);
+  for (const k of ["tune", "punch", "time", "body", "decay"]) assert.ok(byKey(k), "handle " + k);
+  const before = b.state().tracks[0].params;
+  const h = byKey("tune");
+  b.click(h.x + 12, h.y + 12); b.dragTo(h.x + 12, h.y - 40); b.send(); b.draw();
+  assert.ok(b.state().tracks[0].params.tune > before.tune, "TUNE up");
+  const d = byKey("decay");
+  b.click(d.x + 12, d.y + 12); b.dragTo(d.x + 120, d.y + 12); b.send(); b.draw();
+  assert.ok(b.state().tracks[0].params.decay > before.decay, "DECAY longer");
+  const pu = byKey("punch");
+  b.click(pu.x + 12, pu.y + 12); b.dragTo(pu.x + 12, pu.y + 60); b.send(); b.draw();
+  assert.ok(b.state().tracks[0].params.punch < before.punch, "PUNCH lower");
+  // HAT: one handle sets TONE (x) and RESO (y)
+  b.click(24 + 5 * 118 + 50, 86); b.send(); b.draw();
+  const ht = byKey("tone");
+  const h0 = b.state().tracks[5].params;
+  b.click(ht.x + 12, ht.y + 12); b.dragTo(ht.x + 80, ht.y - 60); b.send();
+  const h1 = b.state().tracks[5].params;
+  assert.ok(h1.tone > h0.tone && h1.reso > h0.reso, "HAT tone+reso");
+  fs.mkdirSync(OUT, { recursive: true }); b.draw();
+  fs.writeFileSync(path.join(OUT, "ui_editor_sound_hat.svg"), b.mg.svg());
 });

@@ -4,22 +4,22 @@
     {
       "id": "A36 proxy: demo never reaches 0 dBFS",
       "pass": true,
-      "detail": "peak -6.1 dBFS"
+      "detail": "peak -4.3 dBFS"
     },
     {
       "id": "starter preset peak ≈ -6 dBFS (−9 … −3)",
       "pass": true,
-      "detail": "-8.5 dBFS"
+      "detail": "-6.3 dBFS"
     },
     {
       "id": "A10 proxy: PUNCH+SUB layered at 0 dB levels stays below full scale",
       "pass": true,
-      "detail": "-3.1 dBFS"
+      "detail": "-1.7 dBFS"
     },
     {
       "id": "A11 proxy: SUB duck active only briefly around PUNCH hits",
       "pass": true,
-      "detail": "21% of the time"
+      "detail": "20% of the time"
     },
     {
       "id": "A36 proxy: worst case (6 voices, ratchet 8, drive 100%, rumble max) bounded",
@@ -29,8 +29,8 @@
   ],
   "demo": {
     "seconds": 53.2,
-    "hits": 713,
-    "peakDb": -6.1,
+    "hits": 654,
+    "peakDb": -4.3,
     "sections": [
       "starter preset",
       "GENERATE FOUNDATION",
@@ -42,5 +42,19 @@
       "GENERATE BROKEN",
       "MUTATE 20%"
     ]
+  },
+  "kick": {
+    "info": {
+      "tuneHz": 54.99879461289764,
+      "sweepSemis": 30,
+      "sweepMs": 18.00063959642886,
+      "startHz": 311.12016502292863,
+      "holdMs": 42,
+      "decayMs": 229.99033993075267,
+      "driveGain": 2.2387211385683394,
+      "clickHz": 3000,
+      "lengthMs": 272.19033993075266
+    },
+    "lengthMs": 275.2
   }
 }

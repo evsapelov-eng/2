@@ -22,40 +22,44 @@ test("six voices with the spec roles; voice params and defaults match spec/dsp_m
   deq(s.tracks[0].steps.slice(0, 16).map((x) => x.on ? 1 : 0).join(""), "1000100010001000");
 });
 
-test("starter preset values: PUNCH 55 Hz, sweep from ~220 Hz in 30 ms, decay 220 ms; SUB 280 ms; RUMBLE tail 350 ms", () => {
+test("starter preset: techno kick 55 Hz, glide from ~300 Hz (tau 18 ms), hold 42 ms + decay 230 ms; SUB 280 ms; RUMBLE tail 350 ms", () => {
   const vm = require("vm");
   const ctx = vm.createContext({});
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "shared", "kore_dsp_model.js"), "utf8"), ctx);
   const d = C.KORE_DEFAULT_PARAMS;
   const p = ctx.koreModelInfo(MAP, "PUNCH", d[0]);
-  assert.ok(Math.abs(p.tuneHz - 55) < 0.1 && Math.abs(p.decayMs - 220) < 0.5 && p.sweepMs === 30);
-  assert.ok(p.startHz > 200 && p.startHz < 240, "start " + p.startHz);
+  assert.ok(Math.abs(p.tuneHz - 55) < 0.1, "tune " + p.tuneHz);
+  assert.ok(p.startHz > 280 && p.startHz < 330, "start " + p.startHz);
+  assert.ok(Math.abs(p.sweepMs - 18) < 0.1 && Math.abs(p.decayMs - 230) < 0.5 && Math.abs(p.holdMs - 42) < 0.1);
   assert.ok(Math.abs(ctx.koreModelInfo(MAP, "SUB", d[1]).decayMs - 280) < 0.5);
   assert.ok(Math.abs(ctx.koreModelInfo(MAP, "RUMBLE", d[2]).tailMs - 350) < 0.5);
 });
 
 test("A31: a P-Lock affects only its step and only valid ids of its voice (no leakage)", () => {
   const e = new C.KoreEngine();
-  const t = e.state.tracks[0];
-  e.setPLock(0, 4, "decay", 0.9);
-  e.setPLock(0, 4, "tone", 0.9);        // HAT id on PUNCH: rejected
-  e.setPLock(5, 2, "tune", 0.9);        // PUNCH id on HAT: rejected
-  assert.strictEqual(t.steps[4].pLocks.tone, undefined);
+  const t = e.state.tracks[3];
+  t.steps.forEach((s, i) => { s.on = i % 2 === 0; });
+  e.setPLock(3, 4, "decay", 0.9);
+  e.setPLock(3, 4, "reso", 0.9);        // HAT id on TOM L: rejected
+  e.setPLock(5, 2, "tune", 0.9);        // TOM id on HAT: rejected
+  e.setPLock(0, 4, "decay", 0.9);       // kick: no per-step values at all (D6)
+  assert.strictEqual(t.steps[4].pLocks.reso, undefined);
   assert.strictEqual(e.state.tracks[5].steps[2].pLocks.tune, undefined);
-  const ev = C.koreEventsInRange(e.state, 0, 4).filter((x) => x.trackId === 0);
+  assert.strictEqual(Object.keys(e.state.tracks[0].steps[4].pLocks).length, 0);
+  const ev = C.koreEventsInRange(e.state, 0, 4).filter((x) => x.trackId === 3);
   ev.forEach((x) => assert.strictEqual(x.params.decay, x.stepIndex === 4 ? 0.9 : t.params.decay));
-  assert.strictEqual(t.params.decay, C.KORE_DEFAULT_PARAMS[0].decay);
-  e.clearLock(0, 4, "decay");
-  C.koreEventsInRange(e.state, 0, 4).filter((x) => x.trackId === 0).forEach((x) => assert.strictEqual(x.params.decay, t.params.decay));
+  assert.strictEqual(t.params.decay, C.KORE_DEFAULT_PARAMS[3].decay);
+  e.clearLock(3, 4, "decay");
+  C.koreEventsInRange(e.state, 0, 4).filter((x) => x.trackId === 3).forEach((x) => assert.strictEqual(x.params.decay, t.params.decay));
   // normalization drops foreign ids loaded from a Live Set
-  const st = C.koreValidateAndNormalize({ tracks: [{ steps: [{ on: true, pLocks: { tone: 0.3, decay: 0.1 } }] }] });
-  deq(st.tracks[0].steps[0].pLocks, { decay: 0.1 });
+  const st = C.koreValidateAndNormalize({ tracks: [{}, {}, {}, { steps: [{ on: true, pLocks: { reso: 0.3, decay: 0.1 } }] }] });
+  deq(st.tracks[3].steps[0].pLocks, { decay: 0.1 });
 });
 
 test("trigger message: 8 values, voice params in order, HAT open flag", () => {
-  const ev = { trackId: 5, velocity: 1, levelDb: 0, open: true, params: { tone: 0.3, decay: 0.6 } };
-  deq(C.koreEventToTrigger(ev), [5, 1, 0.3, 0.6, 0, 0, 0, 1]);
-  const k = { trackId: 0, velocity: 1, levelDb: -6, open: false, params: { tune: 0.1, punch: 0.2, decay: 0.3, drive: 0.4, click: 0.5 } };
+  const ev = { trackId: 5, velocity: 1, levelDb: 0, open: true, params: { tone: 0.3, decay: 0.6, reso: 0.2, open: 0.5 } };
+  deq(C.koreEventToTrigger(ev), [5, 1, 0.3, 0.6, 0.2, 0.5, 0, 1]);
+  const k = { trackId: 3, velocity: 1, levelDb: -6, open: false, params: { tune: 0.1, decay: 0.2, sweep: 0.3, tone: 0.4, snap: 0.5 } };
   const m = C.koreEventToTrigger(k);
   assert.strictEqual(m.length, 8);
   deq(m.slice(2), [0.1, 0.2, 0.3, 0.4, 0.5, 0]);

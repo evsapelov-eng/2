@@ -1,7 +1,7 @@
 // KØRE core — data model, defaults, validation, (de)serialization.
 // Step indices are 0-based in code, 1-based in the UI.
 
-var KORE_SCHEMA_VERSION = 1;
+var KORE_SCHEMA_VERSION = 2;
 var KORE_MAX_STEPS = 32;
 var KORE_TRACK_NAMES = ["PUNCH", "SUB", "RUMBLE", "TOM L", "TOM H", "HAT"];
 var KORE_PUNCH = 0, KORE_SUB = 1, KORE_RUMBLE = 2, KORE_TOML = 3, KORE_TOMH = 4, KORE_HAT = 5;
@@ -9,20 +9,20 @@ var KORE_PUNCH = 0, KORE_SUB = 1, KORE_RUMBLE = 2, KORE_TOML = 3, KORE_TOMH = 4,
 // Voice-specific parameters (normalized 0..1; units in spec/dsp_map.json). A P-Lock may
 // only use the ids of its own voice (spec §13). Kept identical to dsp_map.json (tested).
 var KORE_VOICE_PARAMS = [
-  ["tune", "punch", "decay", "drive", "click"],
-  ["tune", "decay"],
-  ["amount", "tail", "duck"],
-  ["tune", "decay", "tone"],
-  ["tune", "decay", "tone"],
-  ["tone", "decay"]
+  ["tune", "punch", "time", "body", "decay", "drive", "click", "clicktone"],
+  ["tune", "decay", "sweep", "drive"],
+  ["amount", "tail", "duck", "tone", "drive"],
+  ["tune", "decay", "sweep", "tone", "snap"],
+  ["tune", "decay", "sweep", "tone", "snap"],
+  ["tone", "decay", "reso", "open"]
 ];
 var KORE_DEFAULT_PARAMS = [
-  { tune: 0.3825, punch: 0.5, decay: 0.5242, drive: 0.15, click: 0.15 },
-  { tune: 0.3297, decay: 0.4804 },
-  { amount: 0.35, tail: 0.4466, duck: 0.6 },
-  { tune: 0.4, decay: 0.4, tone: 0.35 },
-  { tune: 0.45, decay: 0.35, tone: 0.4 },
-  { tone: 0.55, decay: 0.35 }
+  {tune:  0.4594,  punch:  0.5,  time:  0.5155,  body:  0.35,  decay:  0.5241,  drive:  0.35,  click:  0.35,  clicktone:  0.5},
+  {tune:  0.3297,  decay:  0.4804,  sweep:  0.25,  drive:  0.1},
+  {amount:  0.35,  tail:  0.4466,  duck:  0.6,  tone:  0.5212,  drive:  0.2},
+  {tune:  0.4,  decay:  0.4,  sweep:  0.5,  tone:  0.35,  snap:  0.3},
+  {tune:  0.45,  decay:  0.35,  sweep:  0.5,  tone:  0.4,  snap:  0.3},
+  {tone:  0.55,  decay:  0.35,  reso:  0.2,  open:  0.45}
 ];
 var KORE_DEFAULT_LEVEL_DB = [-6, -10, -6, -12, -13, -14];
 var KORE_STYLES = ["FOUNDATION", "DRIVING", "HYPNOTIC", "BROKEN"];
@@ -36,7 +36,7 @@ var KORE_FOUR_ON_FLOOR = [0, 4, 8, 12];
 // Starter groove: a usable FOUNDATION pattern before the first GENERATE.
 // [step, velocity, probability, ratchet, open]
 var KORE_DEFAULT_PATTERN = [
-  [[0, 1, 1, 1, 0], [4, 1, 1, 1, 0], [8, 1, 1, 1, 0], [12, 1, 1, 1, 0]],
+  [[0, 1, 1, 1, 0], [4, 1, 1, 1, 0], [8, 1, 1, 1, 0], [12, 1, 1, 1, 0]], // PUNCH: steady 4/4
   [[6, 0.8, 1, 1, 0], [14, 0.7, 1, 1, 0]],
   [[2, 0.9, 1, 1, 0], [10, 0.9, 1, 1, 0]],
   [[3, 0.7, 1, 1, 0], [11, 0.65, 1, 1, 0]],
@@ -205,7 +205,12 @@ function koreMigrate(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (raw.format !== undefined && raw.format !== "KORE") return null;
   var v = raw.schemaVersion === undefined ? 1 : raw.schemaVersion;
-  if (v !== 1) return null;
+  if (v !== 1 && v !== 2) return null;
+  if (v === 1 && raw.tracks && raw.tracks[0]) {
+    // v2: new rendered kick — its old parameters do not map 1:1, start from the new defaults
+    raw.tracks[0].params = null;
+    if (raw.keepAnchor && raw.keepAnchor.tracks && raw.keepAnchor.tracks[0]) raw.keepAnchor.tracks[0].params = null;
+  }
   return raw;
 }
 

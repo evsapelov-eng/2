@@ -28,6 +28,7 @@ class Patch {
   constructor(json, seed = 1) {
     const p = json.patcher;
     this.boxes = {};
+    this.buffers = {};
     this.rng = rngFactory(seed);
     for (const b of p.boxes) this.boxes[b.box.id] = { ...b.box, out: [], state: {} };
     for (const l of p.lines) {
@@ -52,7 +53,7 @@ class Patch {
     if (b.maxclass === "inlet" || b.maxclass === "outlet" || b.maxclass === "comment") return b.maxclass;
     return this._words(b)[0];
   }
-  _isSig(b) { const c = this._cls(b) || ""; return /~$/.test(c) || (c === "inlet" && b.outlettype && b.outlettype[0] === "signal") || (c === "outlet" && b.__sigOut); }
+  _isSig(b) { const c = this._cls(b) || ""; if (c === "buffer~" || c === "dspstate~") return false; return /~$/.test(c) || (c === "inlet" && b.outlettype && b.outlettype[0] === "signal") || (c === "outlet" && b.__sigOut); }
 
   _init(b) {
     const w = this._words(b), c = this._cls(b), st = b.state;
@@ -61,11 +62,17 @@ class Patch {
     if (c === "expr") { st.fn = compileExpr(w.slice(1).join(" ")); st.args = []; }
     if (c === "*") st.r = Number(w[1] || 0);
     if (c === "f") st.v = Number(w[1] || 0);
+    if (c === "index~") st.buf = w[1];
+    if (c === "route") st.sel = w.slice(1);
+    if (c === "prepend") st.pre = w.slice(1);
+    if (c === "clip~") { st.lo = +w[1]; st.hi = +w[2]; }
+    if (c === "sah~") { st.th = +(w[1] || 0); st.held = 0; st.prev = 0; }
+    if (c === "change~") st.prev = null;
     if (c === "tapin~") { st.buf = new Float64Array(Math.ceil((+w[1] || 1000) / 1000 * SR) + 2); st.w = 0; }
     if (c === "tapout~") st.delays = w.slice(1).map(Number);
     if (this._isSig(b)) {
       st.inF = [0, 0, 0].map((_, i) => (w[i + 1] !== undefined && !isNaN(+w[i + 1]) ? +w[i + 1] : (c === "*~" && i === 1 && w.length === 1 ? 0 : 0)));
-      if ((c === "*~" || c === "+~" || c === ">~") && w[1] !== undefined) st.inF[1] = +w[1];
+      if ((c === "*~" || c === "+~" || c === ">~" || c === "-~" || c === "!-~" || c === "%~") && w[1] !== undefined) st.inF[1] = +w[1];
       if (c === "svf~") { st.inF[1] = +(w[1] || 1000); st.inF[2] = +(w[2] || 0.5); st.ic1 = 0; st.ic2 = 0; }
       if (c === "cycle~") { st.inF[0] = +(w[1] || 0); st.ph = 0; }
       if (c === "line~") { st.v = 0; st.segs = []; }
@@ -139,12 +146,19 @@ class Patch {
         else { if (nums.length) st.v = nums[0]; this._emit(b, 0, [st.v]); }
         break;
       case "inlet": this._emit(b, 0, msg); break;
+      case "route": {
+        const i = st.sel.indexOf(String(msg[0]));
+        if (i >= 0) this._emit(b, i, msg.slice(1)); else this._emit(b, st.sel.length, msg);
+        break;
+      }
+      case "prepend": this._emit(b, 0, st.pre.concat(msg)); break;
+      case "buffer~": case "dspstate~": break;
       case "loadbang": this._emit(b, 0, ["bang"]); break;
       case "sqrt": this._emit(b, 0, [Math.sqrt(Math.max(0, nums[0]))]); break;
       case "message": {
         if (inlet !== 0) break;
         for (const part of b.text.split(",")) { // comma = separate messages, in order
-          const out = part.trim().split(/\s+/).map((t) => (/^\$\d$/.test(t) ? nums[+t[1] - 1] : +t));
+          const out = part.trim().split(/\s+/).map((t) => (/^\$\d$/.test(t) ? nums[+t[1] - 1] : (isNaN(+t) ? t : +t)));
           this._emit(b, 0, out);
         }
         break;
@@ -158,6 +172,7 @@ class Patch {
       }
       default:
         if (b.cls === "cycle~" && inlet === 1) { st.ph = nums[0] || 0; break; } // phase reset
+        if (b.cls === "index~" && msg[0] === "set") { st.buf = String(msg[1]); break; }
         if (this._isSig(b)) { st.inF[inlet] = nums[0]; break; }
         if (c === "thispoly~" || c === "out~") break;
         throw new Error("maxsim: unsupported object " + c);
@@ -192,6 +207,15 @@ class Patch {
         case "abs~": y[0] = Math.abs(x0); break;
         case "tanh~": y[0] = Math.tanh(x0); break;
         case "dbtoa~": y[0] = Math.pow(10, x0 / 20); break;
+        case "phasor~": y[0] = st.ext ? (st.ext[st.i++] || 0) : (st.ph = ((st.ph || 0) + x0 / SR) % 1); break;
+        case "trunc~": y[0] = Math.trunc(x0); break;
+        case "-~": y[0] = x0 - x1; break;
+        case "!-~": y[0] = x1 - x0; break;
+        case "%~": y[0] = x0 % x1; break;
+        case "clip~": y[0] = Math.min(st.hi, Math.max(st.lo, x0)); break;
+        case "change~": y[0] = st.prev === null ? 0 : Math.sign(x0 - st.prev); st.prev = x0; break;
+        case "sah~": if (st.prev <= st.th && x1 > st.th) st.held = x0; st.prev = x1; y[0] = st.held; break;
+        case "index~": { const data = this.buffers[st.buf] || []; const i = Math.max(0, Math.min(data.length - 1, Math.floor(x0))); y[0] = data.length ? data[i] : 0; break; }
         case "inlet": y[0] = st.ext ? (st.ext[st.i++] || 0) : 0; break;
         case "outlet": st.buf.push(x0); break;
         case "tapin~": st.buf[st.w] = x0; st.w = (st.w + 1) % st.buf.length; break;
@@ -216,7 +240,7 @@ class Patch {
           y[0] = v2; y[1] = x0 - k * v1 - v2; y[2] = v1; y[3] = x0 - k * v1; break;
         }
         case "out~": st.buf.push(x0); break;
-        case "thispoly~": case "peakamp~": break;
+        case "thispoly~": case "peakamp~": case "buffer~": case "dspstate~": break;
         default: throw new Error("maxsim: unsupported signal object " + b.cls);
       }
       b.out.forEach((conns, o) => (conns || []).forEach((c) => {

@@ -43,7 +43,7 @@ function renderGroove(sections, bpm) {
       const m = C.koreEventToTrigger(e), name = C.KORE_TRACK_NAMES[e.trackId];
       hits++;
       if (name === "RUMBLE") { rumbleEvents.push({ at, p: e.params }); continue; }
-      const p = Object.assign({ amp: m[1], open: e.open }, e.params);
+      const p = Object.assign({ amp: m[1], isOpen: e.open ? 1 : 0 }, e.params);
       const h = M.koreModelHit(MAP, name, p, SR, 0, 1000 + hits).L;
       const dst = name === "PUNCH" ? bus.punch : name === "SUB" ? bus.sub : bus.other;
       for (let i = 0; i < h.length && at + i < n; i++) dst[at + i] += h[i];
@@ -52,7 +52,7 @@ function renderGroove(sections, bpm) {
     barAt += sec.bars;
   }
   // low-end coordinator: SUB duck + RUMBLE (bus FX on the PUNCH bus, gated by RUMBLE steps, ducked by PUNCH)
-  const le = MAP.lowEnd, rv = MAP.voices.RUMBLE;
+  const le = MAP.lowEnd, rv = MAP.voices.RUMBLE; // ducks follow the kick proximity (1 → 0 over the release), like kore_kick
   const subDuck = new Float64Array(n).fill(1), rDuck = new Float64Array(n).fill(1);
   let curDuckDepth = rv.defaults.duck;
   const rEv = rumbleEvents.slice().sort((a, b) => a.at - b.at);
@@ -61,27 +61,29 @@ function renderGroove(sections, bpm) {
     while (ri < rEv.length && rEv[ri].at <= at) curDuckDepth = rEv[ri++].p.duck;
     for (let i = 0; i < SR * 0.3 && at + i < n; i++) {
       const tMs = i / SR * 1000;
-      const sd = tMs < le.subDuckAttackMs ? 1 - le.subDuckDepth * tMs / le.subDuckAttackMs : Math.min(1, 1 - le.subDuckDepth + le.subDuckDepth * (tMs - le.subDuckAttackMs) / le.subDuckReleaseMs);
-      subDuck[at + i] = Math.min(subDuck[at + i], sd);
-      const rd = tMs < rv.duckAttackMs ? 1 - curDuckDepth * tMs / rv.duckAttackMs : Math.min(1, 1 - curDuckDepth + curDuckDepth * (tMs - rv.duckAttackMs) / rv.duckReleaseMs);
-      rDuck[at + i] = Math.min(rDuck[at + i], rd);
+      const prox = Math.max(0, Math.min(1, 1 - tMs / le.duckReleaseMs));
+      subDuck[at + i] = Math.min(subDuck[at + i], 1 - le.subDuckDepth * prox);
+      rDuck[at + i] = Math.min(rDuck[at + i], 1 - curDuckDepth * prox);
     }
   }
   const rum = new Float64Array(n);
   {
-    const lp = M.koreSvf(rv.lowpassHz, rv.lowpassQ, SR), buf = new Float64Array(n);
+    let lp = M.koreSvf(220, rv.lowpassQ, SR), drv = 1, comp = 1;
+    const buf = new Float64Array(n);
     const d1 = Math.round(rv.tapsMs[0] / 1000 * SR), d2 = Math.round(rv.tapsMs[1] / 1000 * SR);
     let gate = 0, amount = 0, fb = 0, gStart = -1, tail = 350, k = 0;
     for (let i = 0; i < n; i++) {
       while (k < rEv.length && rEv[k].at === i) {
         const info = M.koreModelInfo(MAP, "RUMBLE", rEv[k].p);
-        fb = info.feedback; tail = info.tailMs; amount = rEv[k].p.amount; gStart = i; k++;
+        fb = info.feedback; tail = info.tailMs; amount = rEv[k].p.amount; gStart = i;
+        const st = lp; lp = M.koreSvf(info.lowpassHz, rv.lowpassQ, SR); lp.ic1 = st.ic1; lp.ic2 = st.ic2;
+        drv = info.driveGain; comp = Math.pow(drv, -0.3); k++;
       }
       if (gStart >= 0) { const t = (i - gStart) / SR * 1000; gate = Math.min(1, t / rv.gateAttackMs) * (t < tail ? 1 : Math.max(0, 1 - (t - tail) / tail)); }
       lp.tick(bus.punch[i]);
       const taps = 0.5 * ((i >= d1 ? buf[i - d1] : 0) + (i >= d2 ? buf[i - d2] : 0));
       buf[i] = lp.lp + taps * fb;
-      rum[i] = taps * gate * rDuck[i] * amount * rv.wetGain;
+      rum[i] = M.koreTanh(drv * taps) * comp * gate * rDuck[i] * amount * rv.wetGain;
     }
   }
   const L = new Float32Array(n), hp = M.koreSvf(le.dcBlockHz, 0.05, SR);
@@ -135,7 +137,7 @@ check("A36 proxy: worst case (6 voices, ratchet 8, drive 100%, rumble max) bound
 writeWav(path.join(OUT, "kore_worstcase.wav"), wr.L, wr.L);
 
 // 6) one-shot per voice with the macro sweeps (for listening)
-for (const voice of ["PUNCH", "SUB", "TOM L", "TOM H", "HAT"]) {
+for (const voice of ["PUNCH", "SUB", "TOM L", "TOM H", "HAT"]) { // PUNCH = the rendered kick
   const keys = MAP.voices[voice].params;
   for (const k of keys) {
     const seg = Math.round(SR * 0.9), L = new Float32Array(seg * 5);
@@ -148,6 +150,15 @@ for (const voice of ["PUNCH", "SUB", "TOM L", "TOM H", "HAT"]) {
   }
 }
 
+// kick character report (rendered kick, default + archetypes)
+const kd = M.koreRenderKick(MAP, MAP.voices.PUNCH.defaults, SR);
+report.kick = { info: kd.info, lengthMs: +(kd.L.length / SR * 1000).toFixed(1) };
+{
+  const L = Float32Array.from(kd.L);
+  const seg = Math.round(0.5 * SR), out = new Float32Array(seg * 8);
+  for (let b = 0; b < 8; b++) out.set(L.subarray(0, Math.min(L.length, seg)), b * seg);
+  writeWav(path.join(OUT, "kick_default_x8.wav"), out, out);
+}
 fs.writeFileSync(path.join(OUT, "report.json"), JSON.stringify(report, null, 2));
 const failed = report.checks.filter((c) => !c.pass);
 console.log(report.checks.map((c) => `${c.pass ? "PASS" : "FAIL"}  ${c.id} — ${c.detail}`).join("\n"));

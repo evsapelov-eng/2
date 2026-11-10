@@ -22,9 +22,10 @@ var COL = {
   inactive: [0.235, 0.255, 0.247, 1]   // #3C413F
 };
 var NAMES = ["PUNCH", "SUB", "RUMBLE", "TOM L", "TOM H", "HAT"];
-var PARAMS = [["tune", "punch", "decay", "drive", "click"], ["tune", "decay"], ["amount", "tail", "duck"],
-  ["tune", "decay", "tone"], ["tune", "decay", "tone"], ["tone", "decay"]];
-var LABEL = { tune: "TUNE", punch: "PUNCH", decay: "DECAY", drive: "DRIVE", click: "CLICK", amount: "AMOUNT", tail: "TAIL", duck: "DUCK", tone: "TONE" };
+var PARAMS = [];
+for (var pi = 0; pi < NAMES.length; pi++) PARAMS.push(KORE_DSP_MAP.voices[NAMES[pi]].params);
+var LABEL = { tune: "TUNE", punch: "PUNCH", time: "TIME", body: "BODY", decay: "DECAY", drive: "DRIVE", click: "CLICK",
+  clicktone: "CLICK TONE", sweep: "GLIDE", tone: "TONE", snap: "SNAP", reso: "RESO", open: "OPEN", amount: "AMOUNT", tail: "TAIL", duck: "DUCK" };
 var STYLES = ["FOUNDATION", "DRIVING", "HYPNOTIC", "BROKEN"];
 var STYLE_SHORT = ["FOUND", "DRIVE", "HYPNO", "BROKEN"];
 var DIVS = [[1, 1], [3, 4], [5, 4], [7, 4], [3, 2], [2, 3], [4, 3], [1, 2], [2, 1]];
@@ -72,10 +73,18 @@ function valueText(t, key, v) {
   var m = vmap(t);
   if (key === "level") return vToLevel(v) + "dB";
   if (key === "tune") return fmtHz(expMap(m.tuneHz, v)) + "Hz";
-  if (key === "tone" && m.toneHz) return fmtHz(expMap(m.toneHz, v)) + "Hz";
   if (key === "decay") return fmtMs(expMap(m.decayMs, v));
   if (key === "tail") return fmtMs(expMap(m.tailMs, v));
-  if (key === "punch") return Math.round(koreModelInfo(KORE_DSP_MAP, "PUNCH", { tune: S.tracks[0].params.tune, punch: v }).sweepSemis) + "st"; // sweep depth
+  if (t === 0) {
+    if (key === "punch") return "+" + Math.round(m.sweepSemis[0] + (m.sweepSemis[1] - m.sweepSemis[0]) * v) + "st";
+    if (key === "time") return fmtMs(expMap(m.sweepTauMs, v));
+    if (key === "body") return fmtMs(m.holdMs[0] + (m.holdMs[1] - m.holdMs[0]) * v);
+    if (key === "clicktone") return fmtHz(expMap(m.clickToneHz, v)) + "Hz";
+  }
+  if (key === "sweep") return "+" + Math.round(m.sweepSemisRange[0] + (m.sweepSemisRange[1] - m.sweepSemisRange[0]) * v) + "st";
+  if (key === "tone" && m.toneHz) return fmtHz(expMap(m.toneHz, v)) + "Hz";
+  if (key === "tone" && t === 2) return fmtHz(expMap(m.lowpassHz, v)) + "Hz";
+  if (key === "open") return "x" + (Math.round((m.openFactor[0] + (m.openFactor[1] - m.openFactor[0]) * v) * 10) / 10);
   return pct(v);
 }
 function hasLock(step, k) { return !!(step && step.pLocks && step.pLocks.hasOwnProperty(k)); }
@@ -193,7 +202,7 @@ function paintCompact() {
   var ax = 384;
   rect(ax, 16, 116, 30, COL.primary, false, 1.5); dice(ax + 10, 23, 15); text("GENERATE", ax + 32, 35, 9.5, COL.primary, true);
   hit({ x: ax, y: 16, w: 116, h: 30, kind: "cmd", cmd: "generate" });
-  button(ax, 52, 116, 30, "MUTATE", "mutate", 9.5, true);
+  button(ax, 52, 116, 30, "MUTATE PERC", "mutate", 9, true);
   amountBar(ax, 96, 116);
   button(ax, 116, 56, 16, "KEEP", "keep", 7);
   button(ax + 60, 116, 56, 16, "UNDO", "undo", 7, false, S.canUndo);
@@ -201,8 +210,7 @@ function paintCompact() {
   // selected voice + priority macros
   text(NAMES[t], 520, 28, 11, COL.primary, true);
   if (tr.soundName) text(tr.soundName, 520 + textW(NAMES[t], 11, true) + 8, 28, 7, COL.stroke);
-  var keys = PARAMS[t].slice(0, t === 0 ? 2 : 2);
-  if (t === 0) keys = ["tune", "decay"];
+  var keys = t === 0 ? ["tune", "punch"] : PARAMS[t].slice(0, 2);
   for (var k = 0; k < keys.length; k++) {
     var v = tr.params[keys[k]];
     drawNode(520 + k * 70, 38, 66, 96, keys[k], LABEL[keys[k]], v, valueText(t, keys[k], v), { kind: "param", key: keys[k] }, false, t, 15);
@@ -234,7 +242,7 @@ function paintEditor() {
   for (var i = 0; i < tabs.length; i++) toggle(330 + i * 112, 16, 108, 30, tabs[i][0], g.activeView === tabs[i][1], { kind: "view", v: tabs[i][1] }, 9);
   rect(680, 14, 140, 34, COL.primary, false, 1.5); dice(694, 22, 18); text("GENERATE", 720, 36, 10, COL.primary, true);
   hit({ x: 680, y: 14, w: 140, h: 34, kind: "cmd", cmd: "generate" });
-  button(828, 14, 120, 34, "MUTATE", "mutate", 10, true);
+  button(828, 14, 120, 34, "MUTATE PERC", "mutate", 9.5, true);
   button(956, 14, 70, 34, "KEEP", "keep", 9);
   button(1032, 14, 70, 34, "UNDO", "undo", 9, false, S.canUndo);
   button(1110, 14, 70, 34, "CLOSE", "closeeditor", 9);
@@ -309,12 +317,19 @@ function paintSequence(g) {
     button(rx + 250, 78, 70, 22, "BASE", "exitstep", 8);
     var st2 = tr2.steps[g.selectedStep];
     numRow(rx, 140, "VELOCITY", pct(st2.velocity), "vel");
-    numRow(rx, 180, "PROBABILITY", pct(st2.probability), "prob");
-    numRow(rx, 220, "RATCHET", "x" + st2.ratchet, "rat");
+    if (g.selectedTrack !== 0) {
+      numRow(rx, 180, "PROBABILITY", pct(st2.probability), "prob");
+      numRow(rx, 220, "RATCHET", "x" + st2.ratchet, "rat");
+    }
     if (g.selectedTrack === 5) toggle(rx, 250, 150, 26, st2.open ? "OPEN HAT" : "CLOSED HAT", st2.open, { kind: "open", v: st2.open ? 0 : 1 }, 8);
     var any = false;
     for (var q in st2.pLocks) if (st2.pLocks.hasOwnProperty(q)) any = true;
     if (any) button(rx + 170, 250, 150, 26, "CLEAR P-LOCKS", "clearsteplocks", 8);
+  } else if (g.selectedTrack === 0) {
+    text("LENGTH  16   RATE  1:1   (fixed)", rx, 140, 10, COL.stroke);
+    text("The kick plays sample-accurately on the bar grid:", rx, 172, 8.5, COL.stroke);
+    text("every hit is the same sound, exactly on the beat.", rx, 188, 8.5, COL.stroke);
+    text("Shape the kick on SOUND. MUTATE PERC never changes it.", rx, 204, 8.5, COL.stroke);
   } else {
     numRow(rx, 140, "LENGTH", String(tr2.length), "len");
     numRow(rx, 180, "RATE / POLY", tr2.division.n + ":" + tr2.division.m, "div");
@@ -323,7 +338,7 @@ function paintSequence(g) {
   // bottom: selected voice mini sound + low-end meter + coil
   rect(20, 520, 800, 180, COL.stroke, false, 1, 0.6);
   text(NAMES[g.selectedTrack] + " / SOUND" + (g.selectedStep >= 0 ? "  (STEP " + pad2(g.selectedStep + 1) + ")" : ""), 36, 544, 11, COL.primary, true);
-  drawVoiceNodes(g, 36, 556, 112, 132, 22);
+  drawVoiceNodes(g, 36, 556, Math.min(112, 780 / (PARAMS[g.selectedTrack].length + 1)), 132, 20);
   rect(832, 520, 348, 180, COL.stroke, false, 1, 0.6);
   text("LOW END", 848, 544, 10, COL.primary, true);
   meterBar(852, 560, 14, 110, G ? +G.kick || 0 : 0, "KICK");
@@ -367,51 +382,111 @@ function drawCoil(cx, cy, r) {
   for (var d = 0; d < 6; d++) dot(cx + Math.cos(coil.phase * (1 + d * 0.3) + d) * r * (0.6 + 0.3 * lv), cy + Math.sin(coil.phase * (1 + d * 0.3) + d) * r * 0.5, 2.2, COL.primary);
 }
 
-// ---------- SOUND ----------
+// ---------- SOUND (interactive graphs) ----------
+// Every graph is computed by the voice model from the current values, and its handles
+// ARE the parameters: drag a handle and the matching parameter (and the sound) changes.
 var preview = { key: "" }, PREV_SR = 22050, PREVIEW_MIN_MS = 90;
+function srFor(t) { return t === 5 ? 44100 : 22050; } // HAT: full band for its spectrum
+var WAVE = { x: 24, y: 140, w: 560, h: 230 }, GRAPH = { x: 600, y: 140, w: 576, h: 230 };
+var PITCH_MS = 200, PITCH_FMIN = 30, PITCH_FMAX = 800;
+
 function effectiveParams(g) {
-  var tr = S.tracks[g.selectedTrack], stp = g.selectedStep >= 0 ? tr.steps[g.selectedStep] : null, p = { amp: 0.9 };
+  var tr = S.tracks[g.selectedTrack], stp = (g.selectedStep >= 0 && g.selectedTrack !== 0) ? tr.steps[g.selectedStep] : null, p = { amp: 0.9 };
   var keys = PARAMS[g.selectedTrack];
   for (var i = 0; i < keys.length; i++) p[keys[i]] = effOf(tr, stp, keys[i]);
-  if (stp && stp.open) p.open = 1;
+  if (stp && stp.open) p.isOpen = 1;
   return p;
 }
 function previewFor(g, force) {
+  PREV_SR = srFor(g.selectedTrack);
   var p = effectiveParams(g), t = g.selectedTrack, key = t + JSON.stringify(p) + (t === 2 ? JSON.stringify(S.tracks[0].params) : "");
   if (preview.key === key) return preview;
   var now = new Date().getTime();
   if (!force && preview.data && now - preview.at < PREVIEW_MIN_MS) { dirty = true; return preview; }
-  var h;
-  if (t === 2) h = koreModelRumble(KORE_DSP_MAP, effectiveFor(0), p, PREV_SR, 1400, 3);
-  else h = koreModelHit(KORE_DSP_MAP, NAMES[t], p, PREV_SR, 1400, 3);
-  var spec = koreModelSpectrum(h.L, PREV_SR, 0, 2048, 40);
-  preview = { key: key, data: h, spec: spec, p: p, at: now };
+  PREV_SR = srFor(t);
+  var h = t === 2 ? koreModelRumble(KORE_DSP_MAP, effectiveFor(0), p, PREV_SR, 1400) : koreModelHit(KORE_DSP_MAP, NAMES[t], p, PREV_SR, 1400, 3);
+  preview = { key: key, data: h, spec: koreModelSpectrum(h.L, PREV_SR, 0, 2048, 48), p: p, at: now };
   return preview;
 }
 function effectiveFor(t) { var tr = S.tracks[t], p = { amp: 0.9 }; for (var k in tr.params) p[k] = tr.params[k]; return p; }
 
+// axes
+function tLog(ms, w) { return w * Math.log(1 + ms / 3) / Math.log(1 + 1400 / 3); }
+function tLogInv(px, w) { return 3 * (Math.exp(px / w * Math.log(1 + 1400 / 3)) - 1); }
+function fyPitch(f) { var G = GRAPH; return G.y + G.h - 16 - (Math.log(Math.max(PITCH_FMIN, f) / PITCH_FMIN) / Math.log(PITCH_FMAX / PITCH_FMIN)) * (G.h - 36); }
+function fyPitchInv(y) { var G = GRAPH; return PITCH_FMIN * Math.pow(PITCH_FMAX / PITCH_FMIN, (G.y + G.h - 16 - y) / (G.h - 36)); }
+function txPitch(ms) { return GRAPH.x + 50 + ms / PITCH_MS * (GRAPH.w - 60); }
+function txPitchInv(x) { return (x - GRAPH.x - 50) / (GRAPH.w - 60) * PITCH_MS; }
+function fxSpec(f) { return GRAPH.x + 8 + Math.log(Math.max(20, f) / 20) / Math.log(PREV_SR / 2 / 20) * (GRAPH.w - 16); }
+function fxSpecInv(x) { return 20 * Math.pow(PREV_SR / 2 / 20, (x - GRAPH.x - 8) / (GRAPH.w - 16)); }
+function invExp(r, val) { return Math.max(0, Math.min(1, Math.log(Math.max(r[0], Math.min(r[1], val)) / r[0]) / Math.log(r[1] / r[0]))); }
+function invLin(r, val) { return Math.max(0, Math.min(1, (val - r[0]) / (r[1] - r[0]))); }
+
+// handle: small filled square + label; drag maps the mouse to one parameter
+function handle(x, y, label, key, fn, axis) {
+  var box = x >= GRAPH.x ? GRAPH : WAVE;
+  x = Math.max(box.x + 10, Math.min(box.x + box.w - 10, x)); y = Math.max(box.y + 18, Math.min(box.y + box.h - 10, y));
+  if (x + 10 + textW(label, 8, true) > box.x + box.w) { text(label, x - 12 - textW(label, 8, true), y - 8, 8, COL.primary, true); label = ""; }
+  rect(x - 10, y - 10, 20, 20, COL.bg, true);          // dark halo: visible over white bars
+  rect(x - 6, y - 6, 12, 12, COL.primary, true);
+  rect(x - 9, y - 9, 18, 18, COL.primary, false, 1, 0.8);
+  text(label, x + 10, y - 8, 8, COL.primary, true);
+  hit({ x: x - 12, y: y - 12, w: 24, h: 24, kind: "handle", key: key, fn: fn, axis: axis });
+}
+
 function paintSound(g) {
   voiceRow(g, 72);
-  var t = g.selectedTrack, pv = previewFor(g), info = pv.data.info;
-  text(stepLabel(g) + "   " + (S.tracks[t].soundName || ""), 24, 128, 12, COL.primary, true);
-  if (g.selectedStep >= 0) button(560, 112, 70, 22, "BASE", "exitstep", 8);
-  // waveform (time on a log axis 0..1.4 s, fixed) — the model of these exact values
-  panel(24, 140, 560, 230, "WAVE");
-  drawWave(pv.data.L, 24, 140, 560, 230);
-  // pitch vs time (body frequency) or rumble/hat details
-  panel(600, 140, 576, 230, t === 5 ? "SPECTRUM" : (t === 2 ? "RUMBLE TAIL (from PUNCH)" : "PITCH vs TIME"));
-  if (t === 5) drawSpectrum(pv.spec, 600, 140, 576, 230);
-  else if (t === 2) drawWave(pv.data.L, 600, 140, 576, 230);
-  else drawPitch(pv.data.pitch, 600, 140, 576, 230);
-  var d = [];
-  if (info.tuneHz) d.push("BODY " + fmtHz(info.tuneHz) + " Hz");
-  if (info.startHz) d.push("SWEEP " + fmtHz(info.startHz) + " Hz -> " + fmtHz(info.tuneHz) + " Hz, tau " + fmtMs(info.sweepMs));
-  if (info.decayMs) d.push("DECAY " + fmtMs(info.decayMs));
-  if (info.toneHz) d.push("HP " + fmtHz(info.toneHz) + " Hz");
-  if (info.tailMs) d.push("TAIL " + fmtMs(info.tailMs) + "  FB " + Math.round(info.feedback * 100) + "%");
-  text(d.join("     "), 24, 392, 9, COL.stroke);
-  drawVoiceNodes(g, 24, 410, 134, 170, 30);
-  text("drag a node up/down · shift = fine · double-click = default" + (g.selectedStep >= 0 ? " · editing STEP values" : ""), 24, 600, 8, COL.stroke);
+  var t = g.selectedTrack, pv = previewFor(g), info = pv.data.info, m = vmap(t), p = pv.p;
+  var stepMode = g.selectedStep >= 0 && t !== 0;
+  text((stepMode ? NAMES[t] + " / STEP " + pad2(g.selectedStep + 1) : NAMES[t] + " / BASE") + "   " + (S.tracks[t].soundName || ""), 24, 128, 12, COL.primary, true);
+  if (stepMode) button(560, 112, 70, 22, "BASE", "exitstep", 8);
+  text("drag the white handles on the graphs or the nodes below", 700, 128, 8.5, COL.stroke);
+  // ---- left: amplitude / waveform (log time 0..1.4 s)
+  panel(WAVE.x, WAVE.y, WAVE.w, WAVE.h, t === 2 ? "RUMBLE TAIL (excited by the kick)" : "WAVEFORM");
+  drawWave(pv.data.L, WAVE.x, WAVE.y, WAVE.w, WAVE.h);
+  var X0 = WAVE.x + 2, W = WAVE.w - 4, top = WAVE.y + 26;
+  if (t === 0) {
+    var holdEnd = 0.2 + info.holdMs, decEnd = holdEnd + info.decayMs;
+    handle(X0 + tLog(holdEnd, W), top, "BODY " + fmtMs(info.holdMs), "body", function (x) { return invLin(m.holdMs, tLogInv(x - X0, W) - 0.2); }, "x");
+    handle(X0 + tLog(decEnd, W), WAVE.y + WAVE.h / 2, "DECAY " + fmtMs(info.decayMs), "decay", function (x) { return invExp(m.decayMs, tLogInv(x - X0, W) - 0.2 - info.holdMs); }, "x");
+  } else if (t === 2) {
+    handle(X0 + tLog(info.tailMs, W), top, "TAIL " + fmtMs(info.tailMs), "tail", function (x) { return invExp(m.tailMs, tLogInv(x - X0, W)); }, "x");
+    handle(X0 + tLog(40, W), WAVE.y + WAVE.h / 2 - p.amount * (WAVE.h / 2 - 20), "AMOUNT " + pct(p.amount), "amount", function (x, y) { return invLin([0, 1], (WAVE.y + WAVE.h / 2 - y) / (WAVE.h / 2 - 20)); }, "y");
+  } else {
+    handle(X0 + tLog(info.decayMs, W), WAVE.y + WAVE.h / 2, "DECAY " + fmtMs(info.decayMs), "decay", function (x) {
+      var ms = tLogInv(x - X0, W);
+      if (t === 5 && p.isOpen) ms = ms / info.openFactor;
+      return invExp(m.decayMs, ms);
+    }, "x");
+  }
+  // ---- right: pitch vs time (tonal voices) or spectrum (HAT, RUMBLE)
+  if (t === 5 || t === 2) {
+    panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "SPECTRUM");
+    drawSpectrum(pv.spec, GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h);
+    var fc = t === 5 ? info.toneHz : info.lowpassHz, hy = t === 5 ? GRAPH.y + GRAPH.h - 20 - p.reso * (GRAPH.h - 50) : GRAPH.y + 40;
+    line(fxSpec(fc), GRAPH.y + 20, fxSpec(fc), GRAPH.y + GRAPH.h - 8, COL.primary, 1, 0.5);
+    var fr = t === 5 ? m.toneHz : m.lowpassHz;
+    handle(fxSpec(fc), hy, (t === 5 ? "HP " : "LP ") + fmtHz(fc) + "Hz" + (t === 5 ? "  RESO " + pct(p.reso) : ""), "tone",
+      function (x, y) { return invExp(fr, fxSpecInv(x)); }, "x");
+    if (t === 5) { // the same handle also sets RESO vertically
+      var hh2 = hits[hits.length - 1];
+      hh2.key2 = "reso"; hh2.fn2 = function (x, y) { return invLin([0, 1], (GRAPH.y + GRAPH.h - 20 - y) / (GRAPH.h - 50)); };
+    }
+  } else {
+    panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "PITCH vs TIME");
+    drawPitch(pv.data.pitch);
+    var startKey = t === 0 ? "punch" : "sweep", sr = t === 0 ? m.sweepSemis : m.sweepSemisRange;
+    handle(txPitch(0), fyPitch(info.startHz), (t === 0 ? "PUNCH " : "GLIDE ") + "+" + Math.round(info.sweepSemis) + "st", startKey,
+      function (x, y) { return invLin(sr, 12 * Math.log(fyPitchInv(y) / info.tuneHz) / Math.LN2); }, "y");
+    if (t === 0) {
+      var fTau = info.tuneHz * Math.pow(2, info.sweepSemis / 12 * Math.exp(-1));
+      handle(txPitch(info.sweepMs), fyPitch(fTau), "TIME " + fmtMs(info.sweepMs), "time", function (x) { return invExp(m.sweepTauMs, txPitchInv(x)); }, "x");
+    }
+    handle(GRAPH.x + GRAPH.w - 30, fyPitch(info.tuneHz), "TUNE " + fmtHz(info.tuneHz) + "Hz", "tune", function (x, y) { return invExp(m.tuneHz, fyPitchInv(y)); }, "y");
+  }
+  // ---- nodes: every parameter of the voice + level
+  var keys = PARAMS[t], nw = Math.min(134, 790 / (keys.length + 1));
+  drawVoiceNodes(g, 24, 410, nw, 150, Math.min(28, nw / 2 - 12));
   rect(832, 520, 348, 180, COL.stroke, false, 1, 0.6);
   text("LOW END", 848, 544, 10, COL.primary, true);
   meterBar(852, 560, 14, 110, G ? +G.kick || 0 : 0, "KICK");
@@ -423,7 +498,6 @@ function panel(x, y, w, h, label) {
   rect(x, y, w, h, COL.stroke, false, 1, 0.6);
   text(label, x + 8, y + 14, 8, COL.stroke, true);
 }
-function tLog(ms, w) { return w * Math.log(1 + ms / 3) / Math.log(1 + 1400 / 3); }
 function drawWave(sig, x, y, w, h) {
   var mid = y + h / 2, cols = Math.floor(w - 4), pk = [], i, c;
   for (c = 0; c < cols; c++) pk.push(-1);
@@ -440,20 +514,18 @@ function drawWave(sig, x, y, w, h) {
   var ticks = [[10, "10ms"], [100, "100ms"], [1000, "1s"]];
   for (var k = 0; k < ticks.length; k++) { var px = x + 2 + tLog(ticks[k][0], cols); line(px, y + h - 6, px, y + h, COL.stroke); text(ticks[k][1], px + 3, y + h - 3, 7, COL.stroke); }
 }
-function drawPitch(pitch, x, y, w, h) {
-  var fmin = 30, fmax = 600, cols = w - 60;
-  var fy = function (f) { return y + h - 16 - (Math.log(Math.max(fmin, f) / fmin) / Math.log(fmax / fmin)) * (h - 36); };
-  var marks = [40, 60, 100, 200, 400];
-  for (var m = 0; m < marks.length; m++) { line(x + 50, fy(marks[m]), x + w - 6, fy(marks[m]), COL.inactive, 1, 0.7); text(marks[m] + "Hz", x + 6, fy(marks[m]) + 3, 7, COL.stroke); }
+function drawPitch(pitch) {
+  var G = GRAPH, marks = [40, 60, 100, 200, 400];
+  for (var m = 0; m < marks.length; m++) { line(G.x + 50, fyPitch(marks[m]), G.x + G.w - 6, fyPitch(marks[m]), COL.inactive, 1, 0.7); text(marks[m] + "Hz", G.x + 6, fyPitch(marks[m]) + 3, 7, COL.stroke); }
   col(COL.primary); mgraphics.set_line_width(1.6);
-  var maxMs = 200;
+  var cols = G.w - 60;
   for (var c = 0; c <= cols; c++) {
-    var idx = Math.min(pitch.length - 1, Math.floor(c / cols * maxMs / 1000 * PREV_SR));
-    var px = x + 50 + c, py = fy(pitch[idx] || fmin);
+    var idx = Math.min(pitch.length - 1, Math.floor(c / cols * PITCH_MS / 1000 * PREV_SR));
+    var px = G.x + 50 + c, py = fyPitch(pitch[idx] || PITCH_FMIN);
     if (c === 0) mgraphics.move_to(px, py); else mgraphics.line_to(px, py);
   }
   mgraphics.stroke();
-  text("0", x + 50, y + h - 3, 7, COL.stroke); text("100ms", x + 50 + cols / 2 - 12, y + h - 3, 7, COL.stroke); text("200ms", x + w - 40, y + h - 3, 7, COL.stroke);
+  text("0", G.x + 50, G.y + G.h - 3, 7, COL.stroke); text("100ms", G.x + 50 + cols / 2 - 12, G.y + G.h - 3, 7, COL.stroke); text("200ms", G.x + G.w - 40, G.y + G.h - 3, 7, COL.stroke);
 }
 function drawSpectrum(b, x, y, w, h) {
   var mx = 1e-12, i, n = b.length, bw = (w - 16) / n;
@@ -464,6 +536,8 @@ function drawSpectrum(b, x, y, w, h) {
     if (hh > 0.5) mgraphics.rectangle(x + 8 + i * bw, y + h - 8 - hh, Math.max(1, bw - 2), hh);
   }
   mgraphics.fill();
+  var fm = [100, 1000, 10000];
+  for (var k = 0; k < fm.length; k++) text(fm[k] >= 1000 ? fm[k] / 1000 + "k" : String(fm[k]), fxSpec(fm[k]) - 6, y + h - 1, 7, COL.stroke);
 }
 
 // ---------- LANES ----------
@@ -472,6 +546,11 @@ function laneY(v) { return LTOP + LH - 1 - v * (LH - 2); }
 function paintLanes(g) {
   voiceRow(g, 72);
   var t = g.selectedTrack, tr = S.tracks[t], keys = PARAMS[t];
+  if (t === 0) {
+    text("PUNCH has no per-step values: one steady kick sound on every hit, exactly on the beat.", 24, 166, 12, COL.primary, true);
+    text("Shape it on SOUND. Choose another voice to draw per-step values.", 24, 190, 10, COL.stroke);
+    return;
+  }
   for (var i = 0; i < keys.length; i++) toggle(24 + i * 118, 110, 112, 26, LABEL[keys[i]], laneKey === keys[i], { kind: "lanekey", key: keys[i] }, 9);
   var anyLong = tr.length > 16, off = anyLong ? g.selectedPage * 16 : 0;
   if (anyLong) { toggle(1100, 110, 34, 26, "1", g.selectedPage === 0, { kind: "page", v: 0 }, 9); toggle(1138, 110, 34, 26, "2", g.selectedPage === 1, { kind: "page", v: 1 }, 9); }
@@ -515,6 +594,29 @@ function glyph(key, v, cx, cy, r) {
   else if (key === "amount") { circle(cx, cy, r, COL.primary, 0.3); circle(cx, cy, Math.max(2, r * v), COL.primary, 1, 2); }
   else if (key === "duck") { circle(cx, cy, r, COL.primary, 0.3); var dip = v * r * 0.8; col(COL.primary); mgraphics.move_to(cx - r * 0.8, cy - r * 0.3); mgraphics.line_to(cx - r * 0.2, cy - r * 0.3 + dip); mgraphics.line_to(cx + r * 0.8, cy - r * 0.3); mgraphics.stroke(); }
   else if (key === "level") circle(cx, cy, r * (0.25 + 0.75 * v), COL.primary, 1);
+  else if (key === "time") { // glide time: the knee of the pitch curve moves right
+    circle(cx, cy, r, COL.primary, 0.3);
+    col(COL.primary); mgraphics.set_line_width(1.4);
+    for (i = 0; i <= 30; i++) { var t2 = i / 30, y2 = cy + r * 0.6 - r * 1.2 * Math.exp(-t2 / (0.05 + 0.5 * v)); if (i === 0) mgraphics.move_to(cx - r * 0.7 + t2 * r * 1.4, y2); else mgraphics.line_to(cx - r * 0.7 + t2 * r * 1.4, y2); }
+    mgraphics.stroke();
+  } else if (key === "body") { // hold before the decay: a flat top that grows
+    circle(cx, cy, r, COL.primary, 0.3);
+    var hx = cx - r * 0.7 + r * 1.0 * v;
+    col(COL.primary); mgraphics.set_line_width(1.4);
+    mgraphics.move_to(cx - r * 0.7, cy + r * 0.5); mgraphics.line_to(cx - r * 0.7, cy - r * 0.5); mgraphics.line_to(hx, cy - r * 0.5); mgraphics.line_to(cx + r * 0.75, cy + r * 0.5);
+    mgraphics.stroke();
+  } else if (key === "clicktone" || key === "snap") { // brightness / amount of the transient: denser ticks
+    circle(cx, cy, r, COL.primary, 0.3);
+    var nT = 3 + Math.round(v * 12);
+    for (i = 0; i < nT; i++) line(cx - r * 0.7 + i * (r * 1.4) / nT, cy - r * 0.35 * (key === "snap" ? (0.3 + v) : 1), cx - r * 0.7 + i * (r * 1.4) / nT, cy + r * 0.35 * (key === "snap" ? (0.3 + v) : 1), COL.primary, 1.2);
+  } else if (key === "sweep") glyph("punch", v, cx, cy, r);
+  else if (key === "reso") { var rn = 1 + Math.round(v * 5); for (i = 0; i < rn; i++) circle(cx, cy, r * (1 - i * 0.16), COL.primary, 1 - i * 0.12); }
+  else if (key === "open") { // open hat length: a longer second arc
+    circle(cx, cy, r * 0.45, COL.primary, 1);
+    col(COL.primary);
+    for (i = 0; i <= 40; i++) { var an2 = -Math.PI / 2 + i / 40 * (0.2 + 0.8 * v) * Math.PI * 2; if (i === 0) mgraphics.move_to(cx + Math.cos(an2) * r, cy + Math.sin(an2) * r); else mgraphics.line_to(cx + Math.cos(an2) * r, cy + Math.sin(an2) * r); }
+    mgraphics.stroke();
+  }
 }
 function path(cx, cy, fn) {
   for (var i = 0; i <= 120; i++) { var a = i / 120 * Math.PI * 2, rr = fn(a); if (i === 0) mgraphics.move_to(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); else mgraphics.line_to(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
@@ -562,6 +664,7 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
     drag = { kind: "lane", t: g.selectedTrack, last: h.s };
     outlet(0, "lane", g.selectedTrack, h.s, laneKey, laneValue(y));
   } else if (h.kind === "param" || h.kind === "level") { outlet(0, "gesture", 1); drag = { kind: "node", target: h, y0: y, v0: h.v }; }
+  else if (h.kind === "handle") { outlet(0, "gesture", 1); drag = { kind: "handle", h: h }; }
   else if (h.kind === "num") {
     var st0 = g.selectedStep >= 0 ? tr.steps[g.selectedStep] : null;
     outlet(0, "gesture", 1);
@@ -575,7 +678,12 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
   x /= scaleF; y /= scaleF;
   var unit = MODE === "editor" ? 1.6 : 1; // larger editor nodes → same feel
   if (drag.kind === "amount") outlet(0, "amount", Math.max(0, Math.min(1, (x - drag.h.bx) / drag.h.bw)));
-  else if (drag.kind === "lane") {
+  else if (drag.kind === "handle") {
+    var hv = drag.h.fn(x, y);
+    if (isFinite(hv)) outlet(0, "param", drag.h.key, Math.round(hv * 1000) / 1000);
+    if (drag.h.key2) { var v2 = drag.h.fn2(x, y); if (isFinite(v2)) outlet(0, "param", drag.h.key2, Math.round(v2 * 1000) / 1000); }
+    dirty = true;
+  } else if (drag.kind === "lane") {
     var s = findLane(x);
     if (s >= 0) { var v = laneValue(y), a = Math.min(s, drag.last), b = Math.max(s, drag.last); for (var k = a; k <= b; k++) outlet(0, "lane", drag.t, k, laneKey, v); drag.last = s; dirty = true; }
   } else if (drag.kind === "node") {
@@ -597,7 +705,7 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
     else if (drag.which === "prob") outlet(0, "stepset", t, drag.step, "probability", Math.max(0, Math.min(1, drag.prob0 + dy * 0.05)));
     else if (drag.which === "rat") outlet(0, "stepset", t, drag.step, "ratchet", Math.max(1, Math.min(8, drag.rat0 + Math.round(dy / 2))));
   }
-  if (!but) { if (drag.kind === "node" || drag.kind === "num" || drag.kind === "lane") outlet(0, "gesture", 0); drag = null; dirty = true; }
+  if (!but) { if (drag.kind === "node" || drag.kind === "num" || drag.kind === "lane" || drag.kind === "handle") outlet(0, "gesture", 0); drag = null; dirty = true; }
 }
 
 function ondblclick(x, y) {

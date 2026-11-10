@@ -17,8 +17,14 @@
 //   gesture <1|0>
 //   meter <peak>  kickmeter <peak>                from [peakamp~] (UI telemetry only)
 //
-// Outlet 0 → DSP:  trig <track> <amp> <p0> <p1> <p2> <p3> <p4> <open> <delayMs>
+// Outlet 0 → DSP:  trig <track> <amp> <p0> <p1> <p2> <p3> <p4> <open> <delayMs>   (tracks 1-5)
 //                  flush
+//                  kickbuf <bufferName>   (switch the kick player to the freshly rendered buffer)
+//                  kicklevel <amp>
+// PUNCH is played in the signal domain from buffer~ (sample-accurate); this object
+// writes its 16-step pattern into the pattern buffer and renders its sound.
+//   bufnames <kickA> <kickB> <pattern>   (from the patch: unique ---names)
+//   sr <sampleRate>                      (from [dspstate~])
 // Outlet 1 → UI:   bind <globalName> · refresh · playhead <s0..s5>
 // Outlet 2 → status: sync <0|1> <tempo> · pending <0|1> · error <text>
 
@@ -55,8 +61,47 @@ function publishUi() {
 engine.onChange(function (what) {
   publishUi();
   if (what !== "global" && what !== "pending") dirtyPersist = true;
+  syncKick();
   sendStatus();
 });
+
+// ---------- kick buffers ----------
+var kick = { names: null, sr: 48000, active: 0, lastPattern: "", lastSound: "", lastLevel: -1, renderTask: null };
+function bufnames(a, b, pat) { kick.names = [String(a), String(b), String(pat)]; kick.lastPattern = ""; kick.lastSound = ""; syncKick(); }
+function sr(v) { if (v > 0 && v !== kick.sr) { kick.sr = v; kick.lastSound = ""; syncKick(); } }
+
+function syncKick() {
+  if (!kick.names) return;
+  var st = engine.playState;
+  var pat = koreKickPattern(st), pj = pat.join(",");
+  if (pj !== kick.lastPattern) {
+    kick.lastPattern = pj;
+    try { var pb = new Buffer(kick.names[2]); pb.send("sizeinsamps", 16, 1); pb.poke(1, 0, pat); }
+    catch (e) { outlet(2, "error", "kick pattern buffer: " + e); }
+  }
+  var lv = koreKickLevel(st);
+  if (lv !== kick.lastLevel) { kick.lastLevel = lv; outlet(0, "kicklevel", lv); }
+  var sj = JSON.stringify(st.tracks[KORE_PUNCH].params);
+  if (sj !== kick.lastSound) {
+    kick.lastSound = sj;
+    if (!kick.renderTask) kick.renderTask = new Task(renderKickNow, this);
+    kick.renderTask.cancel();
+    kick.renderTask.schedule(40); // coalesce fast knob moves; the old kick keeps playing meanwhile
+  }
+}
+
+function renderKickNow() {
+  if (!kick.names) return;
+  var r = koreRenderKick(KORE_DSP_MAP, engine.playState.tracks[KORE_PUNCH].params, kick.sr);
+  var next = 1 - kick.active, name = kick.names[next];
+  try {
+    var b = new Buffer(name);
+    b.send("sizeinsamps", r.L.length, 1);
+    b.poke(1, 0, r.L);
+    kick.active = next;
+    outlet(0, "kickbuf", name);   // double buffer: the player switches only after the write
+  } catch (e) { outlet(2, "error", "kick render buffer: " + e); }
+}
 
 function sendStatus() {
   var s = engine.transportPlaying ? 1 : 0;
@@ -76,6 +121,7 @@ function tick(bars, beats, units, resolution, tempo) {
   var evs = engine.tick(pos, tempo);
   if (engine.flushRequested) outlet(0, "flush");
   for (var i = 0; i < evs.length; i++) {
+    if (evs[i].trackId === KORE_PUNCH) continue; // kick runs in the signal domain
     var m = koreEventToTrigger(evs[i]);
     outlet(0, "trig", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], koreRound(evs[i].delayMs, 3));
   }
@@ -85,6 +131,7 @@ function tick(bars, beats, units, resolution, tempo) {
     ph.push(s);
     if (s !== lastPlayhead[t]) changed = true;
   }
+  if (engine.pending === false && lastPending === 1) syncKick(); // pending pattern applied at the bar
   if (changed) { lastPlayhead = ph; ui.playhead = ph; ui.pos = pos; outlet(1, "playhead", ph[0], ph[1], ph[2], ph[3], ph[4], ph[5]); }
   sendStatus();
 }

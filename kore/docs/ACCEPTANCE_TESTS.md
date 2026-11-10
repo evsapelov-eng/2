@@ -1,12 +1,12 @@
 # KØRE — матрица A01–A36
 
-Статусы: PASS / FAIL / NOT TESTED. «Static proxy» — автотест или офлайн-модель; **не заменяет** host-проверку (ТЗ: never PASS from static inspection alone). Host-колонка заполняется в Live. Версия 0.1.0, 2026-11-10, Live/Max на стороне разработки: нет.
+Статусы: PASS / FAIL / NOT TESTED. «Static proxy» — автотест или офлайн-модель; **не заменяет** host-проверку (ТЗ: never PASS from static inspection alone). Host-колонка заполняется в Live. Версия 0.2.0, 2026-11-10, Live/Max на стороне разработки: нет.
 
 | ID | Static proxy | Host |
 |---|---|---|
 | A01* | `.amxd` = контейнер `ampf`/`iiii`, есть `plugout~` (`amxd.test.js`); собран скриптом | NOT TESTED |
-| A02* | патч PUNCH звучит и освобождает экземпляр (`patch_sim`) | NOT TESTED |
-| A03* | патч PUNCH: устоявшаяся частота = TUNE ±6% (3 значения) | NOT TESTED |
+| A02* | плеер бочки `kore_kick` звучит по паттерну (`kick_sim`) | NOT TESTED |
+| A03* | отрендеренная бочка: устоявшаяся частота = TUNE ±8% | NOT TESTED |
 | A04* | PUNCH меняет onset-частоту в 1.5+ раза, пик ±25% | NOT TESTED |
 | A05* | DECAY меняет хвост; патч = модель ±5% | NOT TESTED |
 | A06* | DRIVE снижает crest, пик ≤ ×1.2 | NOT TESTED |
@@ -20,7 +20,7 @@
 | A14 | TOM H выше TOM L (×1.4+) | NOT TESTED |
 | A15 | open ×3 длиннее closed; closed обрывает open (<5% энергии) | NOT TESTED |
 | A16* | 6 дорожек, длина 1–32 (тайминг-тесты) | NOT TESTED |
-| A17* | 4/4 на 0/4/8/12 при 130 BPM (`max_adapter.test.js`) | NOT TESTED |
+| A17* | бочка в симуляции патча: начало удара на сэмпле доли ±2 при 120/130/145 BPM, удары побитово одинаковы | NOT TESTED |
 | A18* | 16/13/7 независимы | NOT TESTED |
 | A19* | 3:4/5:4/7:4 — реальные интервалы | NOT TESTED |
 | A20* | смена темпа без дублей/дрейфа | NOT TESTED |
@@ -42,4 +42,4 @@
 | A36* | худший случай −0.6 dBFS, без NaN; Freeze — только в Max | NOT TESTED |
 
 ## Статусы стадий
-STATIC VALID: **PASS** (68 тестов, 5 офлайн-проверок, 7 патчей) · MAX LOAD / LIVE LOAD / AUDIO / UI VALID: NOT TESTED · RELEASE READY: NO
+STATIC VALID: **PASS** (80 тестов, 5 офлайн-проверок, 7 патчей) · MAX LOAD / LIVE LOAD / AUDIO / UI VALID: NOT TESTED · RELEASE READY: NO

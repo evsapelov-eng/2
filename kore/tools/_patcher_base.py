@@ -33,7 +33,10 @@ KNOWN = {
     "deferlow": (1, 1, [""]), "print": (1, 0, []), "pattr": (1, 3, ["", "", ""]),
     "dac~": (2, 0, []), "button": (1, 1, ["bang"]),
     "dbtoa~": (1, 1, [SIG]), "tapin~": (2, 1, ["tapconnect"]), "peakamp~": (2, 1, ["float"]),
-    "tapout~": None, "f": (2, 1, ["float"]), "pcontrol": (1, 1, [""]), "inlet": (0, 1, [""]), "outlet": (1, 0, []),
+    "tapout~": None, "f": (2, 1, ["float"]),
+    "phasor~": (2, 1, [SIG]), "trunc~": (1, 1, [SIG]), "change~": (1, 1, [SIG]), "sah~": (2, 1, [SIG]),
+    "index~": (2, 1, [SIG]), "%~": (2, 1, [SIG]), "-~": (2, 1, [SIG]), "!-~": (2, 1, [SIG]), "clip~": (3, 1, [SIG]),
+    "buffer~": (1, 2, ["float", "bang"]), "dspstate~": (1, 4, ["int", "float", "int", "int"]), "pcontrol": (1, 1, [""]), "inlet": (0, 1, [""]), "outlet": (1, 0, []),
 }
 
 

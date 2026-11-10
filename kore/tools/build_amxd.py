@@ -22,7 +22,7 @@ DIST = os.path.join(ROOT, "dist")
 PKG = os.path.join(DIST, "KORE")
 VERSION = json.load(open(os.path.join(ROOT, "package.json")))["version"]
 
-DEPENDENCIES = ["kore_engine.js", "kore_ui.js", "kore_voice_punch.maxpat", "kore_voice_sub.maxpat",
+DEPENDENCIES = ["kore_engine.js", "kore_ui.js", "kore_kick.maxpat", "kore_voice_sub.maxpat",
                 "kore_voice_toml.maxpat", "kore_voice_tomh.maxpat", "kore_voice_hat.maxpat", "kore_rumble.maxpat"]
 
 

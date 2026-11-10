@@ -19,6 +19,10 @@ function es5Check(file, text) {
 }
 
 const parts = [];
+// the engine needs the voice model (it renders the kick) and the DSP map
+const mapJson = JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, "spec", "dsp_map.json"), "utf8")), (k, v) => (k === "_doc" ? undefined : v));
+parts.push("// ---- spec/dsp_map.json ----\nvar KORE_DSP_MAP = " + mapJson + ";\n");
+parts.push("// ---- js/shared/kore_dsp_model.js ----\n" + fs.readFileSync(path.join(__dirname, "shared", "kore_dsp_model.js"), "utf8"));
 for (const f of sourceFiles().concat([path.join(__dirname, "max_adapter.js")])) {
   const t = fs.readFileSync(f, "utf8");
   es5Check(path.basename(f), t);

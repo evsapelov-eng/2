@@ -30,6 +30,39 @@ test("A24 + gate: 1000 seeded generations in FOUNDATION/DRIVING/HYPNOTIC keep PU
   }
 });
 
+test("D6: the kick is steady — exactly 4 equal hits (velocity 1) in every style, no ghost kicks", () => {
+  const e = new C.KoreEngine();
+  for (const style of C.KORE_STYLES) {
+    e.setGlobal("style", style);
+    for (let i = 0; i < 60; i++) {
+      e.generate();
+      const p = e.state.tracks[0];
+      assert.strictEqual(ons(p), "1000100010001000", style + " " + ons(p));
+      [0, 4, 8, 12].forEach((s) => { assert.strictEqual(p.steps[s].velocity, 1); assert.strictEqual(p.steps[s].probability, 1); });
+    }
+  }
+});
+
+test("D6: MUTATE at any amount never changes the kick (rhythm, sound)", () => {
+  const e = new C.KoreEngine();
+  e.generate(); e.keep();
+  const k = J(e.state.tracks[0]);
+  for (const a of [0.05, 0.3, 0.7, 1]) { e.mutate("ALL", a); assert.strictEqual(J(e.state.tracks[0]), k); }
+});
+
+test("the rendered kick is identical every time for the same settings and changes with every kick param", () => {
+  const p = Object.assign({}, MAP.voices.PUNCH.defaults);
+  const a = MODEL.koreRenderKick(MAP, p, 48000).L, b = MODEL.koreRenderKick(MAP, p, 48000).L;
+  assert.ok(a.length === b.length && a.every((x, i) => x === b[i]));
+  for (const k of MAP.voices.PUNCH.params) {
+    const q = Object.assign({}, p, { [k]: p[k] > 0.5 ? 0.05 : 0.95 });
+    const c = MODEL.koreRenderKick(MAP, q, 48000).L;
+    let diff = Math.abs(c.length - a.length);
+    for (let i = 0; i < Math.min(a.length, c.length); i++) diff += Math.abs(a[i] - c[i]);
+    assert.ok(diff > 1, "kick param " + k + " has no effect");
+  }
+});
+
 test("A26: BROKEN with unlocked PUNCH may move the anchor but keeps the downbeat and stays rhythmic", () => {
   const e = new C.KoreEngine();
   e.setGlobal("style", "BROKEN"); e.setGlobal("unlockPunch", true);
@@ -82,22 +115,24 @@ test("user D1: every GENERATE changes rhythm+length of the 5 other voices and th
   }
 });
 
-test("user D2: GENERATE gives every parameter of every voice a value on every step (lanes)", () => {
+test("user D2/D6: GENERATE gives every parameter of every PERCUSSION voice a value on every step; the kick has none", () => {
   const e = new C.KoreEngine();
   for (let n = 0; n < 10; n++) {
     e.generate();
+    e.state.tracks[0].steps.forEach((s) => assert.strictEqual(Object.keys(s.pLocks).length, 0, "kick must stay one steady sound"));
     e.state.tracks.forEach((t, i) => {
+      if (i === 0) return;
       for (const k of C.KORE_VOICE_PARAMS[i]) assert.ok(lane(t, k).every((v) => typeof v === "number"), `${t.name}.${k}`);
       for (let s = t.length; s < 32; s++) assert.strictEqual(Object.keys(t.steps[s].pLocks).length, 0);
     });
   }
 });
 
-test("lanes keep club safety: PUNCH and SUB tune vary by at most ~1 semitone around the voice", () => {
+test("lanes keep club safety: SUB tune varies by at most ~1 semitone", () => {
   const e = new C.KoreEngine();
   for (let n = 0; n < 40; n++) {
     e.generate();
-    for (const i of [0, 1]) {
+    for (const i of [1]) {
       const t = e.state.tracks[i], v = MAP.voices[t.name], hz = (x) => v.tuneHz[0] * Math.pow(v.tuneHz[1] / v.tuneHz[0], x);
       const l = lane(t, "tune"), semis = 12 * Math.log2(hz(Math.max(...l)) / hz(Math.min(...l)));
       assert.ok(semis <= 2 * 0.04 * 12 * Math.log2(v.tuneHz[1] / v.tuneHz[0]) + 1e-6, `${t.name} tune lane spans ${semis.toFixed(2)} semitones`);
@@ -126,10 +161,7 @@ test("A28: Mutate amount 0 = exact no-op; 15% keeps the four-on-the-floor and ba
     e.mutate("ALL", 0.15);
     const p = e.state.tracks[0];
     assert.ok(kickOK(p));
-    for (const k of C.KORE_VOICE_PARAMS[0]) assert.ok(Math.abs(p.params[k] - anchor[0].params[k]) <= 0.3 * 0.15 * 0.15 + 0.0006, "kick " + k); // < 1% of the range (+ rounding)
-    p.steps.slice(0, 16).forEach((s, j) => {
-      for (const k of Object.keys(s.pLocks)) assert.ok(Math.abs(s.pLocks[k] - anchor[0].steps[j].pLocks[k]) <= 0.3 * 0.15 * 0.15 * 2 + 0.0006);
-    });
+    assert.strictEqual(J(p), J(anchor[0]), "MUTATE must not touch the kick at all (D6)");
   }
 });
 
@@ -184,7 +216,7 @@ test("A32: lane density 0 → no new P-Locks; 1 → values on every step", () =>
   e.state.tracks.forEach((t) => t.steps.forEach((s) => assert.strictEqual(Object.keys(s.pLocks).length, 0)));
   e.setGlobal("lockDensity", 1);
   e.generate();
-  e.state.tracks.forEach((t) => t.steps.slice(0, t.length).forEach((s) => assert.ok(Object.keys(s.pLocks).length > 0)));
+  e.state.tracks.slice(1).forEach((t) => t.steps.slice(0, t.length).forEach((s) => assert.ok(Object.keys(s.pLocks).length > 0)));
 });
 
 test("ALTERNATE interaction keeps SUB off the kick steps; LAYER adds a controlled layered sub", () => {

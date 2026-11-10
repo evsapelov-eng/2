@@ -151,9 +151,11 @@ KoreEngine.prototype.setStep = function (t, s, field, value) {
   }, "step");
 };
 KoreEngine.prototype.setLength = function (t, n) {
+  if (this._track(t).id === KORE_PUNCH) return; // the kick runs on the fixed 16-step bar grid
   this._edit(function () { this._track(t).length = koreClamp(Math.round(+n), 1, KORE_MAX_STEPS); }, "track");
 };
 KoreEngine.prototype.setDivision = function (t, n, m) {
+  if (this._track(t).id === KORE_PUNCH) return;
   this._edit(function () {
     this._track(t).division = { n: koreClamp(Math.round(+n), 1, KORE_MAX_DIV), m: koreClamp(Math.round(+m), 1, KORE_MAX_DIV) };
   }, "track");
@@ -183,6 +185,7 @@ KoreEngine.prototype.setBase = function (t, key, v) {
 };
 KoreEngine.prototype.setPLock = function (t, s, key, v) {
   if (!this._isParam(t, key)) return; // only ids of that voice (no leakage)
+  if (this._track(t).id === KORE_PUNCH) return; // D6: one steady kick sound, no per-step values
   this._edit(function () { this._step(t, s).pLocks[key] = koreClamp01(+v); }, "plock");
 };
 KoreEngine.prototype.clearLock = function (t, s, key) {
@@ -194,13 +197,13 @@ KoreEngine.prototype.clearStepLocks = function (t, s) {
 // BASE or STEP P-Lock depending on the selected step — the call the UI uses.
 KoreEngine.prototype.setParam = function (key, v) {
   var g = this.state.global;
-  if (g.selectedStep >= 0) this.setPLock(g.selectedTrack, g.selectedStep, key, v);
+  if (g.selectedStep >= 0 && g.selectedTrack !== KORE_PUNCH) this.setPLock(g.selectedTrack, g.selectedStep, key, v);
   else this.setBase(g.selectedTrack, key, v);
 };
 KoreEngine.prototype.resetParam = function (key) {
   var g = this.state.global;
   if (!this._isParam(g.selectedTrack, key)) return;
-  if (g.selectedStep >= 0) this.clearLock(g.selectedTrack, g.selectedStep, key);
+  if (g.selectedStep >= 0 && g.selectedTrack !== KORE_PUNCH) this.clearLock(g.selectedTrack, g.selectedStep, key);
   else this.setBase(g.selectedTrack, key, KORE_DEFAULT_PARAMS[g.selectedTrack][key]);
 };
 
@@ -283,7 +286,7 @@ KoreEngine.prototype.restore = function (text) {
 };
 
 // Trigger message for the DSP: amplitude already includes velocity curve and level.
-// Trigger for the DSP (8 values): track amp p0 p1 p2 p3 p4 open
+// Trigger for the DSP (8 values): track amp p0 p1 p2 p3 p4 open   (not used for PUNCH)
 // p0..p4 = the voice's params in KORE_VOICE_PARAMS order (unused slots 0).
 function koreEventToTrigger(ev) {
   var amp = Math.pow(koreClamp01(ev.velocity), 1.5) * koreDbToAmp(ev.levelDb);
@@ -292,3 +295,19 @@ function koreEventToTrigger(ev) {
   out.push(ev.open ? 1 : 0);
   return out;
 }
+
+// ---------- signal-domain kick (PUNCH) ----------
+// The kick is not triggered by messages: the patch plays it from a buffer~ on a
+// transport-locked phasor (sample-accurate). The engine only supplies:
+//   pattern: 16 amplitudes (velocity^1.5, 0 = off or muted) for the 16 steps
+//   sound:   the PUNCH params, rendered by koreRenderKick into a buffer
+//   level:   PUNCH level as amplitude
+function koreKickPattern(state) {
+  var tr = state.tracks[KORE_PUNCH], out = [];
+  for (var i = 0; i < 16; i++) {
+    var st = tr.steps[i];
+    out.push(!tr.mute && st.on ? koreRound(Math.pow(koreClamp01(st.velocity), 1.5), 4) : 0);
+  }
+  return out;
+}
+function koreKickLevel(state) { return koreRound(koreDbToAmp(state.tracks[KORE_PUNCH].levelDb), 5); }

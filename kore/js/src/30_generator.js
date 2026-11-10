@@ -55,11 +55,12 @@ function korePickLength(rng, options, prev) {
   return opts.length ? rng.pick(opts) : (prev === 16 ? 12 : 16);
 }
 
+// PUNCH: a steady techno kick — exactly four equal hits (user D6: no ghost kicks,
+// no per-hit variation). BROKEN may move one only when "unlock punch" is on.
 function koreGenPunch(tr, rng, cfg, g) {
   koreClearRhythm(tr);
   tr.length = 16; tr.division = { n: 1, m: 1 };
-  for (var i = 0; i < 4; i++) koreSet(tr, KORE_FOUR_ON_FLOOR[i], rng.range(0.94, 1));
-  if (rng.chance(cfg.pickup)) koreSet(tr, rng.pick([14, 15, 7]), rng.range(0.45, 0.6), rng.range(0.4, 0.7));
+  for (var i = 0; i < 4; i++) koreSet(tr, KORE_FOUR_ON_FLOOR[i], 1);
   if (g.style === "BROKEN" && g.unlockPunch && rng.chance(0.6)) {
     tr.steps[rng.pick([4, 8, 12])].on = false;          // selective omission, keep the downbeat
     koreSet(tr, rng.pick([3, 10, 11, 14]), rng.range(0.7, 0.9));
@@ -189,19 +190,37 @@ function koreGenerateRhythm(next, prev, rng, g) {
 }
 
 // ---------- sound ----------
+// Ranges per voice param (order = KORE_VOICE_PARAMS). PUNCH: club-ready techno kicks.
 var KORE_ARCHETYPES = [
-  [ // PUNCH: tune punch decay drive click — club-safe ranges
-    { name: "TIGHT", r: [[0.35, 0.6], [0.55, 0.85], [0.15, 0.4], [0.05, 0.3], [0.2, 0.5]] },
-    { name: "BOOM", r: [[0.1, 0.35], [0.3, 0.6], [0.6, 0.95], [0, 0.2], [0, 0.2]] },
-    { name: "HARD", r: [[0.3, 0.55], [0.6, 1], [0.3, 0.55], [0.4, 0.8], [0.3, 0.7]] },
-    { name: "DEEP", r: [[0, 0.25], [0.2, 0.45], [0.5, 0.85], [0.1, 0.35], [0, 0.15]] },
-    { name: "ROUND", r: [[0.25, 0.5], [0.35, 0.6], [0.35, 0.65], [0.05, 0.25], [0.05, 0.3]] }
+  [ // tune punch time body decay drive click clicktone
+    { name: "TECHNO", r: [[0.3, 0.5], [0.45, 0.7], [0.4, 0.6], [0.25, 0.5], [0.4, 0.6], [0.3, 0.55], [0.25, 0.5], [0.4, 0.65]] },
+    { name: "HARD", r: [[0.35, 0.55], [0.6, 0.9], [0.25, 0.45], [0.3, 0.6], [0.3, 0.5], [0.6, 0.9], [0.4, 0.7], [0.5, 0.8]] },
+    { name: "DEEP", r: [[0.1, 0.3], [0.35, 0.55], [0.55, 0.8], [0.4, 0.7], [0.6, 0.85], [0.15, 0.35], [0.1, 0.3], [0.2, 0.45]] },
+    { name: "ROLLING", r: [[0.25, 0.45], [0.4, 0.6], [0.5, 0.7], [0.15, 0.35], [0.55, 0.8], [0.35, 0.6], [0.15, 0.35], [0.3, 0.55]] },
+    { name: "TIGHT", r: [[0.4, 0.65], [0.5, 0.8], [0.2, 0.4], [0.1, 0.3], [0.15, 0.35], [0.25, 0.5], [0.45, 0.75], [0.55, 0.85]] },
+    { name: "DISTORTED", r: [[0.3, 0.5], [0.55, 0.85], [0.3, 0.55], [0.35, 0.65], [0.35, 0.6], [0.8, 1], [0.3, 0.6], [0.4, 0.7]] }
   ],
-  [ { name: "LOW", r: [[0, 0.35], [0.3, 0.7]] }, { name: "MID", r: [[0.35, 0.7], [0.2, 0.5]] }, { name: "LONG", r: [[0.1, 0.6], [0.6, 0.95]] } ],
-  [ { name: "SOFT", r: [[0.2, 0.4], [0.3, 0.6], [0.5, 0.8]] }, { name: "DEEP", r: [[0.35, 0.65], [0.55, 0.9], [0.4, 0.75]] }, { name: "PULSE", r: [[0.3, 0.55], [0.1, 0.35], [0.6, 0.95]] } ],
-  [ { name: "LOW TOM", r: [[0.05, 0.4], [0.3, 0.7], [0.1, 0.4]] }, { name: "CONGA", r: [[0.35, 0.7], [0.15, 0.4], [0.3, 0.6]] }, { name: "METAL TOM", r: [[0.3, 0.8], [0.2, 0.5], [0.6, 0.9]] } ],
-  [ { name: "HIGH TOM", r: [[0.3, 0.7], [0.2, 0.55], [0.1, 0.4]] }, { name: "PERC", r: [[0.6, 1], [0.05, 0.3], [0.3, 0.7]] }, { name: "WOOD", r: [[0.45, 0.85], [0.05, 0.25], [0.55, 0.9]] } ],
-  [ { name: "TIGHT", r: [[0.5, 0.9], [0.1, 0.35]] }, { name: "SOFT", r: [[0.2, 0.5], [0.3, 0.6]] }, { name: "BRIGHT", r: [[0.75, 1], [0.2, 0.5]] }, { name: "DARK", r: [[0, 0.3], [0.2, 0.5]] } ]
+  [ // SUB: tune decay sweep drive
+    { name: "LOW", r: [[0, 0.35], [0.3, 0.7], [0.05, 0.3], [0, 0.2]] }, { name: "MID", r: [[0.35, 0.7], [0.2, 0.5], [0.2, 0.5], [0.1, 0.4]] },
+    { name: "LONG", r: [[0.1, 0.6], [0.6, 0.95], [0, 0.25], [0, 0.25]] }, { name: "GRIT", r: [[0.2, 0.6], [0.3, 0.6], [0.2, 0.6], [0.5, 0.9]] }
+  ],
+  [ // RUMBLE: amount tail duck tone drive
+    { name: "SOFT", r: [[0.2, 0.4], [0.3, 0.6], [0.5, 0.8], [0.2, 0.5], [0, 0.25]] }, { name: "DEEP", r: [[0.35, 0.65], [0.55, 0.9], [0.4, 0.75], [0.1, 0.4], [0.1, 0.4]] },
+    { name: "PULSE", r: [[0.3, 0.55], [0.1, 0.35], [0.6, 0.95], [0.3, 0.6], [0.2, 0.5]] }, { name: "DIRTY", r: [[0.3, 0.6], [0.4, 0.7], [0.5, 0.85], [0.4, 0.8], [0.6, 1]] }
+  ],
+  [ // TOM L: tune decay sweep tone snap
+    { name: "LOW TOM", r: [[0.05, 0.4], [0.3, 0.7], [0.4, 0.8], [0.1, 0.4], [0.1, 0.4]] }, { name: "CONGA", r: [[0.35, 0.7], [0.15, 0.4], [0.2, 0.5], [0.3, 0.6], [0.3, 0.6]] },
+    { name: "METAL TOM", r: [[0.3, 0.8], [0.2, 0.5], [0.3, 0.7], [0.6, 0.9], [0.4, 0.8]] }, { name: "ZAP", r: [[0.2, 0.6], [0.1, 0.35], [0.7, 1], [0.1, 0.4], [0.2, 0.5]] }
+  ],
+  [ // TOM H
+    { name: "HIGH TOM", r: [[0.3, 0.7], [0.2, 0.55], [0.3, 0.6], [0.1, 0.4], [0.1, 0.4]] }, { name: "PERC", r: [[0.6, 1], [0.05, 0.3], [0.1, 0.4], [0.3, 0.7], [0.4, 0.8]] },
+    { name: "WOOD", r: [[0.45, 0.85], [0.05, 0.25], [0.05, 0.3], [0.55, 0.9], [0.5, 0.9]] }, { name: "BLIP", r: [[0.4, 0.9], [0.05, 0.25], [0.6, 1], [0, 0.3], [0, 0.3]] }
+  ],
+  [ // HAT: tone decay reso open
+    { name: "TIGHT", r: [[0.5, 0.9], [0.1, 0.35], [0.05, 0.3], [0.2, 0.5]] }, { name: "SOFT", r: [[0.2, 0.5], [0.3, 0.6], [0, 0.2], [0.3, 0.7]] },
+    { name: "BRIGHT", r: [[0.75, 1], [0.2, 0.5], [0.2, 0.5], [0.3, 0.6]] }, { name: "DARK", r: [[0, 0.3], [0.2, 0.5], [0.1, 0.4], [0.4, 0.8]] },
+    { name: "RINGING", r: [[0.4, 0.8], [0.2, 0.5], [0.55, 0.85], [0.3, 0.7]] }
+  ]
 ];
 
 // Moves v by a non-zero amount (at a range end it moves inwards).
@@ -229,13 +248,14 @@ function koreGenerateSound(tr, rng) {
 }
 
 // ---------- per-step lanes (P-Locks on every step, user D2) ----------
+// Per-step lane depths. PUNCH has none: one steady kick sound on every hit (user D6).
 var KORE_LANE_DEPTH = [
-  { tune: [0.01, 0.04], punch: [0.03, 0.12], decay: [0.04, 0.12], drive: [0.03, 0.12], click: [0.05, 0.2] }, // PUNCH: subtle
-  { tune: [0.01, 0.04], decay: [0.05, 0.2] },                                                             // SUB: no octave jumps
-  { amount: [0.1, 0.35], tail: [0.1, 0.3], duck: [0.05, 0.2] },
-  { tune: [0.05, 0.25], decay: [0.1, 0.35], tone: [0.1, 0.4] },
-  { tune: [0.05, 0.25], decay: [0.1, 0.35], tone: [0.1, 0.4] },
-  { tone: [0.1, 0.35], decay: [0.1, 0.4] }
+  {},
+  { tune: [0.01, 0.04], decay: [0.05, 0.2], sweep: [0.05, 0.25], drive: [0.05, 0.2] },
+  { amount: [0.1, 0.35], tail: [0.1, 0.3], duck: [0.05, 0.2], tone: [0.1, 0.3], drive: [0.05, 0.25] },
+  { tune: [0.05, 0.25], decay: [0.1, 0.35], sweep: [0.1, 0.35], tone: [0.1, 0.4], snap: [0.1, 0.4] },
+  { tune: [0.05, 0.25], decay: [0.1, 0.35], sweep: [0.1, 0.35], tone: [0.1, 0.4], snap: [0.1, 0.4] },
+  { tone: [0.1, 0.35], decay: [0.1, 0.4], reso: [0.1, 0.3], open: [0.1, 0.3] }
 ];
 var KORE_LANE_STYLES = ["random", "ramp", "alternate", "wave", "accent", "walk"];
 
@@ -262,7 +282,7 @@ function koreDrawLane(tr, key, rng, scale) {
 
 function koreGenerateLanes(tr, rng, density, amount) {
   for (var i = 0; i < KORE_MAX_STEPS; i++) tr.steps[i].pLocks = {};
-  if (density <= 0 || amount <= 0) return;
+  if (tr.id === KORE_PUNCH || density <= 0 || amount <= 0) return; // steady kick
   var keys = KORE_VOICE_PARAMS[tr.id], scale = Math.min(2, amount / 0.5);
   for (var k = 0; k < keys.length; k++) if (rng.chance(density)) koreDrawLane(tr, keys[k], rng, scale);
 }
@@ -363,7 +383,7 @@ function koreCopyRhythm(dst, src) {
 function koreMutateFromAnchor(current, anchor, amount, scope, rng, g) {
   var next = koreClone(current);
   if (amount <= 0) return next; // exact no-op (A28)
-  for (var t = 0; t < next.length; t++) {
+  for (var t = 1; t < next.length; t++) { // MUTATE never touches the kick (user D6): percussion only
     var tr = next[t], an = anchor[t], i;
     if (koreScopeRhythm(scope) && !tr.locks.rhythm) { koreCopyRhythm(tr, an); koreMutateRhythm(tr, amount, rng, g); }
     if (koreScopeSound(scope) && !tr.locks.sound) { tr.params = koreClone(an.params); koreMutateSound(tr, amount, rng); }
