@@ -93,7 +93,7 @@ function tick(bars, beats, units, resolution, tempo) {
     ph.push(s);
     if (s !== lastPlayhead[t]) changed = true;
   }
-  if (changed) { lastPlayhead = ph; ui.playhead = ph; outlet(1, "playhead", ph[0], ph[1], ph[2], ph[3]); }
+  if (changed) { lastPlayhead = ph; ui.playhead = ph; ui.pos = pos; outlet(1, "playhead", ph[0], ph[1], ph[2], ph[3]); }
   sendStatus();
 }
 

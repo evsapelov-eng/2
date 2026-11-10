@@ -28,7 +28,7 @@ function makeShim(w, h) {
     line_to(x, y) { pathD += `L${x},${y}`; cur = [x, y]; },
     fill() { els.push(`<path d="${pathD}" fill="${color()}"/>`); pathD = ""; },
     stroke() { els.push(`<path d="${pathD}" fill="none" stroke="${color()}" stroke-width="${lw}"/>`); pathD = ""; },
-    select_font_face() {}, set_font_weight(b) { bold = b; }, set_font_size(s) { font = s; },
+    select_font_face(n) { bold = /Bold/.test(n || ""); }, set_font_size(s) { font = s; },
     text_measure(s) { return [s.length * font * 0.62, font]; },
     show_text(s) {
       els.push(`<text x="${tx[0]}" y="${tx[1]}" font-family="Arial, Helvetica, sans-serif" font-size="${font}" font-weight="${bold ? 700 : 400}" fill="${color()}">${s.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text>`);

@@ -1,6 +1,6 @@
 {
   "name": "noiz",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "NØIZ — generative percussion synthesizer for Max for Live (sources, tests, tools)",
   "scripts": {
@@ -8,7 +8,8 @@
     "patches": "python3 tools/build_patches.py",
     "validate": "python3 tools/validate_maxpat.py",
     "render": "node tools/render_voices.js",
-    "test": "node js/build.js && node --test tests/*.test.js"
+    "test": "node js/build.js && node --test tests/*.test.js",
+    "dist": "node js/build.js && python3 tools/build_patches.py && python3 tools/validate_maxpat.py && python3 tools/build_amxd.py"
   },
   "license": "UNLICENSED"
 }

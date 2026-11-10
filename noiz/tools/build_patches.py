@@ -124,7 +124,14 @@ class Patcher:
 
 
 def fmt(v):
-    return ("%.6g" % v) if isinstance(v, float) else str(v)
+    """Max [expr] does INTEGER arithmetic on integer literals (9000/700 == 12):
+    floats are always written with a decimal point."""
+    if isinstance(v, float):
+        t = "%.6g" % v
+        if "e" in t:
+            t = repr(v)
+        return t if "." in t else t + "."
+    return str(v)
 
 
 # ---------------------------------------------------------------- P1 hello

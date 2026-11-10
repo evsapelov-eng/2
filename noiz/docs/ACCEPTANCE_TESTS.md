@@ -2,11 +2,11 @@
 
 Статусы: **PASS / FAIL / NOT TESTED**. «Static proxy» — проверено автотестом или офлайн-моделью, что **не заменяет** host-проверку (ТЗ §15: unit tests не имеют права заменять host validated). Колонка «Host» заполняется после проверки в Live по `HOST_TEST_GUIDE.md`.
 
-Версия: 0.1.0 · дата: 2026-11-10 · Live/Max на стороне разработки: нет.
+Версия: 0.1.1 · дата: 2026-11-10 · Live/Max на стороне разработки: нет.
 
 | ID | Проверка | Static proxy (доказательство) | Host (Live 12) |
 |---|---|---|---|
-| A01 | .amxd на MIDI-дорожке как Instrument | — (`.amxd` не генерируется; патч-источник имеет `plugout~`, проверено `validate_maxpat.py`) | NOT TESTED |
+| A01 | .amxd на MIDI-дорожке как Instrument | PASS (статически): `dist/NOIZ/NØIZ.amxd` — контейнер `ampf`, тип `iiii`, есть `plugout~` (`amxd.test.js`); собран скриптом, не штатным Save | NOT TESTED |
 | A02 | чистый компьютер, freeze | — | NOT TESTED |
 | A03 | звук без MIDI-нот от транспорта | PASS: `max_adapter.test.js` — тики `transport` → `trig` | NOT TESTED |
 | A04 | 4 разных тембра | PASS: `render_voices.js` — центроид/decay различаются ≥ 25% попарно | NOT TESTED |
@@ -37,7 +37,7 @@
 
 | Статус | Значение сейчас |
 |---|---|
-| STATIC VALID | **PASS** — 55 автотестов, 22 DSP-проверки, 6 патчей без ошибок связей |
+| STATIC VALID | **PASS** — 58 автотестов, 22 DSP-проверки, 6 патчей без ошибок связей |
 | MAX LOAD VALID | NOT TESTED |
 | LIVE LOAD VALID | NOT TESTED |
 | AUDIO VALID | NOT TESTED |

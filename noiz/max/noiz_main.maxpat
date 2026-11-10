@@ -809,7 +809,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "*~ 1",
+     "text": "*~ 1.",
      "numinlets": 2,
      "numoutlets": 1,
      "outlettype": [
@@ -818,7 +818,7 @@
      "patching_rect": [
       20,
       770,
-      42,
+      49,
       22
      ],
      "id": "obj-42"
@@ -917,7 +917,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "*~ 1",
+     "text": "*~ 1.",
      "numinlets": 2,
      "numoutlets": 1,
      "outlettype": [
@@ -926,7 +926,7 @@
      "patching_rect": [
       320,
       770,
-      42,
+      49,
       22
      ],
      "id": "obj-48"

@@ -105,7 +105,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "expr 700*pow(9000/700\\,$f1)",
+     "text": "expr 700.*pow(9000./700.\\,$f1)",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -145,7 +145,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "expr (1-$f1)*1",
+     "text": "expr (1-$f1)*1.",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -254,7 +254,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "expr 1+$f1*14",
+     "text": "expr 1+$f1*14.",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -272,7 +272,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "expr pow(1+$f1*14\\,-0.6)",
+     "text": "expr pow(1+$f1*14.\\,-0.6)",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -312,7 +312,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "expr 8*pow(420/8\\,$f1)",
+     "text": "expr 8.*pow(420./8.\\,$f1)",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [

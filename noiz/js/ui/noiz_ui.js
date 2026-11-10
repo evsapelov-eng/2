@@ -71,14 +71,14 @@ function rect(x, y, w, h, c, fill, lw) {
   else { mgraphics.rectangle(x + 0.5, y + 0.5, w - 1, h - 1); mgraphics.stroke(); }
 }
 function text(s, x, y, size, c, bold) {
-  mgraphics.select_font_face("Arial");
-  mgraphics.set_font_weight(bold ? 1 : 0);
+  mgraphics.select_font_face(bold ? "Arial Bold" : "Arial");
   mgraphics.set_font_size(size);
   col(c);
   mgraphics.move_to(x, y);
   mgraphics.show_text(s);
 }
 function textW(s, size) {
+  mgraphics.select_font_face("Arial Bold");
   mgraphics.set_font_size(size);
   return mgraphics.text_measure(s)[0];
 }
@@ -101,7 +101,21 @@ function drawLogo(x, y) {
 }
 
 // ---------- paint ----------
+var lastError = "";
 function paint() {
+  try { paintUi(); }
+  catch (e) {
+    lastError = String(e);
+    post("NOIZ UI error: " + lastError + "\n");
+    mgraphics.set_source_rgba(0.04, 0.04, 0.04, 1);
+    mgraphics.rectangle(0, 0, W0, H0); mgraphics.fill();
+    mgraphics.set_source_rgba(0.96, 0.96, 0.94, 1);
+    mgraphics.select_font_face("Arial"); mgraphics.set_font_size(11);
+    mgraphics.move_to(10, 20); mgraphics.show_text("NOIZ UI error (see Max Console):");
+    mgraphics.move_to(10, 38); mgraphics.show_text(lastError.substring(0, 110));
+  }
+}
+function paintUi() {
   pull(); // always draw the latest published state
   var sz = mgraphics.size;
   scaleF = Math.min(sz[0] / W0, sz[1] / H0);
@@ -118,6 +132,10 @@ function paint() {
   text(S.playing ? "SYNC  LIVE" : "SYNC  STOPPED", 13, 64, 8, S.playing ? COL.primary : COL.secondary);
   if (S.playing) rect(78, 57, 6, 6, COL.primary, true);
   text(Math.round(S.tempo * 10) / 10 + " BPM", 13, 76, 8, COL.secondary);
+  if (S.playing && G && G.pos !== undefined) {
+    var b = Math.floor(G.pos / 4) + 1, bt = Math.floor(G.pos % 4) + 1;
+    text(b + "." + bt, 80, 76, 8, COL.secondary);
+  }
   if (S.pending) text("PENDING > NEXT BAR", 13, 88, 8, COL.primary, true);
   // selected track settings (drag numbers)
   var tr = S.tracks[g.selectedTrack];
