@@ -42,16 +42,15 @@ test("Generate is reproducible from the same state and seed", () => {
   assert.strictEqual(a.state.global.seed, b.state.global.seed);
 });
 
-test("Generate across 200 seeds: some polymeter/poly ratios, but not in most patterns", () => {
+test("Generate across 200 seeds: n:m ratios appear sometimes, not in most patterns", () => {
   const e = new C.NoizEngine();
   let poly = 0;
   for (let i = 0; i < 200; i++) {
     e.generate("RHYTHM");
-    if (e.state.tracks.some((t) => t.length !== 16 || t.division.n !== t.division.m)) poly++;
+    if (e.state.tracks.some((t) => t.division.n !== t.division.m)) poly++;
   }
-  assert.ok(poly > 20 && poly < 110, "poly patterns: " + poly);
+  assert.ok(poly > 20 && poly < 110, "patterns with n:m ratio: " + poly);
 });
-
 test("Generate limits 4-voice strong stacked transients", () => {
   const e = new C.NoizEngine();
   let worst = 0;
@@ -100,8 +99,9 @@ test("Mutate at 10% changes ~1–3 events per 16-step track; 60% is wider but ke
       e.generate("RHYTHM");
       const anchor = JSON.parse(J(e.state.tracks[0]));
       e.mutate("RHYTHM", amt);
-      c.push(diffSteps(anchor, e.state.tracks[0]));
-      assert.ok(C.noizCountHits(e.state.tracks[0]) < 16);
+      const t0 = e.state.tracks[0];
+      c.push(diffSteps(anchor, t0) * 16 / t0.length); // changes per 16 steps
+      assert.ok(C.noizCountHits(t0) < t0.length, "never all steps on");
     }
     return c.reduce((a, b) => a + b, 0) / c.length;
   };
@@ -492,4 +492,26 @@ test("generated sounds are audibly different (brightness and length vary several
     assert.ok(Math.max(...s.zc) / Math.max(1e-3, Math.min(...s.zc)) > 2, `${NM[i]} brightness barely varies`);
     assert.ok(Math.max(...s.len) / Math.min(...s.len) > 3, `${NM[i]} length barely varies`);
   });
+});
+
+test("every GENERATE gives every voice a new cycle length (5..32), voices differ from each other", () => {
+  const e = new C.NoizEngine();
+  const seen = [new Set(), new Set(), new Set(), new Set()];
+  for (let n = 0; n < 40; n++) {
+    const before = e.state.tracks.map((t) => t.length);
+    e.generate("ALL");
+    const L = e.state.tracks.map((t) => t.length);
+    L.forEach((l, i) => {
+      assert.notStrictEqual(l, before[i], `gen ${n} voice ${i} kept length ${l}`);
+      assert.ok(l >= 5 && l <= 32);
+      seen[i].add(l);
+      const t = e.state.tracks[i];
+      const hits = C.noizCountHits(t);
+      assert.ok(hits >= 1 && hits < l, `voice ${i} len ${l} hits ${hits}`);
+      // per-step lanes follow the new length
+      for (const k of C.NOIZ_LOCKABLE) assert.ok(typeof t.steps[l - 1].pLocks[k] === "number" && t.steps[l] === undefined || t.steps[l].pLocks[k] === undefined);
+    });
+    assert.ok(new Set(L).size >= 2, "all four voices got the same length " + L);
+  }
+  seen.forEach((s, i) => assert.ok(s.size >= 8, `voice ${i} lengths: ${[...s]}`));
 });

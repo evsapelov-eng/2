@@ -1,6 +1,6 @@
 {
   "name": "noiz",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "NØIZ — generative percussion synthesizer for Max for Live (sources, tests, tools)",
   "scripts": {

@@ -60,15 +60,29 @@ function noizClearRhythm(track) {
 }
 
 // Rhythm of one track. `others` = tracks already generated (for complementarity).
-function noizGenerateTrackRhythm(track, rng, others, allowPoly) {
-  var id = track.id;
-  noizClearRhythm(track);
-  track.length = 16;
-  track.division = { n: 1, m: 1 };
-  if (allowPoly) {
-    if (rng.chance(0.5)) track.length = rng.pick(NOIZ_POLY_LENGTHS);
-    else track.division = noizClone(rng.pick(NOIZ_POLY_DIVS));
+// Cycle lengths GENERATE picks from (weights): mostly 5..16, sometimes longer cycles.
+var NOIZ_GEN_LENGTHS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 24, 32];
+var NOIZ_GEN_LENGTH_W = [1, 2, 3, 3, 2, 3, 3, 4, 3, 3, 3, 4, 1, 1, 1];
+
+// A new cycle length for a voice: never the same as its previous one, never equal to
+// all lengths already chosen in this GENERATE (`taken`) so the voices drift apart.
+function noizPickLength(rng, prev, taken) {
+  for (var tries = 0; tries < 20; tries++) {
+    var L = NOIZ_GEN_LENGTHS[rng.weighted(NOIZ_GEN_LENGTH_W)];
+    if (L === prev) continue;
+    if (taken.length >= 3 && taken[0] === L && taken[1] === L && taken[2] === L) continue;
+    return L;
   }
+  return prev === 16 ? 12 : 16;
+}
+
+function noizGenerateTrackRhythm(track, rng, others, allowPoly, taken) {
+  var id = track.id;
+  var prevLen = track.length;
+  noizClearRhythm(track);
+  track.length = noizPickLength(rng, prevLen, taken || []);
+  track.division = { n: 1, m: 1 };
+  if (allowPoly) track.division = noizClone(rng.pick(NOIZ_POLY_DIVS));
   var L = track.length;
   var dens = noizClamp(track.density + rng.range(-0.08, 0.08), 0.04, 0.75);
   var count = Math.max(NOIZ_MIN_HITS[id], Math.round(dens * L));
@@ -297,14 +311,16 @@ function noizGenerate(tracks, scope, rng, opts) {
   var next = noizClone(tracks);
   var done = [];
   // at most one or two polymetric tracks, and not in every pattern
-  var polyBudget = rng.chance(0.35) ? (rng.chance(0.25) ? 2 : 1) : 0;
+  var polyBudget = rng.chance(0.3) ? 1 : 0; // an extra n:m ratio now and then (lengths always vary)
+  var taken = [];
   var order = [0, 1, 2, 3];
   for (var oi = 0; oi < order.length; oi++) {
     var tr = next[order[oi]];
     if (noizScopeRhythm(scope) && !tr.locks.rhythm) {
       var allowPoly = false;
       if (polyBudget > 0 && tr.id !== 0 && rng.chance(0.5)) { allowPoly = true; polyBudget--; }
-      noizGenerateTrackRhythm(tr, rng, done, allowPoly);
+      noizGenerateTrackRhythm(tr, rng, done, allowPoly, taken);
+      taken.push(tr.length);
     }
     done.push(tr);
     if (noizScopeSound(scope) && !tr.locks.sound) noizGenerateTrackSound(tr, rng);
