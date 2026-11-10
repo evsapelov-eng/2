@@ -55,15 +55,30 @@ function korePickLength(rng, options, prev) {
   return opts.length ? rng.pick(opts) : (prev === 16 ? 12 : 16);
 }
 
-// PUNCH: a steady techno kick — exactly four equal hits (user D6: no ghost kicks,
-// no per-hit variation). BROKEN may move one only when "unlock punch" is on.
+// PUNCH: KICK 4/4 (default) = exactly four equal hits on the beat (user D6).
+// KICK VAR (g.unlockPunch, user D10) = a techno kick variation chosen for the style:
+// main hits at full velocity, extra hits as quieter ghosts; the downbeat always stays.
+// [steps, ghost steps]
+var KORE_KICK_VARIATIONS = {
+  FOUNDATION: [["PICKUP", [0, 4, 8, 12], [15]], ["PICKUP 2", [0, 4, 8, 12], [7]], ["DOUBLE", [0, 4, 8, 12], [10]], ["LATE", [0, 4, 8, 12], [14]], ["SKIP 3", [0, 4, 12], [11]]],
+  DRIVING: [["ROLL", [0, 4, 8, 12], [13, 14, 15]], ["GALLOP", [0, 4, 8, 12], [3, 11]], ["DOUBLE 2", [0, 4, 8, 12], [10, 14]], ["PUSH", [0, 4, 8, 12], [6, 15]]],
+  HYPNOTIC: [["SKIP", [0, 4, 8], [14]], ["HALF", [0, 8], [11]], ["SKIP 2", [0, 8, 12], [7]], ["DROP", [0, 4, 8], []]],
+  BROKEN: [["BROKEN A", [0, 8], [3, 11]], ["BROKEN B", [0, 10], [6, 12]], ["BROKEN C", [0, 7], [10, 14]], ["BROKEN D", [0, 6, 12], [9]], ["BROKEN E", [0, 3, 8], [14]]]
+};
+function koreKickSignature(tr) { var s = ""; for (var i = 0; i < 16; i++) s += tr.steps[i].on ? (tr.steps[i].velocity >= 0.99 ? "X" : "x") : "."; return s; }
 function koreGenPunch(tr, rng, cfg, g) {
+  var prev = koreKickSignature(tr);
   koreClearRhythm(tr);
   tr.length = 16; tr.division = { n: 1, m: 1 };
-  for (var i = 0; i < 4; i++) koreSet(tr, KORE_FOUR_ON_FLOOR[i], 1);
-  if (g.style === "BROKEN" && g.unlockPunch && rng.chance(0.6)) {
-    tr.steps[rng.pick([4, 8, 12])].on = false;          // selective omission, keep the downbeat
-    koreSet(tr, rng.pick([3, 10, 11, 14]), rng.range(0.7, 0.9));
+  var i;
+  if (!g.unlockPunch) { for (i = 0; i < 4; i++) koreSet(tr, KORE_FOUR_ON_FLOOR[i], 1); return; }
+  for (var tries = 0; tries < 8; tries++) {
+    var list = rng.chance(0.75) ? KORE_KICK_VARIATIONS[g.style] : KORE_KICK_VARIATIONS[rng.pick(KORE_STYLES)];
+    var v = rng.pick(list);
+    koreClearRhythm(tr);
+    for (i = 0; i < v[1].length; i++) koreSet(tr, v[1][i], 1);
+    for (i = 0; i < v[2].length; i++) koreSet(tr, v[2][i], koreRound(rng.range(0.55, 0.8), 3));
+    if (koreKickSignature(tr) !== prev) break;
   }
 }
 
@@ -142,7 +157,7 @@ function koreGenHat(tr, prev, rng, cfg) {
 // Validation (spec §11.7): anchors, low-end overlap, density. Returns "" if fine.
 function koreValidateGroove(tracks, g) {
   var punch = tracks[KORE_PUNCH];
-  if (!(g.style === "BROKEN" && g.unlockPunch)) {
+  if (!g.unlockPunch) {
     for (var i = 0; i < 4; i++) if (!punch.steps[KORE_FOUR_ON_FLOOR[i]].on) return "punch anchor missing";
   }
   var heavy = 0;

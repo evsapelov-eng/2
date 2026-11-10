@@ -5,7 +5,7 @@
 // Inlet 0:
 //   tick <bars> <beats> <units> <resolution> <tempo>    host position from [transport]
 //   loopon <0|1>  loopstart <beats>  looplength <beats> Live loop (live.observer)
-//   generate | mutate | keep | undo
+//   generate | mutate | keep | undo | kickvar <0|1>  (KICK 4/4 / KICK VAR: new kick variation)
 //   amount <0..1>  style <FOUNDATION|DRIVING|HYPNOTIC|BROKEN>  interaction <HYBRID|ALTERNATE|LAYER>
 //   unlockpunch <0|1>
 //   select <track>  selstep <step|-1>  page <0|1>  view <SEQUENCE|SOUND|LANES>
@@ -24,7 +24,7 @@
 //                  kicklevel <amp> · kickgate <0|1> · hum <amp> · humbuf <bufferName>
 // PUNCH is played in the signal domain from buffer~ (sample-accurate); this object
 // writes its 16-step pattern into the pattern buffer and renders its sound.
-//   bufnames <kickA> <kickB> <pattern> <humA> <humB>   (from the patch: unique ---names)
+//   bufnames <kickA> <kickB> <pattern> <humA> <humB> <gaps>   (from the patch: unique ---names)
 //   sr <sampleRate>                      (from [dspstate~])
 // Outlet 1 → UI:   bind <globalName> · refresh · playhead <s0..s5>
 // Outlet 2 → status: sync <0|1> <tempo> · pending <0|1> · error <text>
@@ -68,8 +68,8 @@ engine.onChange(function (what) {
 
 // ---------- kick buffers ----------
 var kick = { names: null, sr: 48000, active: 0, humActive: 0, lastPattern: "", lastSound: "", lastHumSound: "", lastLevel: -1, lastGate: -1, lastHum: -1, renderTask: null, humTask: null };
-function bufnames(a, b, pat, ha, hb) {
-  kick.names = [String(a), String(b), String(pat), String(ha || "---hum_a"), String(hb || "---hum_b")];
+function bufnames(a, b, pat, ha, hb, gap) {
+  kick.names = [String(a), String(b), String(pat), String(ha || "---hum_a"), String(hb || "---hum_b"), String(gap || "---kgap")];
   kick.lastPattern = ""; kick.lastSound = ""; kick.lastHumSound = ""; syncKick();
 }
 function sr(v) { if (v > 0 && v !== kick.sr) { kick.sr = v; kick.lastSound = ""; kick.lastHumSound = ""; syncKick(); } }
@@ -80,8 +80,10 @@ function syncKick() {
   var pat = koreKickPattern(st), pj = pat.join(",");
   if (pj !== kick.lastPattern) {
     kick.lastPattern = pj;
-    try { var pb = new Buffer(kick.names[2]); pb.send("sizeinsamps", 16, 1); pb.poke(1, 0, pat); }
-    catch (e) { outlet(2, "error", "kick pattern buffer: " + e); }
+    try {
+      var gb = new Buffer(kick.names[5]); gb.send("sizeinsamps", 16, 1); gb.poke(1, 0, koreKickGaps(st)); // gaps first: ready when a new hit fires
+      var pb = new Buffer(kick.names[2]); pb.send("sizeinsamps", 16, 1); pb.poke(1, 0, pat);
+    } catch (e) { outlet(2, "error", "kick pattern buffer: " + e); }
   }
   var lv = koreKickLevel(st);
   if (lv !== kick.lastLevel) { kick.lastLevel = lv; outlet(0, "kicklevel", lv); }
@@ -90,7 +92,7 @@ function syncKick() {
   var hum = koreHum(st);
   if (hum.amp !== kick.lastHum) { kick.lastHum = hum.amp; outlet(0, "hum", hum.amp); }
   var pp = st.tracks[KORE_PUNCH].params, tempo = Math.round((engine.tempo || 120) * 10) / 10;
-  var hs = [pp.tune, pp.punch, pp.time, pp.humpitch, tempo].join(",");
+  var hs = [pp.tune, pp.punch, pp.time, pp.humpitch, tempo].join(",");   // length = 1¼ bar at this tempo
   if (hs !== kick.lastHumSound) {
     kick.lastHumSound = hs;
     if (!kick.humTask) kick.humTask = new Task(renderHumNow, this);
@@ -176,6 +178,7 @@ function looplength(v) { loopInfo.length = v; engine.setLoop(loopInfo.on, loopIn
 function generate() { engine.generate("ALL"); }
 function mutate() { engine.mutate("ALL"); }
 function keep() { engine.keep(); }
+function kickvar(v) { engine.setKickVar(v); }
 function undo() { engine.undo(); }
 function amount(v) { engine.setGlobal("mutationAmount", v); }
 function style(s) { engine.setGlobal("style", String(s)); }

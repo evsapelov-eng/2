@@ -922,7 +922,7 @@
    {
     "box": {
      "maxclass": "message",
-     "text": "bufnames ---kick_a ---kick_b ---kpat ---hum_a ---hum_b",
+     "text": "bufnames ---kick_a ---kick_b ---kpat ---hum_a ---hum_b ---kgap",
      "numinlets": 2,
      "numoutlets": 1,
      "outlettype": [
@@ -931,7 +931,7 @@
      "patching_rect": [
       600,
       40,
-      392,
+      448,
       22
      ],
      "id": "obj-47"

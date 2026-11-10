@@ -73,7 +73,7 @@ class Patch {
     if (c === "tapout~") st.delays = w.slice(1).map(Number);
     if (this._isSig(b)) {
       st.inF = [0, 0, 0].map((_, i) => (w[i + 1] !== undefined && !isNaN(+w[i + 1]) ? +w[i + 1] : (c === "*~" && i === 1 && w.length === 1 ? 0 : 0)));
-      if ((c === "*~" || c === "+~" || c === ">~" || c === "-~" || c === "!-~" || c === "%~") && w[1] !== undefined) st.inF[1] = +w[1];
+      if ((c === "*~" || c === "+~" || c === ">~" || c === "==~" || c === "-~" || c === "!-~" || c === "%~") && w[1] !== undefined) st.inF[1] = +w[1];
       if (c === "svf~") { st.inF[1] = +(w[1] || 1000); st.inF[2] = +(w[2] || 0.5); st.ic1 = 0; st.ic2 = 0; }
       if (c === "cycle~") { st.inF[0] = +(w[1] || 0); st.ph = 0; }
       if (c === "line~") { st.v = 0; st.segs = []; }
@@ -206,6 +206,7 @@ class Patch {
         case "*~": y[0] = x0 * x1; break;
         case "+~": y[0] = x0 + x1; break;
         case ">~": y[0] = x0 > x1 ? 1 : 0; break;
+        case "==~": y[0] = x0 === x1 ? 1 : 0; break;
         case "abs~": y[0] = Math.abs(x0); break;
         case "tanh~": y[0] = Math.tanh(x0); break;
         case "dbtoa~": y[0] = Math.pow(10, x0 / 20); break;

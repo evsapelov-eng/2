@@ -12,6 +12,11 @@
       "detail": "-0.8 dBFS"
     },
     {
+      "id": "KICK VAR render bounded",
+      "pass": true,
+      "detail": "-4.1 dBFS"
+    },
+    {
       "id": "starter preset peak ≈ -6 dBFS (−9 … −3)",
       "pass": true,
       "detail": "-4.5 dBFS"

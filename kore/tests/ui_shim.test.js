@@ -160,7 +160,7 @@ test("SEQUENCE: six rows, step toggle, option-click → step strip, open-hat tog
 test("SOUND: every PUNCH node changes the waveform/pitch picture (model-driven)", () => {
   const b = boot();
   b.draw(); b.tab("SOUND");
-  assert.ok(b.mg.svg().includes("PITCH vs TIME"));
+  assert.ok(b.mg.svg().includes("PITCH / TIME"));
   const sig = () => { const pv = b.ui.previewFor(b.state().global, true); return J([pv.data.L.length, pv.data.L.slice(0, 4000).map((x) => +x.toFixed(4)), (pv.data.pitch || []).slice(0, 2000).map((x) => +x.toFixed(2))]); };
   const ref = sig();
   const nodes = b.ui.hits.filter((h) => h.kind === "param");
@@ -213,4 +213,87 @@ test("SOUND graph handles: dragging the PITCH and WAVE handles changes the right
   const h1 = b.state().tracks[5].params;
   assert.ok(h1.tone > h0.tone && h1.reso > h0.reso, "HAT tone+reso");
   b.save("ui_strip_sound_hat.svg");
+});
+
+test("SOUND handles follow the mouse along their rail (= the parameter range) for every voice; beyond it they stop at the end", () => {
+  const b = boot();
+  b.draw(); b.tab("SOUND");
+  const problems = [];
+  const center = (h) => [h.x + h.w / 2, h.y + h.h / 2];
+  for (let v = 0; v < 6; v++) {
+    b.voice(v);
+    for (const key of b.ui.hits.filter((h) => h.kind === "handle").map((h) => h.key)) {
+      const get = () => b.ui.hits.find((q) => q.kind === "handle" && q.key === key);
+      const h0 = get(), r0 = h0.pos(0), r1 = h0.pos(1), len = Math.abs(r1 - r0);
+      const axisLen = h0.axis === "x" ? b.ui.GRAPH.w : b.ui.GRAPH.h;
+      if (len < axisLen * 0.2) problems.push(`${b.ui.NAMES[v]}.${key}: rail only ${len.toFixed(0)} px`);
+      for (const frac of [0.1, 0.5, 0.9, -0.3, 1.3]) {
+        const h = get(), [cx, cy] = center(h);
+        const target = r0 + (r1 - r0) * frac;
+        const [tx, ty] = h.axis === "x" ? [target, cy] : [cx, target];
+        b.click(cx, cy); b.dragTo(tx, ty); b.send(); b.draw();
+        const val = b.state().tracks[v].params[key], [nx, ny] = center(get());
+        const want = frac < 0 ? r0 : frac > 1 ? r1 : target, got = h.axis === "x" ? nx : ny;
+        if (Math.abs(got - want) > 1.5) problems.push(`${b.ui.NAMES[v]}.${key} frac ${frac}: handle at ${got.toFixed(1)}, cursor/end at ${want.toFixed(1)}`);
+        if (frac < 0 && val !== 0) problems.push(`${b.ui.NAMES[v]}.${key}: below the rail should give 0, got ${val}`);
+        if (frac > 1 && val !== 1) problems.push(`${b.ui.NAMES[v]}.${key}: beyond the rail should give 1, got ${val}`);
+      }
+      // hover explains it
+      const [hx, hy] = center(get());
+      b.ui.onidle(hx, hy); b.draw();
+      if (!b.mg.svg().includes(":")) problems.push(`${key}: no help text on hover`);
+      b.ui.onidleout();
+    }
+  }
+  assert.deepStrictEqual(problems, []);
+});
+
+test("SOUND knobs: on every voice each knob goes up when dragged up, down when dragged down, double-click = default, readout follows", () => {
+  const b = boot();
+  b.draw(); b.tab("SOUND");
+  const problems = [];
+  for (let v = 0; v < 6; v++) {
+    b.voice(v);
+    for (const key of b.ui.hits.filter((h) => h.kind === "param").map((h) => h.key)) {
+      const get = () => b.ui.hits.find((q) => q.kind === "param" && q.key === key);
+      const val = () => b.state().tracks[v].params[key];
+      let h = get(); const cx = h.x + h.w / 2, cy = h.y + 20, v0 = val();
+      b.click(cx, cy); b.dragTo(cx, cy - 30); b.send(); b.draw();
+      const up = val(), txtUp = b.ui.valueText(v, key, up);
+      if (!(up > v0 || v0 >= 0.999)) problems.push(`${b.ui.NAMES[v]}.${key}: drag up ${v0}→${up}`);
+      if (!b.mg.svg().includes(">" + txtUp.replace(/&/g, "&amp;") + "<")) problems.push(`${b.ui.NAMES[v]}.${key}: readout ${txtUp} not shown`);
+      h = get(); b.click(cx, cy); b.dragTo(cx, cy + 60); b.send(); b.draw();
+      if (!(val() < up)) problems.push(`${b.ui.NAMES[v]}.${key}: drag down ${up}→${val()}`);
+      b.ui.ondblclick(cx, cy); b.send(); b.draw();
+      if (val() !== b.state().tracks[v].params[key] || Math.abs(val() - C_DEF(v, key)) > 1e-9) problems.push(`${b.ui.NAMES[v]}.${key}: reset → ${val()}`);
+    }
+  }
+  assert.deepStrictEqual(problems, []);
+});
+const C_DEF = (v, key) => JSON.parse(fs.readFileSync(path.join(__dirname, "..", "spec", "dsp_map.json"), "utf8")).voices[["PUNCH", "SUB", "RUMBLE", "TOM L", "TOM H", "HAT"][v]].defaults[key];
+
+test("SEQUENCE: KICK 4/4 / VAR buttons — VAR makes a new kick variation each press, 4/4 restores", () => {
+  const b = boot();
+  b.draw();
+  const sig = () => b.state().tracks[0].steps.slice(0, 16).map((s) => (s.on ? "X" : ".")).join("");
+  assert.ok(svgText(b.mg.svg()).includes("4/4") && svgText(b.mg.svg()).includes("VAR"));
+  b.click(906 + 27, 148); b.send(); b.draw();
+  const a = sig(); assert.notStrictEqual(a, "X...X...X...X...");
+  assert.ok(b.state().global.unlockPunch);
+  b.click(906 + 27, 148); b.send(); b.draw();
+  assert.notStrictEqual(sig(), a, "next press = another variation");
+  b.click(...[170, 18]); b.send(); b.draw();   // select PUNCH → explanation
+  assert.ok(svgText(b.mg.svg()).includes("KICK VAR"));
+  b.save("ui_strip_kickvar.svg");
+  b.click(848 + 27, 148); b.send(); b.draw();
+  assert.strictEqual(sig(), "X...X...X...X..."); assert.ok(!b.state().global.unlockPunch);
+});
+
+test("preview: SOUND with hover help (kick TIME handle, TOM L)", () => {
+  const b = boot();
+  b.draw(); b.tab("SOUND");
+  const h = b.ui.hits.find((q) => q.kind === "handle" && q.key === "time");
+  b.ui.onidle(h.x + 9, h.y + 9); b.save("ui_strip_sound_help.svg");
+  assert.ok(b.mg.svg().includes("TIME: how fast the pitch falls"));
+  b.ui.onidleout(); b.voice(3); b.save("ui_strip_sound_tom.svg");
 });

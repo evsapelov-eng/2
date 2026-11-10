@@ -127,24 +127,30 @@ function koreHumHz(map, p) {
   var v = map.voices.PUNCH, h = v.hum, semis = koreLin(h.pitchSemis, p.humpitch === undefined ? 0.5 : p.humpitch);
   return koreExpMap(v.tuneHz, p.tune) * Math.pow(2, semis / 12);
 }
-// One beat long (the kick is always 4/4): sine from phase 0 at the hit with a short glide
-// borrowed from the kick's PUNCH, 1 ms attack, settles to 'sustain', fades to exactly 0
-// before the next beat so the restart at the next kick is click-free. Peak 1 (level is
-// applied in the player).
+// Sine from phase 0 at the hit with a short glide borrowed from the kick's PUNCH, 1 ms
+// attack, settles to 'sustain'. Long enough for the longest gap between two kicks (one
+// bar, +25% for tempo changes); the player fades it (and the kick) to 0 just before the
+// next hit, wherever that is (koreKickFade). Peak 1 (level is applied in the player).
 function koreRenderHum(map, p, sr, tempo) {
   var v = map.voices.PUNCH, h = v.hum, info = koreModelInfo(map, "PUNCH", p), hz = koreHumHz(map, p);
-  var beatMs = 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(beatMs / 1000 * sr));
-  var endMs = beatMs - h.endGapMs, fadeStart = endMs - h.fadeMs, out = [], pitch = [], ph = 0;
+  var barMs = 4 * 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(barMs * 1.25 / 1000 * sr));
+  var out = [], pitch = [], ph = 0;
   for (var i = 0; i < n; i++) {
     var tMs = i / sr * 1000;
     var f = hz * Math.pow(2, info.sweepSemis * h.glideFrac / 12 * koreSweep(tMs, info.sweepMs));
     pitch.push(f); ph += f / sr;
     var a = Math.min(1, tMs / h.attackMs) * (h.sustain + (1 - h.sustain) * Math.exp(-tMs / h.settleMs));
-    if (tMs >= endMs) a = 0; else if (tMs > fadeStart) a *= 0.5 + 0.5 * Math.cos(Math.PI * (tMs - fadeStart) / h.fadeMs);
+    if (i > n - 1 - Math.round(h.fadeMs / 1000 * sr)) a *= (n - 1 - i) / Math.round(h.fadeMs / 1000 * sr);
     out.push(Math.sin(2 * Math.PI * (ph - f / sr)) * a);
   }
   out[n - 1] = 0;
   return { L: out, pitch: pitch, hz: hz, sr: sr };
+}
+
+// The player's fade before the next kick: clip((gapS − t − endGap)/fade, 0, 1) (samples).
+function koreKickFade(map, tS, gapS, sr) {
+  var h = map.voices.PUNCH.hum, x = (gapS - tS - h.endGapMs * sr / 1000) / (h.fadeMs * sr / 1000);
+  return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 // ---------- MSP voices (mirrors of the patches) ----------

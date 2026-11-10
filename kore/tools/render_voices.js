@@ -34,7 +34,7 @@ function renderGroove(sections, bpm) {
   const beatS = 60 / bpm, total = sections.reduce((a, s) => a + s.bars, 0);
   const n = Math.ceil((total * 4 * beatS + 1.5) * SR);
   const bus = { punch: new Float64Array(n), sub: new Float64Array(n), otherL: new Float64Array(n), otherR: new Float64Array(n), rumbleIn: new Float64Array(n) };
-  const punchHits = [], rumbleEvents = [], humHits = [];
+  const punchHits = [], rumbleEvents = [], humHits = [], kickEvents = [];
   let barAt = 0, hits = 0;
   for (const sec of sections) {
     const evs = C.koreEventsInRange(sec.state, 0, sec.bars * 4, { minSpacingBeats: (12 / 60000) * bpm });
@@ -45,16 +45,23 @@ function renderGroove(sections, bpm) {
       if (name === "RUMBLE") { rumbleEvents.push({ at, p: e.params }); continue; }
       const p = Object.assign({ amp: m[1], isOpen: e.open ? 1 : 0 }, e.params);
       const h = M.koreModelHit(MAP, name, p, SR, 0, 1000 + hits).L;
-      if (name === "PUNCH" || name === "SUB") {
-        const dst = name === "PUNCH" ? bus.punch : bus.sub;
-        for (let i = 0; i < h.length && at + i < n; i++) dst[at + i] += h[i];
+      if (name === "PUNCH") kickEvents.push({ at, h });   // added below with the fade before the next hit
+      else if (name === "SUB") {
+        for (let i = 0; i < h.length && at + i < n; i++) bus.sub[at + i] += h[i];
       } else { // balance pan like the voice patches
         const pan = e.params.pan === undefined ? 0.5 : e.params.pan, gl = Math.min(1, 2 * (1 - pan)), gr = Math.min(1, 2 * pan);
         for (let i = 0; i < h.length && at + i < n; i++) { bus.otherL[at + i] += h[i] * gl; bus.otherR[at + i] += h[i] * gr; }
       }
-      if (name === "PUNCH") { punchHits.push(at); humHits.push({ at, h: C.koreHum(sec.state), p: sec.state.tracks[0].params }); }
+      if (name === "PUNCH") { punchHits.push(at); humHits.push({ at, h: C.koreHum(sec.state), p: sec.state.tracks[0].params, v: Math.pow(e.velocity, 1.5) }); }
     }
     barAt += sec.bars;
+  }
+  // kick: each hit fades to 0 just before the next one (kore_kick: koreKickFade)
+  kickEvents.sort((a, b) => a.at - b.at);
+  const gapAfter = (at) => { const nx = kickEvents.find((k) => k.at > at); return nx ? nx.at - at : Infinity; };
+  for (const k of kickEvents) {
+    const gap = gapAfter(k.at);
+    for (let i = 0; i < k.h.length && k.at + i < n; i++) bus.punch[k.at + i] += k.h[i] * M.koreKickFade(MAP, i, gap, SR);
   }
   // low-end coordinator: SUB duck + RUMBLE (bus FX on the PUNCH bus, gated by RUMBLE steps, ducked by PUNCH)
   const le = MAP.lowEnd, rv = MAP.voices.RUMBLE; // ducks follow the kick proximity (1 → 0 over the release), like kore_kick
@@ -95,7 +102,8 @@ function renderGroove(sections, bpm) {
   const hum = new Float64Array(n);
   for (const hh of humHits) {
     const buf = M.koreRenderHum(MAP, hh.p, SR, bpm).L;
-    for (let i = 0; i < buf.length && hh.at + i < n; i++) hum[hh.at + i] = buf[i] * hh.h.amp;
+    const gap = gapAfter(hh.at);
+    for (let i = 0; i < buf.length && hh.at + i < n; i++) hum[hh.at + i] += buf[i] * hh.h.amp * hh.v * M.koreKickFade(MAP, i, gap, SR);
   }
   const L = new Float32Array(n), R = new Float32Array(n);
   const hpL = M.koreSvf(le.dcBlockHz, 0.05, SR), hpR = M.koreSvf(le.dcBlockHz, 0.05, SR);
@@ -156,6 +164,17 @@ check("A36 proxy: demo never reaches 0 dBFS", demo.peak < 0.95, `peak ${demo.pea
   t.state.tracks[0].params.hum = 0;
   const tr3 = renderGroove([{ bars: 4, state: snap(t) }], 128);
   writeWav(path.join(OUT, "kore_kick_and_toms_128bpm.wav"), tr3.L, tr3.R);
+}
+
+// 1d) KICK VAR: a few kick variations per style (kick + HUM only, for listening)
+{
+  const k = new C.KoreEngine(), segs = [];
+  k.state.tracks.forEach((t, i) => { if (i > 0) t.mute = true; });
+  k.state.tracks[0].params.hum = 0.5;
+  for (const st of C.KORE_STYLES) { k.setGlobal("style", st); for (let j = 0; j < 2; j++) { k.setKickVar(1); segs.push({ bars: 2, state: snap(k) }); } }
+  const kv = renderGroove(segs, 128);
+  writeWav(path.join(OUT, "kore_kick_variations_128bpm.wav"), kv.L, kv.R);
+  check("KICK VAR render bounded", kv.peak < 0.95, `${kv.peakDb.toFixed(1)} dBFS`);
 }
 
 // 2) starter preset headroom (spec: ≈ -6 dBFS in the test preset)

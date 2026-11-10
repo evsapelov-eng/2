@@ -63,19 +63,40 @@ test("the rendered kick is identical every time for the same settings and change
   }
 });
 
-test("A26: BROKEN with unlocked PUNCH may move the anchor but keeps the downbeat and stays rhythmic", () => {
-  const e = new C.KoreEngine();
-  e.setGlobal("style", "BROKEN"); e.setGlobal("unlockPunch", true);
-  let moved = 0;
-  for (let i = 0; i < 100; i++) {
-    e.generate();
-    const p = e.state.tracks[0];
-    assert.ok(p.steps[0].on);
-    const hits = C.koreCountHits(p);
-    assert.ok(hits >= 3 && hits <= 6);
-    if (!kickOK(p)) moved++;
+test("D10 KICK VAR: every GENERATE / VAR press = a new kick variation (downbeat kept, ghosts quieter); 4/4 restores, undo works", () => {
+  const sig = (p) => p.steps.slice(0, 16).map((s) => (s.on ? (s.velocity >= 0.99 ? "X" : "x") : ".")).join("");
+  for (const style of C.KORE_STYLES) {
+    const e = new C.KoreEngine();
+    e.setGlobal("style", style);
+    e.setKickVar(1);
+    const seen = new Set();
+    let prev = sig(e.state.tracks[0]);
+    for (let i = 0; i < 30; i++) {
+      i % 2 ? e.generate() : e.setKickVar(1);
+      const p = e.state.tracks[0], s = sig(p);
+      assert.ok(p.steps[0].on && p.steps[0].velocity === 1, "downbeat");
+      assert.notStrictEqual(s.replace(/x/g, "."), "X...X...X...X...".replace(/x/g, ".") + (s.includes("x") ? "?" : ""), style + " not plain 4/4: " + s);
+      assert.notStrictEqual(s, prev, style + " changes every press");
+      p.steps.forEach((st) => { if (st.on && st.velocity < 1) assert.ok(st.velocity >= 0.55 && st.velocity <= 0.8); });
+      assert.ok(C.koreCountHits(p) >= 2 && C.koreCountHits(p) <= 7);
+      seen.add(s); prev = s;
+    }
+    assert.ok(seen.size >= 4, style + " variety " + seen.size);
+    e.setKickVar(0);
+    assert.strictEqual(sig(e.state.tracks[0]), "X...X...X...X...");
+    e.undo();
+    assert.notStrictEqual(sig(e.state.tracks[0]), "X...X...X...X...");
+    assert.ok(e.state.global.unlockPunch);
   }
-  assert.ok(moved > 20 && moved < 90, "moved " + moved);
+  const g = new C.KoreEngine(); g.generate();
+  assert.strictEqual(sig(g.state.tracks[0]), "X...X...X...X...", "default stays 4/4");
+});
+
+test("D10: kick gaps (16ths to the next hit) for the player's fade", () => {
+  const e = new C.KoreEngine();
+  assert.deepStrictEqual(Array.from(C.koreKickGaps(e.state)), [4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]);
+  e.toggleStep(0, 15); e.toggleStep(0, 4);
+  assert.deepStrictEqual(Array.from(C.koreKickGaps(e.state)), [8, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 1]);
 });
 
 test("A25: styles are structurally different (hat density, tom/hat lengths, n:m)", () => {

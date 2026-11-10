@@ -32,7 +32,8 @@ KoreEngine.prototype._snapshot = function () {
     tracks: koreClone(this.state.tracks),
     anchorTracks: koreClone(this.anchorTracks),
     seed: this.state.global.seed,
-    generationCounter: this.generationCounter
+    generationCounter: this.generationCounter,
+    kickVar: this.state.global.unlockPunch
   };
 };
 KoreEngine.prototype._pushUndo = function (snap) {
@@ -94,6 +95,21 @@ KoreEngine.prototype.mutate = function (scope, amount) {
   return true;
 };
 
+// KICK 4/4 / KICK VAR (user D10). VAR: every press = a new kick variation for the style
+// (and GENERATE keeps making variations); 4/4: back to four equal hits. Undoable; while
+// playing it lands on the next bar like GENERATE.
+KoreEngine.prototype.setKickVar = function (on) {
+  this._pushUndo();
+  this._beginStructural();
+  var g = this.state.global;
+  g.unlockPunch = !!on;
+  var tr = this.state.tracks[KORE_PUNCH];
+  koreGenPunch(tr, new KoreRng(this._nextSeed()), null, g);
+  if (this.anchorTracks) this.anchorTracks[KORE_PUNCH] = koreClone(tr);
+  if (!this.transportPlaying) this._applyPending();
+  this._changed("generate");
+};
+
 KoreEngine.prototype.keep = function () {
   this._pushUndo();
   this.anchorTracks = koreClone(this.state.tracks);
@@ -108,6 +124,7 @@ KoreEngine.prototype.undo = function () {
   this.anchorTracks = snap.anchorTracks;
   this.state.global.seed = snap.seed;
   this.generationCounter = snap.generationCounter;
+  if (snap.kickVar !== undefined) this.state.global.unlockPunch = snap.kickVar; // KICK 4/4 / VAR follows its pattern
   if (!this.transportPlaying) this._applyPending();
   this._changed("undo");
   return true;
@@ -310,6 +327,17 @@ function koreKickPattern(state) {
   for (var i = 0; i < 16; i++) {
     var st = tr.steps[i];
     out.push(!tr.mute && st.on ? koreRound(Math.pow(koreClamp01(st.velocity), 1.5), 4) : 0);
+  }
+  return out;
+}
+// Gap (in 16ths) from each kick hit to the next one (cyclic in the bar), 0 = no hit:
+// the player fades kick + HUM to 0 just before the next hit (click-free variations).
+function koreKickGaps(state) {
+  var pat = koreKickPattern(state), out = [], i, j;
+  for (i = 0; i < 16; i++) {
+    if (!(pat[i] > 0)) { out.push(0); continue; }
+    for (j = 1; j <= 16; j++) if (pat[(i + j) % 16] > 0) break;
+    out.push(j);
   }
   return out;
 }

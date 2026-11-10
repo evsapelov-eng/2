@@ -91,12 +91,14 @@ test("stopped transport (playing 0) → silence and no duck", () => {
 });
 
 // ---- HUM: the sub that hits with the kick and hums until the next one ----
+function gapsOf(pat) { return pat.map((v, i) => { if (!(v > 0)) return 0; for (let j = 1; j <= 16; j++) if (pat[(i + j) % 16] > 0) return j; return 16; }); }
 function runHum(humAmp, pattern, gate = 1, bars = 1.3, humpitch = 0.5) {
   const p = new Patch(JSON.parse(fs.readFileSync(path.join(__dirname, "..", "max", "kore_kick.maxpat"), "utf8")), 1);
   const hp = Object.assign({}, MAP.voices.PUNCH.defaults, { humpitch });
   p.buffers["---kpat"] = Float64Array.from(pattern);
   p.buffers["---kick_a"] = Float64Array.from(KICK);
   p.buffers["---hum_a"] = Float64Array.from(M.koreRenderHum(MAP, hp, SR, 120).L);
+  p.buffers["---kgap"] = Float64Array.from(gapsOf(pattern));
   const msg = p.inlets()[0];
   p.send(msg.id, 0, ["sr", SR]); p.send(msg.id, 0, ["tempo", 120]); p.send(msg.id, 0, ["level", 1]);
   p.send(msg.id, 0, ["playing", 1]); p.send(msg.id, 0, ["gate", gate]); p.send(msg.id, 0, ["hum", humAmp]);
@@ -135,4 +137,26 @@ test("HUM 0 → silence; empty pattern (gate 0) → no kick, no hum, no replay o
   assert.ok(off.hum.every((v) => Math.abs(v) < 1e-9));
   const silent = runHum(0.5, new Array(16).fill(0), 0, 2.3);
   assert.ok(silent.kick.every((v) => v === 0) && silent.hum.every((v) => v === 0));
+});
+
+test("D10 kick variation (ghost pickup on step 16): kick and HUM fade to 0 just before every next hit — no clicks", () => {
+  const pat = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.5];
+  const r = runHum(0.5, pat, 1, 2.2);
+  const s16 = r.barS / 16;
+  const hits = [];
+  for (let b = 0; b < 3; b++) pat.forEach((v, i) => { if (v > 0) { const at = Math.round((b - 0.9 + i / 16) * r.barS); if (at > 0 && at < r.hum.length) hits.push(at); } });
+  for (const at of hits) {
+    for (const [name, x] of [["kick", r.kick], ["hum", r.hum]]) {
+      assert.ok(Math.abs(x[at - 1]) < 1e-3, `${name} not faded before the hit at ${at}: ${x[at - 1]}`);
+    }
+  }
+  let jk = 0, jh = 0;
+  for (let i = 1; i < r.hum.length; i++) { jh = Math.max(jh, Math.abs(r.hum[i] - r.hum[i - 1])); }
+  assert.ok(jh < 0.04, "hum max step " + jh);
+  // the kick itself has a steep attack; check only the samples right before each hit
+  for (const at of hits) for (let i = at - 200; i < at; i++) jk = Math.max(jk, Math.abs(r.kick[i] - r.kick[i - 1]));
+  assert.ok(jk < 0.05, "kick tail max step before hits " + jk);
+  const ghostAt = hits.find((h) => Math.abs(((h / r.barS + 0.9) % 1) - 15 / 16) < 1e-3);
+  let pk = 0; for (let i = ghostAt; i < ghostAt + 480; i++) pk = Math.max(pk, Math.abs(r.kick[i]));
+  assert.ok(pk > 0.2 && pk < 0.5, "ghost kick quieter: " + pk);
 });

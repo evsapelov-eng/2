@@ -132,24 +132,30 @@ function koreHumHz(map, p) {
   var v = map.voices.PUNCH, h = v.hum, semis = koreLin(h.pitchSemis, p.humpitch === undefined ? 0.5 : p.humpitch);
   return koreExpMap(v.tuneHz, p.tune) * Math.pow(2, semis / 12);
 }
-// One beat long (the kick is always 4/4): sine from phase 0 at the hit with a short glide
-// borrowed from the kick's PUNCH, 1 ms attack, settles to 'sustain', fades to exactly 0
-// before the next beat so the restart at the next kick is click-free. Peak 1 (level is
-// applied in the player).
+// Sine from phase 0 at the hit with a short glide borrowed from the kick's PUNCH, 1 ms
+// attack, settles to 'sustain'. Long enough for the longest gap between two kicks (one
+// bar, +25% for tempo changes); the player fades it (and the kick) to 0 just before the
+// next hit, wherever that is (koreKickFade). Peak 1 (level is applied in the player).
 function koreRenderHum(map, p, sr, tempo) {
   var v = map.voices.PUNCH, h = v.hum, info = koreModelInfo(map, "PUNCH", p), hz = koreHumHz(map, p);
-  var beatMs = 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(beatMs / 1000 * sr));
-  var endMs = beatMs - h.endGapMs, fadeStart = endMs - h.fadeMs, out = [], pitch = [], ph = 0;
+  var barMs = 4 * 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(barMs * 1.25 / 1000 * sr));
+  var out = [], pitch = [], ph = 0;
   for (var i = 0; i < n; i++) {
     var tMs = i / sr * 1000;
     var f = hz * Math.pow(2, info.sweepSemis * h.glideFrac / 12 * koreSweep(tMs, info.sweepMs));
     pitch.push(f); ph += f / sr;
     var a = Math.min(1, tMs / h.attackMs) * (h.sustain + (1 - h.sustain) * Math.exp(-tMs / h.settleMs));
-    if (tMs >= endMs) a = 0; else if (tMs > fadeStart) a *= 0.5 + 0.5 * Math.cos(Math.PI * (tMs - fadeStart) / h.fadeMs);
+    if (i > n - 1 - Math.round(h.fadeMs / 1000 * sr)) a *= (n - 1 - i) / Math.round(h.fadeMs / 1000 * sr);
     out.push(Math.sin(2 * Math.PI * (ph - f / sr)) * a);
   }
   out[n - 1] = 0;
   return { L: out, pitch: pitch, hz: hz, sr: sr };
+}
+
+// The player's fade before the next kick: clip((gapS \u2212 t \u2212 endGap)/fade, 0, 1) (samples).
+function koreKickFade(map, tS, gapS, sr) {
+  var h = map.voices.PUNCH.hum, x = (gapS - tS - h.endGapMs * sr / 1000) / (h.fadeMs * sr / 1000);
+  return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 // ---------- MSP voices (mirrors of the patches) ----------
@@ -828,15 +834,30 @@ function korePickLength(rng, options, prev) {
   return opts.length ? rng.pick(opts) : (prev === 16 ? 12 : 16);
 }
 
-// PUNCH: a steady techno kick \u2014 exactly four equal hits (user D6: no ghost kicks,
-// no per-hit variation). BROKEN may move one only when "unlock punch" is on.
+// PUNCH: KICK 4/4 (default) = exactly four equal hits on the beat (user D6).
+// KICK VAR (g.unlockPunch, user D10) = a techno kick variation chosen for the style:
+// main hits at full velocity, extra hits as quieter ghosts; the downbeat always stays.
+// [steps, ghost steps]
+var KORE_KICK_VARIATIONS = {
+  FOUNDATION: [["PICKUP", [0, 4, 8, 12], [15]], ["PICKUP 2", [0, 4, 8, 12], [7]], ["DOUBLE", [0, 4, 8, 12], [10]], ["LATE", [0, 4, 8, 12], [14]], ["SKIP 3", [0, 4, 12], [11]]],
+  DRIVING: [["ROLL", [0, 4, 8, 12], [13, 14, 15]], ["GALLOP", [0, 4, 8, 12], [3, 11]], ["DOUBLE 2", [0, 4, 8, 12], [10, 14]], ["PUSH", [0, 4, 8, 12], [6, 15]]],
+  HYPNOTIC: [["SKIP", [0, 4, 8], [14]], ["HALF", [0, 8], [11]], ["SKIP 2", [0, 8, 12], [7]], ["DROP", [0, 4, 8], []]],
+  BROKEN: [["BROKEN A", [0, 8], [3, 11]], ["BROKEN B", [0, 10], [6, 12]], ["BROKEN C", [0, 7], [10, 14]], ["BROKEN D", [0, 6, 12], [9]], ["BROKEN E", [0, 3, 8], [14]]]
+};
+function koreKickSignature(tr) { var s = ""; for (var i = 0; i < 16; i++) s += tr.steps[i].on ? (tr.steps[i].velocity >= 0.99 ? "X" : "x") : "."; return s; }
 function koreGenPunch(tr, rng, cfg, g) {
+  var prev = koreKickSignature(tr);
   koreClearRhythm(tr);
   tr.length = 16; tr.division = { n: 1, m: 1 };
-  for (var i = 0; i < 4; i++) koreSet(tr, KORE_FOUR_ON_FLOOR[i], 1);
-  if (g.style === "BROKEN" && g.unlockPunch && rng.chance(0.6)) {
-    tr.steps[rng.pick([4, 8, 12])].on = false;          // selective omission, keep the downbeat
-    koreSet(tr, rng.pick([3, 10, 11, 14]), rng.range(0.7, 0.9));
+  var i;
+  if (!g.unlockPunch) { for (i = 0; i < 4; i++) koreSet(tr, KORE_FOUR_ON_FLOOR[i], 1); return; }
+  for (var tries = 0; tries < 8; tries++) {
+    var list = rng.chance(0.75) ? KORE_KICK_VARIATIONS[g.style] : KORE_KICK_VARIATIONS[rng.pick(KORE_STYLES)];
+    var v = rng.pick(list);
+    koreClearRhythm(tr);
+    for (i = 0; i < v[1].length; i++) koreSet(tr, v[1][i], 1);
+    for (i = 0; i < v[2].length; i++) koreSet(tr, v[2][i], koreRound(rng.range(0.55, 0.8), 3));
+    if (koreKickSignature(tr) !== prev) break;
   }
 }
 
@@ -915,7 +936,7 @@ function koreGenHat(tr, prev, rng, cfg) {
 // Validation (spec \u00a711.7): anchors, low-end overlap, density. Returns "" if fine.
 function koreValidateGroove(tracks, g) {
   var punch = tracks[KORE_PUNCH];
-  if (!(g.style === "BROKEN" && g.unlockPunch)) {
+  if (!g.unlockPunch) {
     for (var i = 0; i < 4; i++) if (!punch.steps[KORE_FOUR_ON_FLOOR[i]].on) return "punch anchor missing";
   }
   var heavy = 0;
@@ -1233,7 +1254,8 @@ KoreEngine.prototype._snapshot = function () {
     tracks: koreClone(this.state.tracks),
     anchorTracks: koreClone(this.anchorTracks),
     seed: this.state.global.seed,
-    generationCounter: this.generationCounter
+    generationCounter: this.generationCounter,
+    kickVar: this.state.global.unlockPunch
   };
 };
 KoreEngine.prototype._pushUndo = function (snap) {
@@ -1295,6 +1317,21 @@ KoreEngine.prototype.mutate = function (scope, amount) {
   return true;
 };
 
+// KICK 4/4 / KICK VAR (user D10). VAR: every press = a new kick variation for the style
+// (and GENERATE keeps making variations); 4/4: back to four equal hits. Undoable; while
+// playing it lands on the next bar like GENERATE.
+KoreEngine.prototype.setKickVar = function (on) {
+  this._pushUndo();
+  this._beginStructural();
+  var g = this.state.global;
+  g.unlockPunch = !!on;
+  var tr = this.state.tracks[KORE_PUNCH];
+  koreGenPunch(tr, new KoreRng(this._nextSeed()), null, g);
+  if (this.anchorTracks) this.anchorTracks[KORE_PUNCH] = koreClone(tr);
+  if (!this.transportPlaying) this._applyPending();
+  this._changed("generate");
+};
+
 KoreEngine.prototype.keep = function () {
   this._pushUndo();
   this.anchorTracks = koreClone(this.state.tracks);
@@ -1309,6 +1346,7 @@ KoreEngine.prototype.undo = function () {
   this.anchorTracks = snap.anchorTracks;
   this.state.global.seed = snap.seed;
   this.generationCounter = snap.generationCounter;
+  if (snap.kickVar !== undefined) this.state.global.unlockPunch = snap.kickVar; // KICK 4/4 / VAR follows its pattern
   if (!this.transportPlaying) this._applyPending();
   this._changed("undo");
   return true;
@@ -1514,6 +1552,17 @@ function koreKickPattern(state) {
   }
   return out;
 }
+// Gap (in 16ths) from each kick hit to the next one (cyclic in the bar), 0 = no hit:
+// the player fades kick + HUM to 0 just before the next hit (click-free variations).
+function koreKickGaps(state) {
+  var pat = koreKickPattern(state), out = [], i, j;
+  for (i = 0; i < 16; i++) {
+    if (!(pat[i] > 0)) { out.push(0); continue; }
+    for (j = 1; j <= 16; j++) if (pat[(i + j) % 16] > 0) break;
+    out.push(j);
+  }
+  return out;
+}
 function koreKickLevel(state) { return koreRound(koreDbToAmp(state.tracks[KORE_PUNCH].levelDb), 5); }
 // 1 when the kick plays at all (any hit, not muted). The player holds the last hit, so a
 // silent pattern must close its gate explicitly (otherwise the last hit would loop).
@@ -1534,7 +1583,7 @@ function koreHum(state) {
 // Inlet 0:
 //   tick <bars> <beats> <units> <resolution> <tempo>    host position from [transport]
 //   loopon <0|1>  loopstart <beats>  looplength <beats> Live loop (live.observer)
-//   generate | mutate | keep | undo
+//   generate | mutate | keep | undo | kickvar <0|1>  (KICK 4/4 / KICK VAR: new kick variation)
 //   amount <0..1>  style <FOUNDATION|DRIVING|HYPNOTIC|BROKEN>  interaction <HYBRID|ALTERNATE|LAYER>
 //   unlockpunch <0|1>
 //   select <track>  selstep <step|-1>  page <0|1>  view <SEQUENCE|SOUND|LANES>
@@ -1553,7 +1602,7 @@ function koreHum(state) {
 //                  kicklevel <amp> \u00b7 kickgate <0|1> \u00b7 hum <amp> \u00b7 humbuf <bufferName>
 // PUNCH is played in the signal domain from buffer~ (sample-accurate); this object
 // writes its 16-step pattern into the pattern buffer and renders its sound.
-//   bufnames <kickA> <kickB> <pattern> <humA> <humB>   (from the patch: unique ---names)
+//   bufnames <kickA> <kickB> <pattern> <humA> <humB> <gaps>   (from the patch: unique ---names)
 //   sr <sampleRate>                      (from [dspstate~])
 // Outlet 1 \u2192 UI:   bind <globalName> \u00b7 refresh \u00b7 playhead <s0..s5>
 // Outlet 2 \u2192 status: sync <0|1> <tempo> \u00b7 pending <0|1> \u00b7 error <text>
@@ -1597,8 +1646,8 @@ engine.onChange(function (what) {
 
 // ---------- kick buffers ----------
 var kick = { names: null, sr: 48000, active: 0, humActive: 0, lastPattern: "", lastSound: "", lastHumSound: "", lastLevel: -1, lastGate: -1, lastHum: -1, renderTask: null, humTask: null };
-function bufnames(a, b, pat, ha, hb) {
-  kick.names = [String(a), String(b), String(pat), String(ha || "---hum_a"), String(hb || "---hum_b")];
+function bufnames(a, b, pat, ha, hb, gap) {
+  kick.names = [String(a), String(b), String(pat), String(ha || "---hum_a"), String(hb || "---hum_b"), String(gap || "---kgap")];
   kick.lastPattern = ""; kick.lastSound = ""; kick.lastHumSound = ""; syncKick();
 }
 function sr(v) { if (v > 0 && v !== kick.sr) { kick.sr = v; kick.lastSound = ""; kick.lastHumSound = ""; syncKick(); } }
@@ -1609,8 +1658,10 @@ function syncKick() {
   var pat = koreKickPattern(st), pj = pat.join(",");
   if (pj !== kick.lastPattern) {
     kick.lastPattern = pj;
-    try { var pb = new Buffer(kick.names[2]); pb.send("sizeinsamps", 16, 1); pb.poke(1, 0, pat); }
-    catch (e) { outlet(2, "error", "kick pattern buffer: " + e); }
+    try {
+      var gb = new Buffer(kick.names[5]); gb.send("sizeinsamps", 16, 1); gb.poke(1, 0, koreKickGaps(st)); // gaps first: ready when a new hit fires
+      var pb = new Buffer(kick.names[2]); pb.send("sizeinsamps", 16, 1); pb.poke(1, 0, pat);
+    } catch (e) { outlet(2, "error", "kick pattern buffer: " + e); }
   }
   var lv = koreKickLevel(st);
   if (lv !== kick.lastLevel) { kick.lastLevel = lv; outlet(0, "kicklevel", lv); }
@@ -1619,7 +1670,7 @@ function syncKick() {
   var hum = koreHum(st);
   if (hum.amp !== kick.lastHum) { kick.lastHum = hum.amp; outlet(0, "hum", hum.amp); }
   var pp = st.tracks[KORE_PUNCH].params, tempo = Math.round((engine.tempo || 120) * 10) / 10;
-  var hs = [pp.tune, pp.punch, pp.time, pp.humpitch, tempo].join(",");
+  var hs = [pp.tune, pp.punch, pp.time, pp.humpitch, tempo].join(",");   // length = 1\u00bc bar at this tempo
   if (hs !== kick.lastHumSound) {
     kick.lastHumSound = hs;
     if (!kick.humTask) kick.humTask = new Task(renderHumNow, this);
@@ -1705,6 +1756,7 @@ function looplength(v) { loopInfo.length = v; engine.setLoop(loopInfo.on, loopIn
 function generate() { engine.generate("ALL"); }
 function mutate() { engine.mutate("ALL"); }
 function keep() { engine.keep(); }
+function kickvar(v) { engine.setKickVar(v); }
 function undo() { engine.undo(); }
 function amount(v) { engine.setGlobal("mutationAmount", v); }
 function style(s) { engine.setGlobal("style", String(s)); }

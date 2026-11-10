@@ -132,24 +132,30 @@ function koreHumHz(map, p) {
   var v = map.voices.PUNCH, h = v.hum, semis = koreLin(h.pitchSemis, p.humpitch === undefined ? 0.5 : p.humpitch);
   return koreExpMap(v.tuneHz, p.tune) * Math.pow(2, semis / 12);
 }
-// One beat long (the kick is always 4/4): sine from phase 0 at the hit with a short glide
-// borrowed from the kick's PUNCH, 1 ms attack, settles to 'sustain', fades to exactly 0
-// before the next beat so the restart at the next kick is click-free. Peak 1 (level is
-// applied in the player).
+// Sine from phase 0 at the hit with a short glide borrowed from the kick's PUNCH, 1 ms
+// attack, settles to 'sustain'. Long enough for the longest gap between two kicks (one
+// bar, +25% for tempo changes); the player fades it (and the kick) to 0 just before the
+// next hit, wherever that is (koreKickFade). Peak 1 (level is applied in the player).
 function koreRenderHum(map, p, sr, tempo) {
   var v = map.voices.PUNCH, h = v.hum, info = koreModelInfo(map, "PUNCH", p), hz = koreHumHz(map, p);
-  var beatMs = 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(beatMs / 1000 * sr));
-  var endMs = beatMs - h.endGapMs, fadeStart = endMs - h.fadeMs, out = [], pitch = [], ph = 0;
+  var barMs = 4 * 60000 / Math.max(20, tempo || 120), n = Math.max(16, Math.round(barMs * 1.25 / 1000 * sr));
+  var out = [], pitch = [], ph = 0;
   for (var i = 0; i < n; i++) {
     var tMs = i / sr * 1000;
     var f = hz * Math.pow(2, info.sweepSemis * h.glideFrac / 12 * koreSweep(tMs, info.sweepMs));
     pitch.push(f); ph += f / sr;
     var a = Math.min(1, tMs / h.attackMs) * (h.sustain + (1 - h.sustain) * Math.exp(-tMs / h.settleMs));
-    if (tMs >= endMs) a = 0; else if (tMs > fadeStart) a *= 0.5 + 0.5 * Math.cos(Math.PI * (tMs - fadeStart) / h.fadeMs);
+    if (i > n - 1 - Math.round(h.fadeMs / 1000 * sr)) a *= (n - 1 - i) / Math.round(h.fadeMs / 1000 * sr);
     out.push(Math.sin(2 * Math.PI * (ph - f / sr)) * a);
   }
   out[n - 1] = 0;
   return { L: out, pitch: pitch, hz: hz, sr: sr };
+}
+
+// The player's fade before the next kick: clip((gapS \u2212 t \u2212 endGap)/fade, 0, 1) (samples).
+function koreKickFade(map, tS, gapS, sr) {
+  var h = map.voices.PUNCH.hum, x = (gapS - tS - h.endGapMs * sr / 1000) / (h.fadeMs * sr / 1000);
+  return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 // ---------- MSP voices (mirrors of the patches) ----------
@@ -534,6 +540,7 @@ function paintSequence(g) {
   // contextual strip: selected voice / step
   var tr2 = S.tracks[g.selectedTrack];
   line(CX - 10, 12, CX - 10, H0 - 12, COL.inactive);
+  kickButtons(g, CX + 140, 140);
   text(stepLabel(g), CX, 20, 9, COL.primary, true);
   if (tr2.soundName) text(tr2.soundName, CX, 32, 6.5, COL.stroke);
   if (anyLong) { toggle(CX + 222, 8, 30, 16, "1-16", g.selectedPage === 0, { kind: "page", v: 0 }, 6); toggle(CX + 254, 8, 30, 16, "17-32", g.selectedPage === 1, { kind: "page", v: 1 }, 6); }
@@ -549,19 +556,32 @@ function paintSequence(g) {
     var any = false;
     for (var q in st2.pLocks) if (st2.pLocks.hasOwnProperty(q)) any = true;
     if (any) button(CX + 120, 110, 110, 16, "CLEAR P-LOCKS", "clearsteplocks", 7);
-    text("SOUND tab = this step's own sound (P-Lock)", CX, 146, 6.5, COL.stroke);
+    text("SOUND tab = this step's own sound", CX, 140, 6.5, COL.stroke);
+    text("(P-Lock)", CX, 150, 6.5, COL.stroke);
   } else if (g.selectedTrack === 0) {
     text("LENGTH 16 \u00b7 RATE 1:1 (fixed)", CX, 54, 8, COL.primary, true);
-    text("sample-accurate: same sound on every hit,", CX, 72, 7, COL.stroke);
-    text("exactly on the beat. Shape it on SOUND.", CX, 84, 7, COL.stroke);
-    text("MUTATE PERC never changes the kick.", CX, 96, 7, COL.stroke);
-    text("HUM (right) = long humming sub under it.", CX, 112, 7, COL.stroke);
+    if (g.unlockPunch) {
+      text("KICK VAR: each VAR press / GENERATE = a new", CX, 72, 7, COL.stroke);
+      text("kick variation for the style (pickups, doubles,", CX, 84, 7, COL.stroke);
+      text("rolls, skips, broken). Extra hits are ghosts.", CX, 96, 7, COL.stroke);
+    } else {
+      text("KICK 4/4: four equal hits exactly on the beat.", CX, 72, 7, COL.stroke);
+      text("Press KICK VAR for kick variations.", CX, 84, 7, COL.stroke);
+      text("MUTATE PERC never changes the kick.", CX, 96, 7, COL.stroke);
+    }
+    text("Click kick steps to edit by hand.", CX, 112, 7, COL.stroke);
   } else {
     numRow(CX, 54, "LENGTH", String(tr2.length), "len");
     numRow(CX, 76, "RATE / POLY", tr2.division.n + ":" + tr2.division.m, "div");
     text("drag values up/down", CX, 100, 6.5, COL.stroke);
     text("option-click a step = edit that step", CX, 112, 6.5, COL.stroke);
   }
+}
+
+function kickButtons(g, x, y) {
+  text("KICK", x, y + 11, 7, COL.stroke, true);
+  toggle(x + 30, y, 54, 16, "4/4", !g.unlockPunch, { kind: "kickvar", v: 0 }, 7);
+  toggle(x + 88, y, 54, 16, g.unlockPunch ? "VAR +" : "VAR", !!g.unlockPunch, { kind: "kickvar", v: 1 }, 7);
 }
 
 function numRow(x, y, label, value, which) {
@@ -572,13 +592,42 @@ function numRow(x, y, label, value, which) {
 }
 
 // ---------- SOUND (interactive graphs) ----------
-// Every graph is computed by the voice model from the current values, and its handles
-// ARE the parameters: drag a handle and the matching parameter (and the sound) changes.
+// Every graph is computed by the voice model from the current values. Each white handle IS
+// one parameter: it moves only along its dotted rail (= the full range of that parameter),
+// and dragging inverts the very formula that places it \u2014 so the handle always stays under
+// the cursor. Axes are fitted per voice to the ranges of its parameters.
 var preview = { key: "" }, PREV_SR = 22050, PREVIEW_MIN_MS = 90;
 function srFor(t) { return t === 5 ? 44100 : 22050; } // HAT: full band for its spectrum
 var WAVE = { x: MX, y: 28, w: 252, h: 134 }, GRAPH = { x: MX + 258, y: 28, w: 252, h: 134 };
 var NODES = { x: MX + 518, y: 26, w: MR - MX - 518 };
-var PITCH_MS = 200, PITCH_FMIN = 30, PITCH_FMAX = 800, PX0 = 30;
+var AX = { tmax: 800, fmin: 30, fmax: 1400, pms: 150, sfmin: 20, sfmax: 11025 }, PX0 = 30;
+var hoverKey = null;
+
+var HELP = {
+  tune: "TUNE: the note the hit settles on",
+  punch: "PUNCH: how far above TUNE the pitch starts - the boom of the drop",
+  time: "TIME: how fast the pitch falls (the handle sits where 63% of the drop is done)",
+  body: "BODY: how long the kick stays at full level before it decays",
+  decay: "DECAY: when the sound has died away (-60 dB)",
+  drive: "DRIVE: saturation - denser and brighter, same peak level",
+  click: "CLICK: level of the attack (noise burst + tick)",
+  clicktone: "CLICK TONE: pitch of the attack",
+  sweep: "GLIDE: how far above TUNE the pitch starts",
+  snap: "SNAP: the click at the start of each hit",
+  reso: "RESO: resonance at the cutoff - ringing, metallic",
+  open: "OPEN: how many times longer an open hat rings than a closed one",
+  amount: "AMOUNT: level of the rumble tail",
+  tail: "TAIL: how long the rumble echoes after each kick",
+  duck: "DUCK: how far the rumble dips at each kick",
+  pan: "PAN: left / right (kick, HUM, SUB, RUMBLE always stay centre)",
+  level: "LEVEL: voice volume",
+  hum: "HUM LEVEL: the sub that hits with the kick and hums to the next one (OFF = none)",
+  humpitch: "HUM PITCH: semitones from the kick's TUNE"
+};
+function helpFor(t, key) {
+  if (key === "tone") return t === 5 ? "TONE: high-pass cutoff - higher = thinner, brighter" : "TONE: low-pass of the rumble - higher = more of the kick's body";
+  return HELP[key] || "";
+}
 
 function effectiveParams(g) {
   var tr = S.tracks[g.selectedTrack], stp = (g.selectedStep >= 0 && g.selectedTrack !== 0) ? tr.steps[g.selectedStep] : null, p = { amp: 0.9 };
@@ -594,90 +643,124 @@ function previewFor(g, force) {
   var now = new Date().getTime();
   if (!force && preview.data && now - preview.at < PREVIEW_MIN_MS) { dirty = true; return preview; }
   PREV_SR = srFor(t);
-  var h = t === 2 ? koreModelRumble(KORE_DSP_MAP, effectiveFor(0), p, PREV_SR, 1400) : koreModelHit(KORE_DSP_MAP, NAMES[t], p, PREV_SR, 1400, 3);
-  preview = { key: key, data: h, spec: koreModelSpectrum(h.L, PREV_SR, 0, 2048, 48), p: p, at: now };
+  var h = t === 2 ? koreModelRumble(KORE_DSP_MAP, effectiveFor(0), p, PREV_SR, AX.tmax) : koreModelHit(KORE_DSP_MAP, NAMES[t], p, PREV_SR, AX.tmax, 3);
+  preview = { key: key, data: h, spec: koreModelSpectrum(h.L, PREV_SR, 0, 2048, 64), p: p, at: now };
   return preview;
 }
 function effectiveFor(t) { var tr = S.tracks[t], p = { amp: 0.9 }; for (var k in tr.params) p[k] = tr.params[k]; return p; }
 
-// axes
-function tLog(ms, w) { return w * Math.log(1 + ms / 3) / Math.log(1 + 1400 / 3); }
-function tLogInv(px, w) { return 3 * (Math.exp(px / w * Math.log(1 + 1400 / 3)) - 1); }
-function fyPitch(f) { var G = GRAPH; return G.y + G.h - 12 - (Math.log(Math.max(PITCH_FMIN, f) / PITCH_FMIN) / Math.log(PITCH_FMAX / PITCH_FMIN)) * (G.h - 28); }
-function fyPitchInv(y) { var G = GRAPH; return PITCH_FMIN * Math.pow(PITCH_FMAX / PITCH_FMIN, (G.y + G.h - 12 - y) / (G.h - 28)); }
-function txPitch(ms) { return GRAPH.x + PX0 + ms / PITCH_MS * (GRAPH.w - PX0 - 8); }
-function txPitchInv(x) { return (x - GRAPH.x - PX0) / (GRAPH.w - PX0 - 8) * PITCH_MS; }
-function fxSpec(f) { return GRAPH.x + 6 + Math.log(Math.max(20, f) / 20) / Math.log(PREV_SR / 2 / 20) * (GRAPH.w - 12); }
-function fxSpecInv(x) { return 20 * Math.pow(PREV_SR / 2 / 20, (x - GRAPH.x - 6) / (GRAPH.w - 12)); }
-function invExp(r, val) { return Math.max(0, Math.min(1, Math.log(Math.max(r[0], Math.min(r[1], val)) / r[0]) / Math.log(r[1] / r[0]))); }
-function invLin(r, val) { return Math.max(0, Math.min(1, (val - r[0]) / (r[1] - r[0]))); }
+// axes fitted to the voice (so every rail is long enough to drag)
+function setAxes(t, p) {
+  var m = vmap(t), E = KORE_DSP_MAP.envelope;
+  if (t === 0) { AX.tmax = 0.2 + m.holdMs[1] + m.decayMs[1]; AX.fmin = m.tuneHz[0] * 0.85; AX.fmax = m.tuneHz[1] * Math.pow(2, m.sweepSemis[1] / 12) * 1.1; AX.pms = 150; }
+  else if (t === 1 || t === 3 || t === 4) {
+    AX.tmax = E.attackMs + m.decayMs[1]; AX.fmin = m.tuneHz[0] * 0.85; AX.fmax = m.tuneHz[1] * Math.pow(2, m.sweepSemisRange[1] / 12) * 1.1; AX.pms = 8 * m.sweepMs;
+  } else if (t === 5) { AX.tmax = 0.3 + m.decayMs[1] * (p.isOpen ? m.openFactor[1] : 1); AX.sfmin = 1000; AX.sfmax = 22050; }
+  else { AX.tmax = 2 * m.tailMs[1]; AX.sfmin = 30; AX.sfmax = 3000; }
+  AX.tmax *= 1.04;
+}
+function tX(ms) { return WAVE.x + 4 + (WAVE.w - 10) * Math.sqrt(Math.max(0, Math.min(1, ms / AX.tmax))); }
+function fyPitch(f) { var G = GRAPH; return G.y + G.h - 12 - (Math.log(Math.max(AX.fmin, Math.min(AX.fmax, f)) / AX.fmin) / Math.log(AX.fmax / AX.fmin)) * (G.h - 30); }
+var TUNE_W = 34;  // zoomed TUNE scale on the right edge of the PITCH graph
+function txPitch(ms) { return GRAPH.x + PX0 + Math.min(1, ms / AX.pms) * (GRAPH.w - PX0 - 10 - TUNE_W); }
+function tuneY(hz, r) { return GRAPH.y + GRAPH.h - 12 - Math.log(Math.max(r[0], Math.min(r[1], hz)) / r[0]) / Math.log(r[1] / r[0]) * (GRAPH.h - 30); }
+function fxSpec(f) { var G = GRAPH; return G.x + 6 + Math.log(Math.max(AX.sfmin, Math.min(AX.sfmax, f)) / AX.sfmin) / Math.log(AX.sfmax / AX.sfmin) * (G.w - 12); }
 
-// handle: small filled square + label; drag maps the mouse to one parameter
-function handle(x, y, label, key, fn, axis) {
-  var box = x >= GRAPH.x ? GRAPH : WAVE, fs = 6.5;
-  x = Math.max(box.x + 7, Math.min(box.x + box.w - 7, x)); y = Math.max(box.y + 16, Math.min(box.y + box.h - 8, y));
-  var lw = textW(label, fs, true), lx = x + 8;
+// value v in 0..1 whose handle position pos(v) is closest to the mouse coordinate c
+function invertPos(pos, c) {
+  var a = pos(0), b = pos(1), lo = 0, hi = 1, up = b > a;
+  if (up ? c <= a : c >= a) return 0;
+  if (up ? c >= b : c <= b) return 1;
+  for (var i = 0; i < 40; i++) { var mid = (lo + hi) / 2, pm = pos(mid); if (up ? pm < c : pm > c) lo = mid; else hi = mid; }
+  return Math.round((lo + hi) / 2 * 1000) / 1000;
+}
+function railDots(x1, y1, x2, y2) {
+  var len = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)), n = Math.max(1, Math.floor(len / 4));
+  for (var i = 0; i <= n; i++) dot(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n, 0.7, COL.primary, 0.55);
+  line(x1, y1 - 3, x1, y1 + 3, COL.primary, 1, 0.5); line(x2, y2 - 3, x2, y2 + 3, COL.primary, 1, 0.5);
+}
+// o: {key, axis "x"|"y", at (the other coordinate), pos(v) \u2192 px, label, [key2, pos2 (y)]}
+function handle(o, p) {
+  var v = p[o.key], x, y;
+  if (o.axis === "x") { x = o.pos(v); y = o.at; railDots(o.pos(0), y, o.pos(1), y); }
+  else { y = o.pos(v); x = o.at; var y0 = o.pos(0), y1 = o.pos(1); for (var k = 0; k <= Math.abs(y1 - y0) / 4; k++) dot(x, Math.min(y0, y1) + k * 4, 0.7, COL.primary, 0.55); line(x - 3, y0, x + 3, y0, COL.primary, 1, 0.5); line(x - 3, y1, x + 3, y1, COL.primary, 1, 0.5); }
+  if (o.key2) { y = o.pos2(p[o.key2]); var a2 = o.pos2(0), b2 = o.pos2(1); for (var j = 0; j <= Math.abs(b2 - a2) / 4; j++) dot(x, Math.min(a2, b2) + j * 4, 0.7, COL.primary, 0.55); }
+  var box = x >= GRAPH.x ? GRAPH : WAVE, fs = 6.5, active = hoverKey === o.key || (drag && drag.kind === "handle" && drag.h.key === o.key);
+  var lw = textW(o.label, fs, true), lx = x + 8;
   if (lx + lw > box.x + box.w - 2) lx = x - 8 - lw;
+  var ly = y - 7 < box.y + 20 ? y + 15 : y - 7;
   rect(x - 7, y - 7, 14, 14, COL.bg, true);          // dark halo: visible over white bars
   rect(x - 4, y - 4, 8, 8, COL.primary, true);
-  rect(x - 6, y - 6, 12, 12, COL.primary, false, 1, 0.8);
-  rect(lx - 1, y - 14, lw + 2, 9, COL.bg, true, 1, 0.7);
-  text(label, lx, y - 7, fs, COL.primary, true);
-  hit({ x: x - 9, y: y - 9, w: 18, h: 18, kind: "handle", key: key, fn: fn, axis: axis });
+  rect(x - 6, y - 6, 12, 12, COL.primary, false, active ? 1.6 : 1, active ? 1 : 0.8);
+  rect(lx - 1, ly - 7, lw + 2, 9, COL.bg, true, 1, 0.75);
+  text(o.label, lx, ly, fs, COL.primary, true);
+  hit({ x: x - 9, y: y - 9, w: 18, h: 18, kind: "handle", key: o.key, axis: o.axis, pos: o.pos, key2: o.key2, pos2: o.pos2 });
 }
 
 function paintSound(g) {
   voiceRow(g);
   var t = g.selectedTrack, pv = previewFor(g), info = pv.data.info, m = vmap(t), p = pv.p;
-  PITCH_FMAX = (t === 3 || t === 4) ? 3200 : 800;   // kick-like toms start high
+  setAxes(t, p);
   var stepMode = g.selectedStep >= 0 && t !== 0;
-  text((stepMode ? NAMES[t] + " / STEP " + pad2(g.selectedStep + 1) : NAMES[t] + " / BASE") + "  " + (S.tracks[t].soundName || ""), MX + 330, 18, 8, COL.primary, true);
+  var title = (stepMode ? NAMES[t] + " / STEP " + pad2(g.selectedStep + 1) : NAMES[t] + " / BASE") + "  " + (S.tracks[t].soundName || "");
   if (stepMode) button(MR - 50, 6, 46, 16, "BASE", "exitstep", 7);
-  // ---- left: amplitude / waveform (log time 0..1.4 s)
-  panel(WAVE.x, WAVE.y, WAVE.w, WAVE.h, t === 2 ? "RUMBLE TAIL" : "WAVEFORM");
+  // header: the title, or \u2014 while a control is hovered / dragged \u2014 what that control does
+  var hk = (drag && drag.kind === "handle") ? drag.h.key : (drag && drag.kind === "node" && drag.target.key) ? drag.target.key : hoverKey;
+  var hw = (stepMode ? MR - 56 : MR) - (MX + 330);
+  if (hk && helpFor(t, hk)) fitText(helpFor(t, hk), MX + 330, 18, 7, COL.primary, true, hw);
+  else { text(title, MX + 330, 18, 8, COL.primary, true); fitText("drag a white square along its dotted rail \u00b7 hover = what it does", MX + 330 + textW(title, 8, true) + 12, 18, 6.5, COL.stroke, false, hw - textW(title, 8, true) - 12); }
+  var info2 = function (key, v) { var q = {}; for (var k in p) q[k] = p[k]; q[key] = v; return koreModelInfo(KORE_DSP_MAP, NAMES[t] === "PUNCH" ? "PUNCH" : NAMES[t], q); };
+  // ---- left: level vs time (square-root time axis fitted to the voice)
+  panel(WAVE.x, WAVE.y, WAVE.w, WAVE.h, t === 2 ? "RUMBLE TAIL \u00b7 LEVEL / TIME" : "LEVEL / TIME");
   drawWave(pv.data.L, WAVE.x, WAVE.y, WAVE.w, WAVE.h);
-  var X0 = WAVE.x + 2, W = WAVE.w - 4, top = WAVE.y + 22;
+  var mid = WAVE.y + WAVE.h / 2;
   if (t === 0) {
-    var holdEnd = 0.2 + info.holdMs, decEnd = holdEnd + info.decayMs;
-    handle(X0 + tLog(holdEnd, W), top, "BODY " + fmtMs(info.holdMs), "body", function (x) { return invLin(m.holdMs, tLogInv(x - X0, W) - 0.2); }, "x");
-    handle(X0 + tLog(decEnd, W), WAVE.y + WAVE.h / 2, "DECAY " + fmtMs(info.decayMs), "decay", function (x) { return invExp(m.decayMs, tLogInv(x - X0, W) - 0.2 - info.holdMs); }, "x");
+    handle({ key: "body", axis: "x", at: WAVE.y + 24, label: "BODY " + fmtMs(info.holdMs), pos: function (v) { return tX(0.2 + info2("body", v).holdMs); } }, p);
+    handle({ key: "decay", axis: "x", at: mid, label: "DECAY " + fmtMs(info.decayMs), pos: function (v) { var q = info2("decay", v); return tX(q.lengthMs); } }, p);
   } else if (t === 2) {
-    handle(X0 + tLog(info.tailMs, W), top, "TAIL " + fmtMs(info.tailMs), "tail", function (x) { return invExp(m.tailMs, tLogInv(x - X0, W)); }, "x");
-    handle(X0 + tLog(40, W), WAVE.y + WAVE.h / 2 - p.amount * (WAVE.h / 2 - 16), "AMOUNT " + pct(p.amount), "amount", function (x, y) { return invLin([0, 1], (WAVE.y + WAVE.h / 2 - y) / (WAVE.h / 2 - 16)); }, "y");
+    handle({ key: "tail", axis: "x", at: WAVE.y + 24, label: "TAIL " + fmtMs(info.tailMs), pos: function (v) { return tX(info2("tail", v).tailMs); } }, p);
+    handle({ key: "amount", axis: "y", at: WAVE.x + 26, label: "AMOUNT " + pct(p.amount), pos: function (v) { return mid - 6 - v * (WAVE.h / 2 - 24); } }, p);
   } else {
-    handle(X0 + tLog(info.decayMs, W), WAVE.y + WAVE.h / 2, "DECAY " + fmtMs(info.decayMs), "decay", function (x) {
-      var ms = tLogInv(x - X0, W);
-      if (t === 5 && p.isOpen) ms = ms / info.openFactor;
-      return invExp(m.decayMs, ms);
-    }, "x");
+    var att = t === 5 ? 0.3 : KORE_DSP_MAP.envelope.attackMs;
+    handle({ key: "decay", axis: "x", at: mid, label: "DECAY " + fmtMs(info.decayMs), pos: function (v) { return tX(att + info2("decay", v).decayMs); } }, p);
   }
   // ---- middle: pitch vs time (tonal voices) or spectrum (HAT, RUMBLE)
   if (t === 5 || t === 2) {
-    panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "SPECTRUM");
+    panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "LEVEL / FREQUENCY");
     drawSpectrum(pv.spec, GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h);
-    var fc = t === 5 ? info.toneHz : info.lowpassHz, hy = t === 5 ? GRAPH.y + GRAPH.h - 16 - p.reso * (GRAPH.h - 40) : GRAPH.y + 34;
-    line(fxSpec(fc), GRAPH.y + 16, fxSpec(fc), GRAPH.y + GRAPH.h - 6, COL.primary, 1, 0.5);
-    var fr = t === 5 ? m.toneHz : m.lowpassHz;
-    handle(fxSpec(fc), hy, (t === 5 ? "HP " : "LP ") + fmtHz(fc) + "Hz" + (t === 5 ? " RESO " + pct(p.reso) : ""), "tone",
-      function (x, y) { return invExp(fr, fxSpecInv(x)); }, "x");
-    if (t === 5) { // the same handle also sets RESO vertically
-      var hh2 = hits[hits.length - 1];
-      hh2.key2 = "reso"; hh2.fn2 = function (x, y) { return invLin([0, 1], (GRAPH.y + GRAPH.h - 16 - y) / (GRAPH.h - 40)); };
-    }
+    var fc = t === 5 ? info.toneHz : info.lowpassHz;
+    line(fxSpec(fc), GRAPH.y + 16, fxSpec(fc), GRAPH.y + GRAPH.h - 8, COL.primary, 1, 0.5);
+    if (t === 5) handle({ key: "tone", axis: "x", label: "HP " + fmtHz(fc) + "Hz \u00b7 RESO " + pct(p.reso), pos: function (v) { return fxSpec(info2("tone", v).toneHz); },
+      key2: "reso", pos2: function (v) { return GRAPH.y + GRAPH.h - 20 - v * (GRAPH.h - 50); } }, p);
+    else handle({ key: "tone", axis: "x", at: GRAPH.y + 36, label: "LP " + fmtHz(fc) + "Hz", pos: function (v) { return fxSpec(info2("tone", v).lowpassHz); } }, p);
   } else {
-    panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "PITCH vs TIME");
+    panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "PITCH / TIME");
     drawPitch(pv.data.pitch);
-    var startKey = t === 0 ? "punch" : "sweep", sr = t === 0 ? m.sweepSemis : m.sweepSemisRange;
-    handle(txPitch(0), fyPitch(info.startHz), (t === 0 ? "PUNCH " : "GLIDE ") + "+" + Math.round(info.sweepSemis) + "st", startKey,
-      function (x, y) { return invLin(sr, 12 * Math.log(fyPitchInv(y) / info.tuneHz) / Math.LN2); }, "y");
+    var startKey = t === 0 ? "punch" : "sweep";
+    handle({ key: startKey, axis: "y", at: txPitch(0), label: (t === 0 ? "PUNCH " : "GLIDE ") + "+" + Math.round(info.sweepSemis) + "st",
+      pos: function (v) { return fyPitch(info2(startKey, v).startHz); } }, p);
     if (t === 0) {
       var fTau = info.tuneHz * Math.pow(2, info.sweepSemis / 12 * Math.exp(-1));
-      handle(txPitch(info.sweepMs), fyPitch(fTau), "TIME " + fmtMs(info.sweepMs), "time", function (x) { return invExp(m.sweepTauMs, txPitchInv(x)); }, "x");
+      handle({ key: "time", axis: "x", at: fyPitch(fTau), label: "TIME " + fmtMs(info.sweepMs), pos: function (v) { return txPitch(info2("time", v).sweepMs); } }, p);
     }
-    handle(GRAPH.x + GRAPH.w - 24, fyPitch(info.tuneHz), "TUNE " + fmtHz(info.tuneHz) + "Hz", "tune", function (x, y) { return invExp(m.tuneHz, fyPitchInv(y)); }, "y");
+    // TUNE has a narrow range (e.g. kick 40-80 Hz): its own zoomed note scale on the right,
+    // linked by a dashed line to where the curve settles
+    var tx0 = GRAPH.x + GRAPH.w - TUNE_W + 4, tr_ = m.tuneHz, tyNow = tuneY(info.tuneHz, tr_);
+    line(tx0 - 2, GRAPH.y + 14, tx0 - 2, GRAPH.y + GRAPH.h - 4, COL.inactive);
+    text("NOTE", tx0, GRAPH.y + 11, 6, COL.stroke, true);
+    var tks = [tr_[0], Math.sqrt(tr_[0] * tr_[1]), tr_[1]];
+    for (var ti = 0; ti < 3; ti++) text(fmtHz(tks[ti]), tx0 + 14, tuneY(tks[ti], tr_) + 2, 5.5, COL.stroke);
+    for (var dx = txPitch(AX.pms); dx < tx0 + 6; dx += 5) line(dx, fyPitch(info.tuneHz) + (tyNow - fyPitch(info.tuneHz)) * (dx - txPitch(AX.pms)) / Math.max(1, tx0 + 6 - txPitch(AX.pms)), dx + 2.5, fyPitch(info.tuneHz) + (tyNow - fyPitch(info.tuneHz)) * (dx + 2.5 - txPitch(AX.pms)) / Math.max(1, tx0 + 6 - txPitch(AX.pms)), COL.primary, 1, 0.5);
+    handle({ key: "tune", axis: "y", at: tx0 + 6, label: "TUNE " + fmtHz(info.tuneHz) + "Hz", pos: function (v) { return tuneY(info2("tune", v).tuneHz, tr_); } }, p);
   }
-  // ---- right of the graphs: every parameter of the voice + level (2 rows)
+  // ---- right of the graphs: every parameter of the voice + level (2 rows), then the help line
   drawVoiceNodes(g, NODES.x, NODES.y, NODES.w);
+}
+function fitText(s, x, y, size, c, bold, w) {
+  if (w < 20) return;
+  var txt = s;
+  while (textW(txt, size, bold) > w && txt.length > 4) txt = txt.substring(0, txt.length - 2);
+  text(txt.length < s.length ? txt.substring(0, txt.length - 1) + "~" : txt, x, y, size, c, bold);
 }
 
 function nodeLayout(n, w) { var perRow = Math.ceil(n / 2); return { perRow: perRow, nw: Math.min(66, w / perRow) }; }
@@ -691,7 +774,7 @@ function drawVoiceNodes(g, x, y, w) {
       drawNode(nx, ny, L.nw - 4, 66, keys[i], LABEL[keys[i]], v, valueText(t, keys[i], v), { kind: "param", key: keys[i] }, hasLock(stp, keys[i]), t, 11);
     } else {
       var lv = levelToV(tr.levelDb);
-      drawNode(nx, ny, L.nw - 4, 66, "level", "LEVEL", lv, valueText(t, "level", lv), { kind: "level" }, false, t, 11);
+      drawNode(nx, ny, L.nw - 4, 66, "level", "LEVEL", lv, valueText(t, "level", lv), { kind: "level", key: "level" }, false, t, 11);
     }
   }
 }
@@ -700,46 +783,54 @@ function panel(x, y, w, h, label) {
   rect(x, y, w, h, COL.stroke, false, 1, 0.6);
   text(label, x + 6, y + 11, 6.5, COL.stroke, true);
 }
+function niceTicks(max, list) { var out = []; for (var i = 0; i < list.length; i++) if (list[i] <= max * 0.85) out.push(list[i]); return out; }
 function drawWave(sig, x, y, w, h) {
-  var mid = y + h / 2, cols = Math.floor(w - 4), pk = [], i, c;
+  var mid = y + h / 2, cols = Math.floor(w - 10), pk = [], i, c;
   for (c = 0; c < cols; c++) pk.push(-1);
-  for (i = 0; i < sig.length; i++) { c = Math.min(cols - 1, Math.floor(tLog(i / PREV_SR * 1000, cols))); pk[c] = Math.max(pk[c], Math.abs(sig[i])); }
-  var last = 0, end = Math.min(cols - 1, Math.floor(tLog(sig.length / PREV_SR * 1000, cols)));
+  for (i = 0; i < sig.length; i++) { c = Math.min(cols - 1, Math.floor(tX(i / PREV_SR * 1000) - x - 4)); pk[c] = Math.max(pk[c], Math.abs(sig[i])); }
+  var last = 0, end = Math.min(cols - 1, Math.floor(tX(sig.length / PREV_SR * 1000) - x - 4));
   line(x + 2, mid, x + w - 2, mid, COL.inactive);
   col(COL.primary);
   for (c = 0; c <= end; c++) {
     if (pk[c] < 0) pk[c] = last; last = pk[c];
     var hh = Math.min(1, pk[c]) * (h / 2 - 16);
-    if (hh > 0.3) mgraphics.rectangle(x + 2 + c, mid - hh, 1, 2 * hh);
+    if (hh > 0.3) mgraphics.rectangle(x + 4 + c, mid - hh, 1, 2 * hh);
   }
   mgraphics.fill();
-  var ticks = [[10, "10ms"], [100, "100ms"], [1000, "1s"]];
-  for (var k = 0; k < ticks.length; k++) { var px = x + 2 + tLog(ticks[k][0], cols); line(px, y + h - 5, px, y + h, COL.stroke); text(ticks[k][1], px + 2, y + h - 2, 6, COL.stroke); }
+  var tk = niceTicks(AX.tmax, [10, 50, 100, 200, 500, 1000, 2000]);
+  for (var k = 0; k < tk.length; k++) { var px = tX(tk[k]); line(px, y + h - 5, px, y + h, COL.stroke); text(tk[k] >= 1000 ? tk[k] / 1000 + "s" : tk[k] + "ms", px + 2, y + h - 2, 6, COL.stroke); }
 }
 function drawPitch(pitch) {
-  var G = GRAPH, marks = PITCH_FMAX > 1000 ? [60, 100, 200, 500, 1000, 2000] : [40, 60, 100, 200, 400];
-  for (var m = 0; m < marks.length; m++) { line(G.x + PX0, fyPitch(marks[m]), G.x + G.w - 6, fyPitch(marks[m]), COL.inactive, 1, 0.7); text(marks[m] >= 1000 ? marks[m] / 1000 + "k" : String(marks[m]), G.x + 6, fyPitch(marks[m]) + 3, 6, COL.stroke); }
+  var G = GRAPH, marks = [40, 60, 100, 200, 500, 1000, 2000], m;
+  for (m = 0; m < marks.length; m++) {
+    if (marks[m] < AX.fmin || marks[m] > AX.fmax) continue;
+    line(G.x + PX0, fyPitch(marks[m]), G.x + G.w - 6 - TUNE_W, fyPitch(marks[m]), COL.inactive, 1, 0.7);
+    text(marks[m] >= 1000 ? marks[m] / 1000 + "k" : String(marks[m]), G.x + 6, fyPitch(marks[m]) + 3, 6, COL.stroke);
+  }
   col(COL.primary); mgraphics.set_line_width(1.4);
-  var cols = G.w - PX0 - 8;
+  var cols = G.w - PX0 - 10 - TUNE_W;
   for (var c = 0; c <= cols; c++) {
-    var idx = Math.min(pitch.length - 1, Math.floor(c / cols * PITCH_MS / 1000 * PREV_SR));
-    var px = G.x + PX0 + c, py = fyPitch(pitch[idx] || PITCH_FMIN);
+    var idx = Math.min(pitch.length - 1, Math.floor(c / cols * AX.pms / 1000 * PREV_SR));
+    var px = G.x + PX0 + c, py = fyPitch(pitch[idx] || AX.fmin);
     if (c === 0) mgraphics.move_to(px, py); else mgraphics.line_to(px, py);
   }
   mgraphics.stroke();
-  text("0", G.x + PX0, G.y + G.h - 2, 6, COL.stroke); text("100ms", G.x + PX0 + cols / 2 - 10, G.y + G.h - 2, 6, COL.stroke); text("200ms", G.x + G.w - 30, G.y + G.h - 2, 6, COL.stroke);
+  text("0", G.x + PX0, G.y + G.h - 2, 6, COL.stroke); text(Math.round(AX.pms) + "ms", G.x + G.w - 34 - TUNE_W, G.y + G.h - 2, 6, COL.stroke);
 }
 function drawSpectrum(b, x, y, w, h) {
-  var mx = 1e-12, i, n = b.length, bw = (w - 12) / n;
+  var mx = 1e-12, i, n = b.length, fmax = PREV_SR / 2;
   for (i = 0; i < n; i++) mx = Math.max(mx, b[i]);
   col(COL.primary);
   for (i = 0; i < n; i++) {
+    var f0 = 20 * Math.pow(fmax / 20, i / n), f1 = 20 * Math.pow(fmax / 20, (i + 1) / n);
+    if (f1 < AX.sfmin || f0 > AX.sfmax) continue;
+    var x0 = fxSpec(f0), x1 = fxSpec(f1);
     var db = 10 * Math.log(b[i] / mx + 1e-12) / Math.LN10, hh = Math.max(0, 1 + db / 60) * (h - 24);
-    if (hh > 0.5) mgraphics.rectangle(x + 6 + i * bw, y + h - 7 - hh, Math.max(1, bw - 1), hh);
+    if (hh > 0.5 && x1 - x0 >= 0.5) mgraphics.rectangle(x0, y + h - 7 - hh, Math.max(1, x1 - x0 - 1), hh);
   }
   mgraphics.fill();
-  var fm = [100, 1000, 10000];
-  for (var k = 0; k < fm.length; k++) text(fm[k] >= 1000 ? fm[k] / 1000 + "k" : String(fm[k]), fxSpec(fm[k]) - 5, y + h - 1, 6, COL.stroke);
+  var fm = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
+  for (var k = 0; k < fm.length; k++) if (fm[k] > AX.sfmin * 1.2 && fm[k] < AX.sfmax * 0.9) text(fm[k] >= 1000 ? fm[k] / 1000 + "k" : String(fm[k]), fxSpec(fm[k]) - 5, y + h - 1, 6, COL.stroke);
 }
 
 // ---------- LANES ----------
@@ -868,6 +959,7 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
   else if (h.kind === "view") outlet(0, "view", h.v);
   else if (h.kind === "stylecycle") outlet(0, "style", STYLES[(STYLES.indexOf(g.style) + 1) % 4]);
   else if (h.kind === "interaction") outlet(0, "interaction", h.v);
+  else if (h.kind === "kickvar") outlet(0, "kickvar", h.v);
   else if (h.kind === "open") outlet(0, "stepset", g.selectedTrack, g.selectedStep, "open", h.v);
   else if (h.kind === "lanekey") { laneKey = h.key; dirty = true; }
   else if (h.kind === "cmd") { if (h.cmd === "exitstep") outlet(0, "selstep", -1); else outlet(0, h.cmd); }
@@ -892,9 +984,8 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
   x /= scaleF; y /= scaleF;
   if (drag.kind === "amount") outlet(0, "amount", Math.max(0, Math.min(1, (x - drag.h.bx) / drag.h.bw)));
   else if (drag.kind === "handle") {
-    var hv = drag.h.fn(x, y);
-    if (isFinite(hv)) outlet(0, "param", drag.h.key, Math.round(hv * 1000) / 1000);
-    if (drag.h.key2) { var v2 = drag.h.fn2(x, y); if (isFinite(v2)) outlet(0, "param", drag.h.key2, Math.round(v2 * 1000) / 1000); }
+    outlet(0, "param", drag.h.key, invertPos(drag.h.pos, drag.h.axis === "x" ? x : y));
+    if (drag.h.key2) outlet(0, "param", drag.h.key2, invertPos(drag.h.pos2, y));
     dirty = true;
   } else if (drag.kind === "lane") {
     var s = findLane(x);
@@ -935,3 +1026,11 @@ function ondblclick(x, y) {
 }
 
 function onresize() { dirty = true; }
+
+// hover: the SOUND header explains the control under the mouse
+function onidle(x, y) {
+  if (!S) return;
+  var h = find(x / scaleF, y / scaleF), k = h && (h.kind === "handle" || h.kind === "param" || h.kind === "level" || h.kind === "kick") ? h.key : null;
+  if (k !== hoverKey) { hoverKey = k; dirty = true; }
+}
+function onidleout() { if (hoverKey !== null) { hoverKey = null; dirty = true; } }
