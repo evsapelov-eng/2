@@ -68,6 +68,7 @@ class Patch {
     if (c === "clip~") { st.lo = +w[1]; st.hi = +w[2]; }
     if (c === "sah~") { st.th = +(w[1] || 0); st.held = 0; st.prev = 0; }
     if (c === "change~") st.prev = null;
+    if (c === "slide~") { st.up = Math.max(1, +(w[1] || 1)); st.down = Math.max(1, +(w[2] || 1)); st.z = 0; }
     if (c === "tapin~") { st.buf = new Float64Array(Math.ceil((+w[1] || 1000) / 1000 * SR) + 2); st.w = 0; }
     if (c === "tapout~") st.delays = w.slice(1).map(Number);
     if (this._isSig(b)) {
@@ -173,6 +174,7 @@ class Patch {
       default:
         if (b.cls === "cycle~" && inlet === 1) { st.ph = nums[0] || 0; break; } // phase reset
         if (b.cls === "index~" && msg[0] === "set") { st.buf = String(msg[1]); break; }
+        if (b.cls === "cycle~" && inlet === 0) { st.inF[0] = nums[0]; break; }
         if (this._isSig(b)) { st.inF[inlet] = nums[0]; break; }
         if (c === "thispoly~" || c === "out~") break;
         throw new Error("maxsim: unsupported object " + c);
@@ -209,6 +211,7 @@ class Patch {
         case "dbtoa~": y[0] = Math.pow(10, x0 / 20); break;
         case "phasor~": y[0] = st.ext ? (st.ext[st.i++] || 0) : (st.ph = ((st.ph || 0) + x0 / SR) % 1); break;
         case "trunc~": y[0] = Math.trunc(x0); break;
+        case "slide~": st.z += (x0 - st.z) / (x0 > st.z ? st.up : st.down); y[0] = st.z; break;
         case "-~": y[0] = x0 - x1; break;
         case "!-~": y[0] = x1 - x0; break;
         case "%~": y[0] = x0 % x1; break;

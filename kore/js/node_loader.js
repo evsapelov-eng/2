@@ -13,6 +13,11 @@ function sourceFiles() {
 
 function loadCore() {
   const ctx = vm.createContext({});
+  // same order as js/build.js: DSP map, shared voice model, then the core sources
+  const map = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "spec", "dsp_map.json"), "utf8"));
+  vm.runInContext("var KORE_DSP_MAP = " + JSON.stringify(map) + ";", ctx);
+  const shared = path.join(__dirname, "shared", "kore_dsp_model.js");
+  vm.runInContext(fs.readFileSync(shared, "utf8"), ctx, { filename: shared });
   for (const f of sourceFiles()) vm.runInContext(fs.readFileSync(f, "utf8"), ctx, { filename: f });
   return ctx;
 }

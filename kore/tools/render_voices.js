@@ -34,7 +34,7 @@ function renderGroove(sections, bpm) {
   const beatS = 60 / bpm, total = sections.reduce((a, s) => a + s.bars, 0);
   const n = Math.ceil((total * 4 * beatS + 1.5) * SR);
   const bus = { punch: new Float64Array(n), sub: new Float64Array(n), other: new Float64Array(n), rumbleIn: new Float64Array(n) };
-  const punchHits = [], rumbleEvents = [];
+  const punchHits = [], rumbleEvents = [], humHits = [];
   let barAt = 0, hits = 0;
   for (const sec of sections) {
     const evs = C.koreEventsInRange(sec.state, 0, sec.bars * 4, { minSpacingBeats: (12 / 60000) * bpm });
@@ -47,7 +47,7 @@ function renderGroove(sections, bpm) {
       const h = M.koreModelHit(MAP, name, p, SR, 0, 1000 + hits).L;
       const dst = name === "PUNCH" ? bus.punch : name === "SUB" ? bus.sub : bus.other;
       for (let i = 0; i < h.length && at + i < n; i++) dst[at + i] += h[i];
-      if (name === "PUNCH") punchHits.push(at);
+      if (name === "PUNCH") { punchHits.push(at); humHits.push({ at, h: C.koreHum(sec.state) }); }
     }
     barAt += sec.bars;
   }
@@ -86,10 +86,24 @@ function renderGroove(sections, bpm) {
       rum[i] = M.koreTanh(drv * taps) * comp * gate * rDuck[i] * amount * rv.wetGain;
     }
   }
+  // HUM (as kore_kick: sine at TUNE, act·clip(t/attack) → slide~ up/down, × hum amp)
+  const hum = new Float64Array(n);
+  {
+    const H = MAP.voices.PUNCH.hum, att = H.attackMs / 1000 * SR, up = H.slideUpMs / 1000 * SR, dn = H.slideDownMs / 1000 * SR;
+    let k = -1, z = 0, ph = 0;
+    for (let i = 0; i < n; i++) {
+      while (k + 1 < humHits.length && humHits[k + 1].at <= i) k++;
+      if (k < 0) continue;
+      const tgt = Math.min(1, (i - humHits[k].at) / att);
+      z += (tgt - z) / (tgt > z ? up : dn);
+      ph += humHits[k].h.hz / SR;
+      hum[i] = Math.sin(2 * Math.PI * ph) * z * humHits[k].h.amp;
+    }
+  }
   const L = new Float32Array(n), hp = M.koreSvf(le.dcBlockHz, 0.05, SR);
   let peak = 0, lowSum = 0;
   for (let i = 0; i < n; i++) {
-    const x = bus.punch[i] + bus.sub[i] * subDuck[i] + rum[i] + bus.other[i];
+    const x = bus.punch[i] + hum[i] + bus.sub[i] * subDuck[i] + rum[i] + bus.other[i];
     hp.tick(x);
     const y = M.koreTanh(hp.hp * MAP.master.drive) * MAP.master.ceiling;
     L[i] = y; peak = Math.max(peak, Math.abs(y)); lowSum += x * x;
@@ -112,6 +126,21 @@ const demo = renderGroove(sections, 130);
 writeWav(path.join(OUT, "kore_demo_130bpm.wav"), demo.L, demo.L);
 report.demo = { seconds: +(demo.L.length / SR).toFixed(1), hits: demo.hits, peakDb: +demo.peakDb.toFixed(1), sections: names };
 check("A36 proxy: demo never reaches 0 dBFS", demo.peak < 0.95, `peak ${demo.peakDb.toFixed(1)} dBFS`);
+
+// 1b) HUM: kick only, HUM 0 vs 0.4 vs 1 (for listening) + headroom with HUM at max
+{
+  const segs = [];
+  for (const hv of [0, 0.4, 1]) {
+    const k = new C.KoreEngine();
+    k.state.tracks.forEach((t, i) => { if (i > 0) t.mute = true; });
+    k.state.tracks[0].params.hum = hv; segs.push({ bars: 2, state: snap(k) });
+  }
+  const hr = renderGroove(segs, 128);
+  writeWav(path.join(OUT, "kore_hum_0_40_100.wav"), hr.L, hr.L);
+  const full = new C.KoreEngine(); full.state.tracks[0].params.hum = 1; full.state.tracks.forEach((t) => (t.levelDb = 0));
+  const fr = renderGroove([{ bars: 2, state: snap(full) }], 128);
+  check("HUM at 100% with all voices at 0 dB stays below full scale", fr.peak < 0.95, `${fr.peakDb.toFixed(1)} dBFS`);
+}
 
 // 2) starter preset headroom (spec: ≈ -6 dBFS in the test preset)
 const starter = renderGroove([{ bars: 4, state: snap(new C.KoreEngine()) }], 130);

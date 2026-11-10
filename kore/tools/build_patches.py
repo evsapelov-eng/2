@@ -338,7 +338,7 @@ def build_kick():
     P.obj("buffer~ ---kick_b 2000", 900, 70, 200)
     P.obj("buffer~ ---kpat 1", 900, 100, 200)
     i_msg = P.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": [""], "patching_rect": [400, 40, 30, 30], "comment": "messages"})
-    rt = P.obj("route set level tempo sr playing", 400, 80, 260)
+    rt = P.obj("route set level tempo sr playing gate hum", 400, 80, 300)
     P.connect(i_msg, 0, rt, 0)
     ph = P.obj("phasor~ 1n @lock 1", 20, 80, 150)
     s16 = P.obj("*~ 16.", 20, 120)
@@ -389,8 +389,18 @@ def build_kick():
     P.connect(pm, 0, pl, 0)
     vp = P.obj("*~", 20, 560, 40)
     P.connect(vl, 0, vp, 0); P.connect(pl, 0, vp, 1)
-    o1 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [20, 600, 30, 30], "comment": "kick audio"})
-    P.connect(vp, 0, o1, 0)
+    # gate: 0 when the pattern has no hit / PUNCH muted (the player holds the last hit otherwise)
+    gm = P.msg("$1 10", 800, 120)
+    P.connect(rt, 5, gm, 0)
+    gl = P.obj("line~", 800, 150, 50)
+    P.connect(gm, 0, gl, 0)
+    glb = P.obj("loadbang", 900, 90)
+    g1 = P.msg("1", 900, 120)
+    P.connect(glb, 0, g1, 0); P.connect(g1, 0, gl, 0)   # open until the engine says otherwise
+    vg = P.obj("*~", 20, 580, 40)
+    P.connect(vp, 0, vg, 0); P.connect(gl, 0, vg, 1)
+    o1 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [20, 620, 30, 30], "comment": "kick audio"})
+    P.connect(vg, 0, o1, 0)
     # samples per 16th = sr*15/tempo ; 1/release in samples = 1000/(rel*sr)
     tf = P.obj("f 120.", 560, 200)
     P.connect(rt, 2, tf, 0)
@@ -420,14 +430,47 @@ def build_kick():
     P.connect(pc, 0, pa, 0); P.connect(act, 0, pa, 1)
     pp = P.obj("*~", 300, 580, 40)
     P.connect(pa, 0, pp, 0); P.connect(pl, 0, pp, 1)
-    o2 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [300, 620, 30, 30], "comment": "kick proximity"})
-    P.connect(pp, 0, o2, 0)
+    pg = P.obj("*~", 300, 600, 40)
+    P.connect(pp, 0, pg, 0); P.connect(gl, 0, pg, 1)
+    o2 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [300, 640, 30, 30], "comment": "kick proximity"})
+    P.connect(pg, 0, o2, 0)
+    # HUM: long humming sub under the kick — sine at TUNE, swells in after each kick and holds;
+    # slides down at the kick (no click). Separate outlet → master (not into RUMBLE).
+    H = MAP["voices"]["PUNCH"]["hum"]
+    hu = P.obj("unpack 0. 0.", 1000, 120, 100)
+    P.connect(rt, 6, hu, 0)
+    ham = P.msg("$1 30", 1000, 150)
+    P.connect(hu, 0, ham, 0)
+    hal = P.obj("line~", 1000, 180, 50)
+    P.connect(ham, 0, hal, 0)
+    hosc = P.obj("cycle~ 55.", 1110, 150)
+    P.connect(hu, 1, hosc, 0)
+    iat = P.obj("expr 1000./(%s*$f1)" % f(H["attackMs"]), 720, 270, 160)
+    P.connect(srt, 1, iat, 0)
+    he1 = P.obj("*~ 0.", 560, 460)
+    P.connect(tS, 0, he1, 0); P.connect(iat, 0, he1, 1)
+    he2 = P.obj("clip~ 0. 1.", 560, 490)
+    P.connect(he1, 0, he2, 0)
+    he3 = P.obj("*~", 560, 520, 40)
+    P.connect(he2, 0, he3, 0); P.connect(act, 0, he3, 1)
+    sr0 = 48000.0
+    hsl = P.obj("slide~ %d %d" % (round(H["slideUpMs"] * sr0 / 1000), round(H["slideDownMs"] * sr0 / 1000)), 560, 550)
+    P.connect(he3, 0, hsl, 0)
+    h1 = P.obj("*~", 1000, 560, 40)
+    P.connect(hosc, 0, h1, 0); P.connect(hsl, 0, h1, 1)
+    h2 = P.obj("*~", 1000, 590, 40)
+    P.connect(h1, 0, h2, 0); P.connect(hal, 0, h2, 1)
+    h3 = P.obj("*~", 1000, 620, 40)
+    P.connect(h2, 0, h3, 0); P.connect(pl, 0, h3, 1)
+    h4 = P.obj("*~", 1000, 650, 40)
+    P.connect(h3, 0, h4, 0); P.connect(gl, 0, h4, 1)
+    o3 = P.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [1000, 690, 30, 30], "comment": "HUM"})
+    P.connect(h4, 0, o3, 0)
     return P.dump(os.path.join(OUT, "kore_kick.maxpat"))
 
 
 # ---------------------------------------------------------------- main
-CW, CH = 760, 169          # compact device strip
-EW, EH = 1200, 760         # expanded editor window
+CW, CH = 1240, 169         # the whole UI lives in Live's device strip (169 px high)
 
 
 def build_main():
@@ -493,13 +536,16 @@ def build_main():
     # KICK: sample-accurate player (kore_kick) fed by the engine's buffers
     kick = P.obj("kore_kick", 20, 640, 120)
     kb = [b for b in P.boxes if b["box"]["id"] == kick][0]["box"]
-    kb.update({"numinlets": 1, "numoutlets": 2, "outlettype": ["signal", "signal"]})
-    kr = P.obj("route kickbuf kicklevel", 340, 400, 180)
+    kb.update({"numinlets": 1, "numoutlets": 3, "outlettype": ["signal", "signal", "signal"]})
+    kr = P.obj("route kickbuf kicklevel kickgate hum", 340, 400, 260)
     P.connect(rt, 2, kr, 0)
     ks = P.obj("prepend set", 340, 440)
     kl = P.obj("prepend level", 460, 440)
-    P.connect(kr, 0, ks, 0); P.connect(kr, 1, kl, 0)
-    P.connect(ks, 0, kick, 0); P.connect(kl, 0, kick, 0)
+    kg = P.obj("prepend gate", 580, 440)
+    kh = P.obj("prepend hum", 700, 440)
+    P.connect(kr, 0, ks, 0); P.connect(kr, 1, kl, 0); P.connect(kr, 2, kg, 0); P.connect(kr, 3, kh, 0)
+    for b_ in (ks, kl, kg, kh):
+        P.connect(b_, 0, kick, 0)
     ktempo = P.obj("prepend tempo", 200, 240)
     P.connect(tr, 4, ktempo, 0); P.connect(ktempo, 0, kick, 0)
     dsp = P.obj("dspstate~", 200, 560)
@@ -523,7 +569,7 @@ def build_main():
     P.connect(sd1, 0, sd2, 0)
     subd = P.obj("*~", 240, 760, 40)
     P.connect(voices["sub"], 0, subd, 0); P.connect(sd2, 0, subd, 1)
-    srcs = [(kick, 0), (subd, 0), (rum, 0), (voices["toml"], 0), (voices["tomh"], 0), (voices["hat"], 0)]
+    srcs = [(kick, 0), (kick, 2), (subd, 0), (rum, 0), (voices["toml"], 0), (voices["tomh"], 0), (voices["hat"], 0)]
     acc = srcs[0]
     for j, s_ in enumerate(srcs[1:]):
         a_ = P.obj("+~", 20 + j * 60, 820, 40)
@@ -554,45 +600,15 @@ def build_main():
     P.connect(syu, 0, kpl, 0); P.connect(kpl, 0, kick, 0)
     pr = P.obj("print KØRE", 420, 400)
     P.connect(st, 2, pr, 0)
-    # UI: compact strip in the device + expanded editor in its own window (pcontrol open/close)
+    # UI: ONE jsui in the device strip (no separate editor window) — SEQ / SOUND / LANES tabs inside
     dl = P.obj("deferlow", 1100, 300)
     P.connect(eng, 1, dl, 0)
-    compact = P.raw({"maxclass": "jsui", "filename": "kore_ui.js", "jsarguments": ["compact"], "numinlets": 1, "numoutlets": 1,
-                     "outlettype": [""], "parameter_enable": 0, "border": 0, "patching_rect": [1100, 330, CW, CH],
-                     "presentation": 1, "presentation_rect": [0, 0, CW, CH], "varname": "kore_compact"})
-    P.connect(dl, 0, compact, 0)
-    ed = editor_subpatcher(P, 1100, 540)
-    P.connect(dl, 0, ed, 0)
-    ui_route = P.obj("route openeditor closeeditor", 1300, 520, 200)
-    P.connect(compact, 0, ui_route, 0)
-    P.connect(ed, 0, ui_route, 0)
-    P.connect(ui_route, 2, eng, 0)
-    op = P.msg("open", 1300, 560)
-    cl = P.msg("close", 1360, 560)
-    P.connect(ui_route, 0, op, 0); P.connect(ui_route, 1, cl, 0)
-    pc = P.obj("pcontrol", 1300, 590)
-    P.connect(op, 0, pc, 0); P.connect(cl, 0, pc, 0)
-    P.connect(pc, 0, ed, 0)
+    ui = P.raw({"maxclass": "jsui", "filename": "kore_ui.js", "numinlets": 1, "numoutlets": 1,
+                "outlettype": [""], "parameter_enable": 0, "border": 0, "patching_rect": [1100, 330, CW, CH],
+                "presentation": 1, "presentation_rect": [0, 0, CW, CH], "varname": "kore_ui"})
+    P.connect(dl, 0, ui, 0)
+    P.connect(ui, 0, eng, 0)
     return P.dump(os.path.join(OUT, "kore_main.maxpat"), openinpresentation=1, devicewidth=float(CW))
-
-
-def editor_subpatcher(P, x, y):
-    """[p KORE_EDITOR]: own window EW×EH with the expanded jsui; opened via pcontrol."""
-    sub = Patcher((80, 80, EW, EH))
-    i = sub.raw({"maxclass": "inlet", "numinlets": 0, "numoutlets": 1, "outlettype": [""], "patching_rect": [20, 20, 30, 30]})
-    j = sub.raw({"maxclass": "jsui", "filename": "kore_ui.js", "jsarguments": ["editor"], "numinlets": 1, "numoutlets": 1,
-                 "outlettype": [""], "parameter_enable": 0, "border": 0, "patching_rect": [0, 0, EW, EH],
-                 "presentation": 1, "presentation_rect": [0, 0, EW, EH], "varname": "kore_editor"})
-    o = sub.raw({"maxclass": "outlet", "numinlets": 1, "numoutlets": 0, "patching_rect": [60, 20, 30, 30]})
-    sub.connect(i, 0, j, 0)
-    sub.connect(j, 0, o, 0)
-    patcher = {"fileversion": 1, "appversion": {"major": 8, "minor": 6, "revision": 0, "architecture": "x64", "modernui": 1},
-               "classnamespace": "box", "rect": [80, 80, EW, EH], "openinpresentation": 1, "toolbarvisible": 0,
-               "statusbarvisible": 0, "enablehscroll": 0, "enablevscroll": 0, "title": "KØRE",
-               "boxes": sub.boxes, "lines": sub.lines}
-    box = {"maxclass": "newobj", "text": "p KORE_EDITOR", "numinlets": 1, "numoutlets": 1, "outlettype": [""],
-           "patching_rect": [x, y, 120, 22], "patcher": patcher}
-    return P.raw(box)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ var KORE_PUNCH = 0, KORE_SUB = 1, KORE_RUMBLE = 2, KORE_TOML = 3, KORE_TOMH = 4,
 // Voice-specific parameters (normalized 0..1; units in spec/dsp_map.json). A P-Lock may
 // only use the ids of its own voice (spec §13). Kept identical to dsp_map.json (tested).
 var KORE_VOICE_PARAMS = [
-  ["tune", "punch", "time", "body", "decay", "drive", "click", "clicktone"],
+  ["tune", "punch", "time", "body", "decay", "drive", "click", "clicktone", "hum"],
   ["tune", "decay", "sweep", "drive"],
   ["amount", "tail", "duck", "tone", "drive"],
   ["tune", "decay", "sweep", "tone", "snap"],
@@ -17,7 +17,7 @@ var KORE_VOICE_PARAMS = [
   ["tone", "decay", "reso", "open"]
 ];
 var KORE_DEFAULT_PARAMS = [
-  {tune:  0.4594,  punch:  0.5,  time:  0.5155,  body:  0.35,  decay:  0.5241,  drive:  0.35,  click:  0.35,  clicktone:  0.5},
+  {tune:  0.4594,  punch:  0.5,  time:  0.5155,  body:  0.35,  decay:  0.5241,  drive:  0.35,  click:  0.35,  clicktone:  0.5,  hum:  0.4},
   {tune:  0.3297,  decay:  0.4804,  sweep:  0.25,  drive:  0.1},
   {amount:  0.35,  tail:  0.4466,  duck:  0.6,  tone:  0.5212,  drive:  0.2},
   {tune:  0.4,  decay:  0.4,  sweep:  0.5,  tone:  0.35,  snap:  0.3},

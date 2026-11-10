@@ -15,7 +15,8 @@ test("KØRE.amxd = Max Instrument container wrapping kore_main.maxpat; all depen
   assert.strictEqual(off + 8 + plen, d.length);
   const patch = JSON.parse(d.toString("utf8", off + 8, d.length - 1));
   assert.ok(patch.patcher.boxes.some((b) => b.box.text === "plugout~"));
-  assert.ok(patch.patcher.boxes.some((b) => b.box.text === "p KORE_EDITOR"));
+  assert.ok(!patch.patcher.boxes.some((b) => b.box.text === "p KORE_EDITOR"));  // v0.3: no editor window
+  assert.strictEqual(patch.patcher.devicewidth, 1240);
   for (const dep of patch.patcher.dependency_cache) assert.ok(fs.existsSync(path.join(PKG, dep.name)), dep.name);
   for (const f of ["kore_engine.js", "kore_ui.js"]) {
     assert.strictEqual(fs.readFileSync(path.join(PKG, f), "utf8"), fs.readFileSync(path.join(__dirname, "..", "max", f), "utf8"));

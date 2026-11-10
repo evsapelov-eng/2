@@ -20,7 +20,8 @@
         "decay",
         "drive",
         "click",
-        "clicktone"
+        "clicktone",
+        "hum"
       ],
       "levelDb": -6,
       "tuneHz": [
@@ -63,9 +64,17 @@
         "decay": 0.5241,
         "drive": 0.35,
         "click": 0.35,
-        "clicktone": 0.5
+        "clicktone": 0.5,
+        "hum": 0.4
       },
-      "clickGain": 0.8
+      "clickGain": 0.8,
+      "hum": {
+        "_doc": "HUM: long humming sub under the kick — sine at the kick's TUNE, swells in after each kick (attack) and holds until the next one; slides down fast just before/at the kick (no click). Level = maxDb + 20log10(hum); hum=0 → off. Not changed by GENERATE.",
+        "attackMs": 90,
+        "maxDb": -4,
+        "slideUpMs": 2,
+        "slideDownMs": 4
+      }
     },
     "SUB": {
       "params": [

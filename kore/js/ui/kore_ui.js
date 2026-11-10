@@ -1,10 +1,10 @@
-// KØRE — device UI for [jsui] (mgraphics). One file, two modes (jsarguments):
-//   "compact" — the strip in Live's device chain (760×169)
-//   "editor"  — the expanded editor in its own window (1200×760): SEQUENCE / SOUND / LANES
-// Both read the same published engine state (Global) and send the same commands.
+// KØRE — device UI for [jsui] (mgraphics). ONE panel that fits Live's device strip
+// (1240×169): no separate editor window. Tabs SEQUENCE / SOUND / LANES switch the middle
+// area; GENERATE / MUTATE PERC / AMOUNT, the HUM sub knob and the meters are always visible.
+// Reads the published engine state (Global) and sends commands to the engine.
 // Monochrome, flat (spec §14). Waveform and pitch-vs-time come from the shared voice model
-// (js/shared/kore_dsp_model.js, bundled by js/build.js); the coil and meters use measured
-// peaks from [peakamp~] — never decorative noise. ES5; ASCII text; Ø drawn as geometry.
+// (js/shared/kore_dsp_model.js, bundled by js/build.js); meters use measured peaks from
+// [peakamp~] — never decorative noise. ES5; ASCII text; Ø drawn as geometry.
 
 mgraphics.init();
 mgraphics.relative_coords = 0;
@@ -12,8 +12,7 @@ mgraphics.autofill = 0;
 inlets = 1;
 outlets = 1;
 
-var MODE = (jsarguments && jsarguments.length > 1 && String(jsarguments[1]) === "editor") ? "editor" : "compact";
-var W0 = MODE === "editor" ? 1200 : 760, H0 = MODE === "editor" ? 760 : 169;
+var W0 = 1240, H0 = 169;
 var COL = {
   bg: [0.035, 0.039, 0.039, 1],        // #090A0A
   panel: [0.063, 0.071, 0.071, 1],     // #101212
@@ -22,17 +21,25 @@ var COL = {
   inactive: [0.235, 0.255, 0.247, 1]   // #3C413F
 };
 var NAMES = ["PUNCH", "SUB", "RUMBLE", "TOM L", "TOM H", "HAT"];
-var PARAMS = [];
-for (var pi = 0; pi < NAMES.length; pi++) PARAMS.push(KORE_DSP_MAP.voices[NAMES[pi]].params);
+var PARAMS = [];            // editable on SOUND / LANES (HUM has its own knob on the right)
+for (var pi = 0; pi < NAMES.length; pi++) {
+  var pk = KORE_DSP_MAP.voices[NAMES[pi]].params, pl = [];
+  for (var pj = 0; pj < pk.length; pj++) if (pk[pj] !== "hum") pl.push(pk[pj]);
+  PARAMS.push(pl);
+}
 var LABEL = { tune: "TUNE", punch: "PUNCH", time: "TIME", body: "BODY", decay: "DECAY", drive: "DRIVE", click: "CLICK",
-  clicktone: "CLICK TONE", sweep: "GLIDE", tone: "TONE", snap: "SNAP", reso: "RESO", open: "OPEN", amount: "AMOUNT", tail: "TAIL", duck: "DUCK" };
+  clicktone: "CLK TONE", sweep: "GLIDE", tone: "TONE", snap: "SNAP", reso: "RESO", open: "OPEN", amount: "AMOUNT", tail: "TAIL", duck: "DUCK", hum: "HUM" };
 var STYLES = ["FOUNDATION", "DRIVING", "HYPNOTIC", "BROKEN"];
-var STYLE_SHORT = ["FOUND", "DRIVE", "HYPNO", "BROKEN"];
 var DIVS = [[1, 1], [3, 4], [5, 4], [7, 4], [3, 2], [2, 3], [4, 3], [1, 2], [2, 1]];
+
+// layout (device strip)
+var MX = 158, MR = 966, RX = 976;                 // middle area, right column
+var SROW = 25, SCELL = 21, SGAP = 4, SGX = 256, SGY = 10; // sequencer grid
+var CX = 678;                                      // contextual strip (SEQUENCE)
+var LX = 160, LCOL = 50, LTOP = 36, LH = 104;      // lanes
 
 var G = null, S = null, seenVersion = -1, phPos = [-1, -1, -1, -1, -1, -1];
 var hits = [], drag = null, dirty = true, scaleF = 1, lastError = "", laneKey = null;
-var coil = { level: 0, phase: 0 };
 
 // ---------- engine link ----------
 function bind(name) { G = new Global(name); refresh(); }
@@ -47,12 +54,7 @@ function playhead(a, b, c, d, e, f) { phPos = [a, b, c, d, e, f]; dirty = true; 
 
 var frame = new Task(function () {
   if (G && G.version !== seenVersion) { pull(); dirty = true; }
-  if (G) { // telemetry: smooth measured kick peak for the coil / meters
-    var k = +G.kick || 0, target = Math.min(1, k * 1.5);
-    coil.level += (target - coil.level) * (target > coil.level ? 0.6 : 0.12);
-    coil.phase += 0.01 + coil.level * 0.05;
-    if (S && (S.playing || coil.level > 0.002)) dirty = true;
-  }
+  if (S && S.playing) dirty = true;                // meters / playhead
   if (dirty) { dirty = false; mgraphics.redraw(); }
 }, this);
 frame.interval = 33; // ≤ 30 fps
@@ -72,6 +74,7 @@ function vToLevel(v) { return Math.round((LEVEL_MIN + v * (LEVEL_MAX - LEVEL_MIN
 function valueText(t, key, v) {
   var m = vmap(t);
   if (key === "level") return vToLevel(v) + "dB";
+  if (key === "hum") { var hm = KORE_DSP_MAP.voices.PUNCH.hum; return v > 0 ? Math.round(hm.maxDb + 20 * Math.log(v) / Math.LN10) + "dB" : "OFF"; }
   if (key === "tune") return fmtHz(expMap(m.tuneHz, v)) + "Hz";
   if (key === "decay") return fmtMs(expMap(m.decayMs, v));
   if (key === "tail") return fmtMs(expMap(m.tailMs, v));
@@ -143,243 +146,169 @@ function paint() {
     mgraphics.scale(scaleF, scaleF);
     hits = [];
     rect(0, 0, W0, H0, COL.bg, true);
-    if (!S) { drawLogo(16, 40, 30); text("waiting for engine...", 200, 90, 12, COL.stroke); return; }
+    if (!S) { drawLogo(16, 40, 26); text("waiting for engine...", 200, 90, 12, COL.stroke); return; }
     if (laneKey === null || PARAMS[S.global.selectedTrack].indexOf(laneKey) < 0) laneKey = PARAMS[S.global.selectedTrack][0];
-    if (MODE === "editor") paintEditor(); else paintCompact();
+    var g = S.global;
+    rect(4, 4, W0 - 8, H0 - 8, COL.stroke, false, 1, 0.5);
+    paintLeft(g);
+    line(150, 12, 150, H0 - 12, COL.inactive);
+    if (g.activeView === "SOUND") paintSound(g);
+    else if (g.activeView === "LANES") paintLanes(g);
+    else paintSequence(g);
+    line(RX - 6, 12, RX - 6, H0 - 12, COL.inactive);
+    paintRight(g);
   } catch (e) {
     lastError = String(e);
     post("KORE UI error: " + lastError + "\n");
     rect(0, 0, W0, H0, COL.bg, true);
     text("KORE UI error (see Max Console):", 10, 20, 11, COL.primary);
-    text(lastError.substring(0, 110), 10, 38, 11, COL.primary);
+    text(lastError.substring(0, 140), 10, 38, 11, COL.primary);
   }
 }
 
 function status(x, y, size) {
   if (S.playing) dot(x + 3, y - size * 0.35, size * 0.32, COL.primary); else rect(x, y - size * 0.65, size * 0.6, size * 0.6, COL.inactive, false);
-  var st = "SYNC " + (Math.round(S.tempo * 10) / 10) + " BPM";
+  var st = (Math.round(S.tempo * 10) / 10) + " BPM";
   if (S.playing && G && G.pos !== undefined) st += "  " + (Math.floor(G.pos / 4) + 1) + "." + (Math.floor(G.pos % 4) + 1);
   else if (!S.playing) st += "  STOPPED";
   text(st, x + size, y, size, S.playing ? COL.primary : COL.stroke);
-  if (S.pending) text("NEXT BAR", x + size + textW(st, size) + 10, y, size, COL.primary, true);
+  if (S.pending) text("NEXT BAR", x + size + textW(st, size) + 6, y, size, COL.primary, true);
 }
 
 function meterBar(x, y, w, h, v, label) {
   rect(x, y, w, h, COL.inactive, false);
   var db = v > 0 ? 20 * Math.log(v) / Math.LN10 : -60, f = Math.max(0, Math.min(1, (db + 48) / 48));
   rect(x + 1, y + h - 1 - f * (h - 2), w - 2, f * (h - 2), COL.primary, true);
-  if (db > -0.5) rect(x - 1, y - 6, w + 2, 4, COL.primary, true); // clip marker (shape, not colour)
-  if (label) textC(label, x + w / 2, y + h + 10, 6.5, COL.stroke);
+  if (db > -0.5) rect(x - 1, y - 5, w + 2, 3, COL.primary, true); // clip marker (shape, not colour)
+  if (label) textC(label, x + w / 2, y + h + 9, 6, COL.stroke);
 }
 
-// ================= COMPACT =================
-function paintCompact() {
-  var g = S.global, t = g.selectedTrack, tr = S.tracks[t];
-  rect(4, 4, W0 - 8, H0 - 8, COL.stroke, false, 1, 0.6);
-  drawLogo(18, 46, 30);
-  text("MULTI-KICK", 19, 62, 7.5, COL.stroke);
-  status(18, 84, 7.5);
-  line(150, 14, 150, 156, COL.inactive);
-  // mini pattern overview: 6 rows × 16 (click = toggle, name = select voice)
-  var ox = 202, oy = 20;
-  for (var r = 0; r < 6; r++) {
-    var trk = S.tracks[r], y = oy + r * 14, sel = r === t;
-    text(NAMES[r], 158, y + 8, 6.5, sel ? COL.primary : COL.stroke, sel);
-    hit({ x: 156, y: y - 2, w: 44, h: 12, kind: "track", t: r });
-    for (var i = 0; i < 16; i++) {
-      var x = ox + i * 10, st = trk.steps[i];
-      if (i >= trk.length) { line(x + 2, y + 4, x + 7, y + 4, COL.inactive); continue; }
-      if (st.on) rect(x, y, 8, 8, trk.mute ? COL.inactive : COL.primary, true); else rect(x, y, 8, 8, COL.inactive, false);
-      if (st.on && st.open) rect(x + 2, y + 2, 4, 4, COL.bg, true);
-      if (phPos[r] === i) line(x, y + 10, x + 8, y + 10, COL.stroke, 1.2);
-      hit({ x: x, y: y, w: 9, h: 9, kind: "step", t: r, s: i });
-    }
-  }
-  text(g.style, 158, 112 + 0, 7, COL.stroke);
-  hit({ x: 156, y: 104, w: 70, h: 12, kind: "stylecycle" });
-  line(372, 14, 372, 156, COL.inactive);
+// ---------- left: logo, tabs, style, status ----------
+function paintLeft(g) {
+  drawLogo(14, 34, 26);
+  text("MULTI-KICK", 15, 48, 7, COL.stroke);
+  var tabs = ["SEQUENCE", "SOUND", "LANES"];
+  for (var i = 0; i < 3; i++) toggle(14, 58 + i * 21, 128, 18, tabs[i], g.activeView === tabs[i], { kind: "view", v: tabs[i] }, 7.5);
+  text("STYLE", 14, 136, 6.5, COL.stroke);
+  text(g.style, 44, 136, 7.5, COL.primary, true);
+  line(14, 139, 142, 139, COL.inactive);
+  hit({ x: 12, y: 126, w: 132, h: 15, kind: "stylecycle" });
+  status(14, 156, 7);
+}
+
+// ---------- right: HUM knob, actions, meters ----------
+function paintRight(g) {
+  // HUM — the long humming sub under the kick (PUNCH's own knob, D8; GENERATE never moves it)
+  var hv = S.tracks[0].params.hum, hx = RX;
+  rect(hx, 8, 84, 153, COL.primary, false, 1.2);
+  text("HUM", hx + 8, 22, 10, COL.primary, true);
+  text("SUB", hx + 50, 22, 6.5, COL.stroke);
+  drawNode(hx + 2, 26, 80, 112, "hum", "LONG SUB", hv, valueText(0, "hum", hv), { kind: "hum" }, false, 0, 22);
+  var hz = expMap(vmap(0).tuneHz, S.tracks[0].params.tune);
+  textC("@ " + fmtHz(hz) + "Hz", hx + 42, 150, 7, COL.stroke);
   // actions
-  var ax = 384;
-  rect(ax, 16, 116, 30, COL.primary, false, 1.5); dice(ax + 10, 23, 15); text("GENERATE", ax + 32, 35, 9.5, COL.primary, true);
-  hit({ x: ax, y: 16, w: 116, h: 30, kind: "cmd", cmd: "generate" });
-  button(ax, 52, 116, 30, "MUTATE PERC", "mutate", 9, true);
-  amountBar(ax, 96, 116);
-  button(ax, 116, 56, 16, "KEEP", "keep", 7);
-  button(ax + 60, 116, 56, 16, "UNDO", "undo", 7, false, S.canUndo);
-  line(510, 14, 510, 156, COL.inactive);
-  // selected voice + priority macros
-  text(NAMES[t], 520, 28, 11, COL.primary, true);
-  if (tr.soundName) text(tr.soundName, 520 + textW(NAMES[t], 11, true) + 8, 28, 7, COL.stroke);
-  var keys = t === 0 ? ["tune", "punch"] : PARAMS[t].slice(0, 2);
-  for (var k = 0; k < keys.length; k++) {
-    var v = tr.params[keys[k]];
-    drawNode(520 + k * 70, 38, 66, 96, keys[k], LABEL[keys[k]], v, valueText(t, keys[k], v), { kind: "param", key: keys[k] }, false, t, 15);
-  }
-  // output meter + open editor
-  meterBar(668, 20, 10, 92, G ? +G.meter || 0 : 0, "OUT");
-  button(688, 52, 60, 30, "OPEN", "openeditor", 8.5, true);
-  text("EDITOR", 699, 94, 7, COL.stroke);
+  var ax = RX + 92, aw = 120;
+  rect(ax, 8, aw, 28, COL.primary, false, 1.5); dice(ax + 8, 14, 15); text("GENERATE", ax + 30, 26, 9, COL.primary, true);
+  hit({ x: ax, y: 8, w: aw, h: 28, kind: "cmd", cmd: "generate" });
+  button(ax, 40, aw, 24, "MUTATE PERC", "mutate", 8.5, true);
+  amountBar(ax, 74, aw);
+  button(ax, 90, 58, 16, "KEEP", "keep", 7);
+  button(ax + 62, 90, 58, 16, "UNDO", "undo", 7, false, S.canUndo);
+  text("KICK / SUB", ax, 122, 6.5, COL.stroke);
+  var modes = ["HYBRID", "ALTERNATE", "LAYER"], short = ["HYB", "ALT", "LAY"];
+  for (var m = 0; m < 3; m++) toggle(ax + m * 41, 127, 38, 15, short[m], g.kickInteraction === modes[m], { kind: "interaction", v: modes[m] }, 6.5);
+  // meters (measured)
+  meterBar(RX + 222, 14, 9, 126, G ? +G.kick || 0 : 0, "KICK");
+  meterBar(RX + 240, 14, 9, 126, G ? +G.meter || 0 : 0, "OUT");
 }
 
 function amountBar(x, y, w) {
-  text("AMOUNT", x, y + 7, 7, COL.stroke);
-  var bx = x + 44, bw = w - 44 - 26;
+  text("AMOUNT", x, y + 7, 6.5, COL.stroke);
+  var bx = x + 38, bw = w - 38 - 24;
   rect(bx, y, bw, 8, COL.inactive, false);
   rect(bx + 1, y + 1, Math.max(0, (bw - 2) * S.global.mutationAmount), 6, COL.primary, true);
-  text(pct(S.global.mutationAmount), bx + bw + 3, y + 7, 7.5, COL.primary, true);
+  text(pct(S.global.mutationAmount), bx + bw + 3, y + 7, 7, COL.primary, true);
   hit({ x: x, y: y - 3, w: w, h: 14, kind: "amount", bx: bx, bw: bw });
 }
 
-// ================= EDITOR =================
-var TOP = 58, CELL = 34, CGAP = 6, GX = 190, GY = 104, ROWH = 64;
-
-function paintEditor() {
-  var g = S.global;
-  drawLogo(24, 42, 34);
-  text("GENERATIVE MULTI-KICK", 150, 30, 9, COL.stroke);
-  text("SYNTHESIZER", 150, 43, 9, COL.stroke);
-  var tabs = [["SEQUENCE", "SEQUENCE"], ["SOUND", "SOUND"], ["LANES", "LANES"]];
-  for (var i = 0; i < tabs.length; i++) toggle(330 + i * 112, 16, 108, 30, tabs[i][0], g.activeView === tabs[i][1], { kind: "view", v: tabs[i][1] }, 9);
-  rect(680, 14, 140, 34, COL.primary, false, 1.5); dice(694, 22, 18); text("GENERATE", 720, 36, 10, COL.primary, true);
-  hit({ x: 680, y: 14, w: 140, h: 34, kind: "cmd", cmd: "generate" });
-  button(828, 14, 120, 34, "MUTATE PERC", "mutate", 9.5, true);
-  button(956, 14, 70, 34, "KEEP", "keep", 9);
-  button(1032, 14, 70, 34, "UNDO", "undo", 9, false, S.canUndo);
-  button(1110, 14, 70, 34, "CLOSE", "closeeditor", 9);
-  line(20, TOP + 4, W0 - 20, TOP + 4, COL.inactive);
-  if (g.activeView === "SOUND") paintSound(g);
-  else if (g.activeView === "LANES") paintLanes(g);
-  else paintSequence(g);
-  // bottom bar: AMOUNT, STYLE, kick/sub interaction, status
-  rect(20, 712, W0 - 40, 40, COL.stroke, false, 1, 0.6);
-  amountBarBig(36, 726, 240);
-  for (var s = 0; s < 4; s++) toggle(300 + s * 96, 720, 92, 24, STYLES[s], g.style === STYLES[s], { kind: "style", v: STYLES[s] }, 8);
-  var modes = ["HYBRID", "ALTERNATE", "LAYER"];
-  text("KICK/SUB", 698, 736, 7.5, COL.stroke);
-  for (var m = 0; m < 3; m++) toggle(746 + m * 74, 722, 70, 20, modes[m], g.kickInteraction === modes[m], { kind: "interaction", v: modes[m] }, 7);
-  status(984, 737, 9);
+function voiceRow(g) { // voice selector (SOUND / LANES)
+  for (var v = 0; v < 6; v++) toggle(MX + v * 54, 6, 50, 16, NAMES[v], g.selectedTrack === v, { kind: "track", t: v }, 7);
 }
-
-function amountBarBig(x, y, w) {
-  text("AMOUNT", x, y + 10, 9, COL.stroke);
-  var bx = x + 66, bw = w - 66 - 40;
-  rect(bx, y + 1, bw, 10, COL.inactive, false);
-  rect(bx + 1, y + 2, Math.max(0, (bw - 2) * S.global.mutationAmount), 8, COL.primary, true);
-  text(pct(S.global.mutationAmount), bx + bw + 6, y + 10, 10, COL.primary, true);
-  hit({ x: x, y: y - 6, w: w, h: 24, kind: "amount", bx: bx, bw: bw });
-}
-
-function voiceRow(g, y, sizeTxt) { // voice selector tabs (SOUND / LANES)
-  for (var v = 0; v < 6; v++) toggle(24 + v * 118, y, 112, 28, NAMES[v], g.selectedTrack === v, { kind: "track", t: v }, sizeTxt || 9);
-}
-
 function stepLabel(g) { return NAMES[g.selectedTrack] + " / " + (g.selectedStep >= 0 ? "STEP " + pad2(g.selectedStep + 1) : "BASE"); }
 
 // ---------- SEQUENCE ----------
+function cellX(i) { return SGX + i * (SCELL + SGAP); }
+function rowY(t) { return SGY + t * SROW; }
 function paintSequence(g) {
   var anyLong = false, t, i;
   for (t = 0; t < 6; t++) if (S.tracks[t].length > 16) anyLong = true;
   var off = anyLong ? g.selectedPage * 16 : 0;
-  text("GROOVE / " + g.style + (anyLong ? "   STEPS " + (off + 1) + "-" + (off + 16) : ""), 24, 88, 9, COL.stroke);
-  if (anyLong) { toggle(760, 76, 28, 18, "1", g.selectedPage === 0, { kind: "page", v: 0 }, 8); toggle(792, 76, 28, 18, "2", g.selectedPage === 1, { kind: "page", v: 1 }, 8); }
   for (t = 0; t < 6; t++) {
-    var tr = S.tracks[t], y = GY + t * ROWH, sel = t === g.selectedTrack;
-    rect(20, y - 6, 150, CELL + 12, sel ? COL.primary : COL.inactive, false, sel ? 1.5 : 1, sel ? 1 : 0.5);
-    text(NAMES[t], 30, y + 15, 11, sel ? COL.primary : COL.stroke, sel);
-    if (tr.soundName) text(tr.soundName, 30, y + 30, 7, COL.stroke);
-    hit({ x: 20, y: y - 6, w: 104, h: CELL + 12, kind: "track", t: t });
-    toggle(128, y - 2, 18, 18, "M", tr.mute, { kind: "mute", t: t, v: tr.mute ? 0 : 1 }, 8);
+    var tr = S.tracks[t], y = rowY(t), sel = t === g.selectedTrack;
+    if (sel) rect(MX, y - 2, 94, SCELL + 4, COL.primary, false, 1.2);
+    text(NAMES[t], MX + 6, y + 14, 8, sel ? COL.primary : COL.stroke, sel);
+    hit({ x: MX, y: y - 2, w: 56, h: SCELL + 4, kind: "track", t: t });
+    toggle(MX + 58, y + 2, 16, 16, "M", tr.mute, { kind: "mute", t: t, v: tr.mute ? 0 : 1 }, 7);
     var held = tr.locks.rhythm && tr.locks.sound;
-    toggle(150, y - 2, 18, 18, "L", held, { kind: "hold", t: t, v: held ? 0 : 1 }, 8);
+    toggle(MX + 76, y + 2, 16, 16, "L", held, { kind: "hold", t: t, v: held ? 0 : 1 }, 7);
     for (i = 0; i < 16; i++) {
-      var s = off + i, x = GX + i * (CELL + CGAP), st = tr.steps[s];
-      if (s >= tr.length) { line(x + 8, y + CELL / 2, x + CELL - 8, y + CELL / 2, COL.inactive); continue; }
+      var s = off + i, x = cellX(i), st = tr.steps[s];
+      if (i % 4 === 0 && t === 0) line(x - 2, 6, x - 2, rowY(5) + SCELL + 4, COL.inactive, 1, 0.5);
+      if (s >= tr.length) { line(x + 5, y + SCELL / 2, x + SCELL - 5, y + SCELL / 2, COL.inactive); continue; }
       var c = tr.mute ? COL.inactive : COL.primary;
       if (st.on) {
-        if (st.probability < 1) { rect(x, y, CELL, CELL, c, false); rect(x + 8, y + 8, CELL - 16, CELL - 16, c, true); }
-        else rect(x, y, CELL, CELL, c, true);
-        if (st.open) circle(x + CELL / 2, y + CELL / 2, 7, COL.bg, 1, 2);               // open hat: ring
-        for (var r = 1; r < Math.min(st.ratchet, 6); r++) line(x + r * CELL / Math.min(st.ratchet, 6), y + 3, x + r * CELL / Math.min(st.ratchet, 6), y + 8, COL.bg, 1.5);
-      } else rect(x, y, CELL, CELL, COL.inactive, false);
+        if (st.probability < 1) { rect(x, y, SCELL, SCELL, c, false); rect(x + 5, y + 5, SCELL - 10, SCELL - 10, c, true); }
+        else rect(x, y, SCELL, SCELL, c, true, 1, 0.35 + 0.65 * st.velocity);
+        if (st.open) circle(x + SCELL / 2, y + SCELL / 2, 4.5, COL.bg, 1, 1.6);          // open hat: ring
+        var nr = Math.min(st.ratchet, 6);
+        for (var r = 1; r < nr; r++) line(x + r * SCELL / nr, y + 2, x + r * SCELL / nr, y + 6, COL.bg, 1.3);
+      } else rect(x, y, SCELL, SCELL, COL.inactive, false);
       var lk = false;
       for (var k in st.pLocks) if (st.pLocks.hasOwnProperty(k)) lk = true;
-      if (lk && st.on) dot(x + CELL / 2, y + CELL + 5, 2, COL.primary);
-      if (sel && g.selectedStep === s) rect(x - 3, y - 3, CELL + 6, CELL + 6, COL.primary, false, 1.5);
-      if (phPos[t] === s) line(x, y + CELL + 11, x + CELL, y + CELL + 11, COL.stroke, 2);
-      hit({ x: x, y: y, w: CELL, h: CELL, kind: "step", t: t, s: s });
+      if (lk && st.on) dot(x + SCELL - 3, y + SCELL - 3, 1.6, COL.bg);
+      if (sel && g.selectedStep === s) rect(x - 2, y - 2, SCELL + 4, SCELL + 4, COL.primary, false, 1.3);
+      if (phPos[t] === s) line(x, y + SCELL + 2, x + SCELL, y + SCELL + 2, COL.stroke, 1.5);
+      hit({ x: x, y: y, w: SCELL, h: SCELL, kind: "step", t: t, s: s });
     }
   }
-  // right contextual strip: selected voice / step
-  var rx = 850, tr2 = S.tracks[g.selectedTrack];
-  line(rx - 12, 76, rx - 12, 500, COL.inactive);
-  text(stepLabel(g), rx, 92, 10, COL.primary, true);
+  // contextual strip: selected voice / step
+  var tr2 = S.tracks[g.selectedTrack];
+  line(CX - 10, 12, CX - 10, H0 - 12, COL.inactive);
+  text(stepLabel(g), CX, 20, 9, COL.primary, true);
+  if (tr2.soundName) text(tr2.soundName, CX, 32, 6.5, COL.stroke);
+  if (anyLong) { toggle(CX + 222, 8, 30, 16, "1-16", g.selectedPage === 0, { kind: "page", v: 0 }, 6); toggle(CX + 254, 8, 30, 16, "17-32", g.selectedPage === 1, { kind: "page", v: 1 }, 6); }
   if (g.selectedStep >= 0) {
-    button(rx + 250, 78, 70, 22, "BASE", "exitstep", 8);
+    button(CX + 170, 8, 46, 16, "BASE", "exitstep", 7);
     var st2 = tr2.steps[g.selectedStep];
-    numRow(rx, 140, "VELOCITY", pct(st2.velocity), "vel");
+    numRow(CX, 54, "VELOCITY", pct(st2.velocity), "vel");
     if (g.selectedTrack !== 0) {
-      numRow(rx, 180, "PROBABILITY", pct(st2.probability), "prob");
-      numRow(rx, 220, "RATCHET", "x" + st2.ratchet, "rat");
+      numRow(CX, 76, "PROBABILITY", pct(st2.probability), "prob");
+      numRow(CX, 98, "RATCHET", "x" + st2.ratchet, "rat");
     }
-    if (g.selectedTrack === 5) toggle(rx, 250, 150, 26, st2.open ? "OPEN HAT" : "CLOSED HAT", st2.open, { kind: "open", v: st2.open ? 0 : 1 }, 8);
+    if (g.selectedTrack === 5) toggle(CX, 110, 110, 16, st2.open ? "OPEN HAT" : "CLOSED HAT", st2.open, { kind: "open", v: st2.open ? 0 : 1 }, 7);
     var any = false;
     for (var q in st2.pLocks) if (st2.pLocks.hasOwnProperty(q)) any = true;
-    if (any) button(rx + 170, 250, 150, 26, "CLEAR P-LOCKS", "clearsteplocks", 8);
+    if (any) button(CX + 120, 110, 110, 16, "CLEAR P-LOCKS", "clearsteplocks", 7);
+    text("SOUND tab = this step's own sound (P-Lock)", CX, 146, 6.5, COL.stroke);
   } else if (g.selectedTrack === 0) {
-    text("LENGTH  16   RATE  1:1   (fixed)", rx, 140, 10, COL.stroke);
-    text("The kick plays sample-accurately on the bar grid:", rx, 172, 8.5, COL.stroke);
-    text("every hit is the same sound, exactly on the beat.", rx, 188, 8.5, COL.stroke);
-    text("Shape the kick on SOUND. MUTATE PERC never changes it.", rx, 204, 8.5, COL.stroke);
+    text("LENGTH 16 · RATE 1:1 (fixed)", CX, 54, 8, COL.primary, true);
+    text("sample-accurate: same sound on every hit,", CX, 72, 7, COL.stroke);
+    text("exactly on the beat. Shape it on SOUND.", CX, 84, 7, COL.stroke);
+    text("MUTATE PERC never changes the kick.", CX, 96, 7, COL.stroke);
+    text("HUM (right) = long humming sub under it.", CX, 112, 7, COL.stroke);
   } else {
-    numRow(rx, 140, "LENGTH", String(tr2.length), "len");
-    numRow(rx, 180, "RATE / POLY", tr2.division.n + ":" + tr2.division.m, "div");
-    text("drag values up/down · option-click a step = edit that step", rx, 222, 7.5, COL.stroke);
+    numRow(CX, 54, "LENGTH", String(tr2.length), "len");
+    numRow(CX, 76, "RATE / POLY", tr2.division.n + ":" + tr2.division.m, "div");
+    text("drag values up/down", CX, 100, 6.5, COL.stroke);
+    text("option-click a step = edit that step", CX, 112, 6.5, COL.stroke);
   }
-  // bottom: selected voice mini sound + low-end meter + coil
-  rect(20, 520, 800, 180, COL.stroke, false, 1, 0.6);
-  text(NAMES[g.selectedTrack] + " / SOUND" + (g.selectedStep >= 0 ? "  (STEP " + pad2(g.selectedStep + 1) + ")" : ""), 36, 544, 11, COL.primary, true);
-  drawVoiceNodes(g, 36, 556, Math.min(112, 780 / (PARAMS[g.selectedTrack].length + 1)), 132, 20);
-  rect(832, 520, 348, 180, COL.stroke, false, 1, 0.6);
-  text("LOW END", 848, 544, 10, COL.primary, true);
-  meterBar(852, 560, 14, 110, G ? +G.kick || 0 : 0, "KICK");
-  meterBar(880, 560, 14, 110, G ? +G.meter || 0 : 0, "OUT");
-  drawCoil(1050, 612, 60);
-  text("AUDIO-REACTIVE / NOT A KNOB", 940, 690, 7, COL.stroke);
 }
 
 function numRow(x, y, label, value, which) {
-  text(label, x, y, 9, COL.stroke);
-  text(value, x + 150, y, 13, COL.primary, true);
-  hit({ x: x, y: y - 20, w: 320, h: 30, kind: "num", which: which });
-}
-
-function drawVoiceNodes(g, x, y, w, h, r) {
-  var t = g.selectedTrack, tr = S.tracks[t], stp = g.selectedStep >= 0 ? tr.steps[g.selectedStep] : null;
-  var keys = PARAMS[t];
-  for (var i = 0; i < keys.length; i++) {
-    var v = effOf(tr, stp, keys[i]);
-    drawNode(x + i * w, y, w - 6, h, keys[i], LABEL[keys[i]], v, valueText(t, keys[i], v), { kind: "param", key: keys[i] }, hasLock(stp, keys[i]), t, r);
-  }
-  var lv = levelToV(tr.levelDb);
-  drawNode(x + keys.length * w, y, w - 6, h, "level", "LEVEL", lv, valueText(t, "level", lv), { kind: "level" }, false, t, r);
-}
-
-// Coil: filament rings deformed by the measured PUNCH peak (G.kick). 0 input → calm rotation.
-function drawCoil(cx, cy, r) {
-  var lv = coil.level, n = 6;
-  for (var k = 0; k < n; k++) {
-    var rot = coil.phase + k * Math.PI / 3;
-    for (var i = 0; i <= 72; i++) {
-      var a = i / 72 * Math.PI * 2;
-      var rr = r * (0.55 + 0.35 * Math.cos(3 * a + rot)) * (1 + lv * 0.25 * Math.sin(5 * a - rot * 2));
-      var px = cx + Math.cos(a + rot * 0.2) * rr, py = cy + Math.sin(a + rot * 0.2) * rr * 0.9;
-      if (i === 0) mgraphics.move_to(px, py); else mgraphics.line_to(px, py);
-    }
-    col(COL.primary, 0.25 + 0.5 * (k === 0 ? 1 : 0.5));
-    mgraphics.set_line_width(1);
-    mgraphics.stroke();
-  }
-  for (var d = 0; d < 6; d++) dot(cx + Math.cos(coil.phase * (1 + d * 0.3) + d) * r * (0.6 + 0.3 * lv), cy + Math.sin(coil.phase * (1 + d * 0.3) + d) * r * 0.5, 2.2, COL.primary);
+  text(label, x, y, 7, COL.stroke);
+  text(value, x + 84, y, 10, COL.primary, true);
+  line(x, y + 4, x + 160, y + 4, COL.inactive, 1, 0.6);
+  hit({ x: x, y: y - 14, w: 170, h: 20, kind: "num", which: which });
 }
 
 // ---------- SOUND (interactive graphs) ----------
@@ -387,8 +316,9 @@ function drawCoil(cx, cy, r) {
 // ARE the parameters: drag a handle and the matching parameter (and the sound) changes.
 var preview = { key: "" }, PREV_SR = 22050, PREVIEW_MIN_MS = 90;
 function srFor(t) { return t === 5 ? 44100 : 22050; } // HAT: full band for its spectrum
-var WAVE = { x: 24, y: 140, w: 560, h: 230 }, GRAPH = { x: 600, y: 140, w: 576, h: 230 };
-var PITCH_MS = 200, PITCH_FMIN = 30, PITCH_FMAX = 800;
+var WAVE = { x: MX, y: 28, w: 252, h: 134 }, GRAPH = { x: MX + 258, y: 28, w: 252, h: 134 };
+var NODES = { x: MX + 518, y: 26, w: MR - MX - 518 };
+var PITCH_MS = 200, PITCH_FMIN = 30, PITCH_FMAX = 800, PX0 = 30;
 
 function effectiveParams(g) {
   var tr = S.tracks[g.selectedTrack], stp = (g.selectedStep >= 0 && g.selectedTrack !== 0) ? tr.steps[g.selectedStep] : null, p = { amp: 0.9 };
@@ -413,45 +343,46 @@ function effectiveFor(t) { var tr = S.tracks[t], p = { amp: 0.9 }; for (var k in
 // axes
 function tLog(ms, w) { return w * Math.log(1 + ms / 3) / Math.log(1 + 1400 / 3); }
 function tLogInv(px, w) { return 3 * (Math.exp(px / w * Math.log(1 + 1400 / 3)) - 1); }
-function fyPitch(f) { var G = GRAPH; return G.y + G.h - 16 - (Math.log(Math.max(PITCH_FMIN, f) / PITCH_FMIN) / Math.log(PITCH_FMAX / PITCH_FMIN)) * (G.h - 36); }
-function fyPitchInv(y) { var G = GRAPH; return PITCH_FMIN * Math.pow(PITCH_FMAX / PITCH_FMIN, (G.y + G.h - 16 - y) / (G.h - 36)); }
-function txPitch(ms) { return GRAPH.x + 50 + ms / PITCH_MS * (GRAPH.w - 60); }
-function txPitchInv(x) { return (x - GRAPH.x - 50) / (GRAPH.w - 60) * PITCH_MS; }
-function fxSpec(f) { return GRAPH.x + 8 + Math.log(Math.max(20, f) / 20) / Math.log(PREV_SR / 2 / 20) * (GRAPH.w - 16); }
-function fxSpecInv(x) { return 20 * Math.pow(PREV_SR / 2 / 20, (x - GRAPH.x - 8) / (GRAPH.w - 16)); }
+function fyPitch(f) { var G = GRAPH; return G.y + G.h - 12 - (Math.log(Math.max(PITCH_FMIN, f) / PITCH_FMIN) / Math.log(PITCH_FMAX / PITCH_FMIN)) * (G.h - 28); }
+function fyPitchInv(y) { var G = GRAPH; return PITCH_FMIN * Math.pow(PITCH_FMAX / PITCH_FMIN, (G.y + G.h - 12 - y) / (G.h - 28)); }
+function txPitch(ms) { return GRAPH.x + PX0 + ms / PITCH_MS * (GRAPH.w - PX0 - 8); }
+function txPitchInv(x) { return (x - GRAPH.x - PX0) / (GRAPH.w - PX0 - 8) * PITCH_MS; }
+function fxSpec(f) { return GRAPH.x + 6 + Math.log(Math.max(20, f) / 20) / Math.log(PREV_SR / 2 / 20) * (GRAPH.w - 12); }
+function fxSpecInv(x) { return 20 * Math.pow(PREV_SR / 2 / 20, (x - GRAPH.x - 6) / (GRAPH.w - 12)); }
 function invExp(r, val) { return Math.max(0, Math.min(1, Math.log(Math.max(r[0], Math.min(r[1], val)) / r[0]) / Math.log(r[1] / r[0]))); }
 function invLin(r, val) { return Math.max(0, Math.min(1, (val - r[0]) / (r[1] - r[0]))); }
 
 // handle: small filled square + label; drag maps the mouse to one parameter
 function handle(x, y, label, key, fn, axis) {
-  var box = x >= GRAPH.x ? GRAPH : WAVE;
-  x = Math.max(box.x + 10, Math.min(box.x + box.w - 10, x)); y = Math.max(box.y + 18, Math.min(box.y + box.h - 10, y));
-  if (x + 10 + textW(label, 8, true) > box.x + box.w) { text(label, x - 12 - textW(label, 8, true), y - 8, 8, COL.primary, true); label = ""; }
-  rect(x - 10, y - 10, 20, 20, COL.bg, true);          // dark halo: visible over white bars
-  rect(x - 6, y - 6, 12, 12, COL.primary, true);
-  rect(x - 9, y - 9, 18, 18, COL.primary, false, 1, 0.8);
-  text(label, x + 10, y - 8, 8, COL.primary, true);
-  hit({ x: x - 12, y: y - 12, w: 24, h: 24, kind: "handle", key: key, fn: fn, axis: axis });
+  var box = x >= GRAPH.x ? GRAPH : WAVE, fs = 6.5;
+  x = Math.max(box.x + 7, Math.min(box.x + box.w - 7, x)); y = Math.max(box.y + 16, Math.min(box.y + box.h - 8, y));
+  var lw = textW(label, fs, true), lx = x + 8;
+  if (lx + lw > box.x + box.w - 2) lx = x - 8 - lw;
+  rect(x - 7, y - 7, 14, 14, COL.bg, true);          // dark halo: visible over white bars
+  rect(x - 4, y - 4, 8, 8, COL.primary, true);
+  rect(x - 6, y - 6, 12, 12, COL.primary, false, 1, 0.8);
+  rect(lx - 1, y - 14, lw + 2, 9, COL.bg, true, 1, 0.7);
+  text(label, lx, y - 7, fs, COL.primary, true);
+  hit({ x: x - 9, y: y - 9, w: 18, h: 18, kind: "handle", key: key, fn: fn, axis: axis });
 }
 
 function paintSound(g) {
-  voiceRow(g, 72);
+  voiceRow(g);
   var t = g.selectedTrack, pv = previewFor(g), info = pv.data.info, m = vmap(t), p = pv.p;
   var stepMode = g.selectedStep >= 0 && t !== 0;
-  text((stepMode ? NAMES[t] + " / STEP " + pad2(g.selectedStep + 1) : NAMES[t] + " / BASE") + "   " + (S.tracks[t].soundName || ""), 24, 128, 12, COL.primary, true);
-  if (stepMode) button(560, 112, 70, 22, "BASE", "exitstep", 8);
-  text("drag the white handles on the graphs or the nodes below", 700, 128, 8.5, COL.stroke);
+  text((stepMode ? NAMES[t] + " / STEP " + pad2(g.selectedStep + 1) : NAMES[t] + " / BASE") + "  " + (S.tracks[t].soundName || ""), MX + 330, 18, 8, COL.primary, true);
+  if (stepMode) button(MR - 50, 6, 46, 16, "BASE", "exitstep", 7);
   // ---- left: amplitude / waveform (log time 0..1.4 s)
-  panel(WAVE.x, WAVE.y, WAVE.w, WAVE.h, t === 2 ? "RUMBLE TAIL (excited by the kick)" : "WAVEFORM");
+  panel(WAVE.x, WAVE.y, WAVE.w, WAVE.h, t === 2 ? "RUMBLE TAIL" : "WAVEFORM");
   drawWave(pv.data.L, WAVE.x, WAVE.y, WAVE.w, WAVE.h);
-  var X0 = WAVE.x + 2, W = WAVE.w - 4, top = WAVE.y + 26;
+  var X0 = WAVE.x + 2, W = WAVE.w - 4, top = WAVE.y + 22;
   if (t === 0) {
     var holdEnd = 0.2 + info.holdMs, decEnd = holdEnd + info.decayMs;
     handle(X0 + tLog(holdEnd, W), top, "BODY " + fmtMs(info.holdMs), "body", function (x) { return invLin(m.holdMs, tLogInv(x - X0, W) - 0.2); }, "x");
     handle(X0 + tLog(decEnd, W), WAVE.y + WAVE.h / 2, "DECAY " + fmtMs(info.decayMs), "decay", function (x) { return invExp(m.decayMs, tLogInv(x - X0, W) - 0.2 - info.holdMs); }, "x");
   } else if (t === 2) {
     handle(X0 + tLog(info.tailMs, W), top, "TAIL " + fmtMs(info.tailMs), "tail", function (x) { return invExp(m.tailMs, tLogInv(x - X0, W)); }, "x");
-    handle(X0 + tLog(40, W), WAVE.y + WAVE.h / 2 - p.amount * (WAVE.h / 2 - 20), "AMOUNT " + pct(p.amount), "amount", function (x, y) { return invLin([0, 1], (WAVE.y + WAVE.h / 2 - y) / (WAVE.h / 2 - 20)); }, "y");
+    handle(X0 + tLog(40, W), WAVE.y + WAVE.h / 2 - p.amount * (WAVE.h / 2 - 16), "AMOUNT " + pct(p.amount), "amount", function (x, y) { return invLin([0, 1], (WAVE.y + WAVE.h / 2 - y) / (WAVE.h / 2 - 16)); }, "y");
   } else {
     handle(X0 + tLog(info.decayMs, W), WAVE.y + WAVE.h / 2, "DECAY " + fmtMs(info.decayMs), "decay", function (x) {
       var ms = tLogInv(x - X0, W);
@@ -459,18 +390,18 @@ function paintSound(g) {
       return invExp(m.decayMs, ms);
     }, "x");
   }
-  // ---- right: pitch vs time (tonal voices) or spectrum (HAT, RUMBLE)
+  // ---- middle: pitch vs time (tonal voices) or spectrum (HAT, RUMBLE)
   if (t === 5 || t === 2) {
     panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "SPECTRUM");
     drawSpectrum(pv.spec, GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h);
-    var fc = t === 5 ? info.toneHz : info.lowpassHz, hy = t === 5 ? GRAPH.y + GRAPH.h - 20 - p.reso * (GRAPH.h - 50) : GRAPH.y + 40;
-    line(fxSpec(fc), GRAPH.y + 20, fxSpec(fc), GRAPH.y + GRAPH.h - 8, COL.primary, 1, 0.5);
+    var fc = t === 5 ? info.toneHz : info.lowpassHz, hy = t === 5 ? GRAPH.y + GRAPH.h - 16 - p.reso * (GRAPH.h - 40) : GRAPH.y + 34;
+    line(fxSpec(fc), GRAPH.y + 16, fxSpec(fc), GRAPH.y + GRAPH.h - 6, COL.primary, 1, 0.5);
     var fr = t === 5 ? m.toneHz : m.lowpassHz;
-    handle(fxSpec(fc), hy, (t === 5 ? "HP " : "LP ") + fmtHz(fc) + "Hz" + (t === 5 ? "  RESO " + pct(p.reso) : ""), "tone",
+    handle(fxSpec(fc), hy, (t === 5 ? "HP " : "LP ") + fmtHz(fc) + "Hz" + (t === 5 ? " RESO " + pct(p.reso) : ""), "tone",
       function (x, y) { return invExp(fr, fxSpecInv(x)); }, "x");
     if (t === 5) { // the same handle also sets RESO vertically
       var hh2 = hits[hits.length - 1];
-      hh2.key2 = "reso"; hh2.fn2 = function (x, y) { return invLin([0, 1], (GRAPH.y + GRAPH.h - 20 - y) / (GRAPH.h - 50)); };
+      hh2.key2 = "reso"; hh2.fn2 = function (x, y) { return invLin([0, 1], (GRAPH.y + GRAPH.h - 16 - y) / (GRAPH.h - 40)); };
     }
   } else {
     panel(GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, "PITCH vs TIME");
@@ -482,21 +413,31 @@ function paintSound(g) {
       var fTau = info.tuneHz * Math.pow(2, info.sweepSemis / 12 * Math.exp(-1));
       handle(txPitch(info.sweepMs), fyPitch(fTau), "TIME " + fmtMs(info.sweepMs), "time", function (x) { return invExp(m.sweepTauMs, txPitchInv(x)); }, "x");
     }
-    handle(GRAPH.x + GRAPH.w - 30, fyPitch(info.tuneHz), "TUNE " + fmtHz(info.tuneHz) + "Hz", "tune", function (x, y) { return invExp(m.tuneHz, fyPitchInv(y)); }, "y");
+    handle(GRAPH.x + GRAPH.w - 24, fyPitch(info.tuneHz), "TUNE " + fmtHz(info.tuneHz) + "Hz", "tune", function (x, y) { return invExp(m.tuneHz, fyPitchInv(y)); }, "y");
   }
-  // ---- nodes: every parameter of the voice + level
-  var keys = PARAMS[t], nw = Math.min(134, 790 / (keys.length + 1));
-  drawVoiceNodes(g, 24, 410, nw, 150, Math.min(28, nw / 2 - 12));
-  rect(832, 520, 348, 180, COL.stroke, false, 1, 0.6);
-  text("LOW END", 848, 544, 10, COL.primary, true);
-  meterBar(852, 560, 14, 110, G ? +G.kick || 0 : 0, "KICK");
-  meterBar(880, 560, 14, 110, G ? +G.meter || 0 : 0, "OUT");
-  drawCoil(1050, 612, 60);
+  // ---- right of the graphs: every parameter of the voice + level (2 rows)
+  drawVoiceNodes(g, NODES.x, NODES.y, NODES.w);
+}
+
+function nodeLayout(n, w) { var perRow = Math.ceil(n / 2); return { perRow: perRow, nw: Math.min(66, w / perRow) }; }
+function drawVoiceNodes(g, x, y, w) {
+  var t = g.selectedTrack, tr = S.tracks[t], stp = (g.selectedStep >= 0 && t !== 0) ? tr.steps[g.selectedStep] : null;
+  var keys = PARAMS[t], L = nodeLayout(keys.length + 1, w), i;
+  for (i = 0; i <= keys.length; i++) {
+    var nx = x + (i % L.perRow) * L.nw, ny = y + Math.floor(i / L.perRow) * 68;
+    if (i < keys.length) {
+      var v = effOf(tr, stp, keys[i]);
+      drawNode(nx, ny, L.nw - 4, 66, keys[i], LABEL[keys[i]], v, valueText(t, keys[i], v), { kind: "param", key: keys[i] }, hasLock(stp, keys[i]), t, 11);
+    } else {
+      var lv = levelToV(tr.levelDb);
+      drawNode(nx, ny, L.nw - 4, 66, "level", "LEVEL", lv, valueText(t, "level", lv), { kind: "level" }, false, t, 11);
+    }
+  }
 }
 
 function panel(x, y, w, h, label) {
   rect(x, y, w, h, COL.stroke, false, 1, 0.6);
-  text(label, x + 8, y + 14, 8, COL.stroke, true);
+  text(label, x + 6, y + 11, 6.5, COL.stroke, true);
 }
 function drawWave(sig, x, y, w, h) {
   var mid = y + h / 2, cols = Math.floor(w - 4), pk = [], i, c;
@@ -507,71 +448,68 @@ function drawWave(sig, x, y, w, h) {
   col(COL.primary);
   for (c = 0; c <= end; c++) {
     if (pk[c] < 0) pk[c] = last; last = pk[c];
-    var hh = Math.min(1, pk[c]) * (h / 2 - 18);
+    var hh = Math.min(1, pk[c]) * (h / 2 - 16);
     if (hh > 0.3) mgraphics.rectangle(x + 2 + c, mid - hh, 1, 2 * hh);
   }
   mgraphics.fill();
   var ticks = [[10, "10ms"], [100, "100ms"], [1000, "1s"]];
-  for (var k = 0; k < ticks.length; k++) { var px = x + 2 + tLog(ticks[k][0], cols); line(px, y + h - 6, px, y + h, COL.stroke); text(ticks[k][1], px + 3, y + h - 3, 7, COL.stroke); }
+  for (var k = 0; k < ticks.length; k++) { var px = x + 2 + tLog(ticks[k][0], cols); line(px, y + h - 5, px, y + h, COL.stroke); text(ticks[k][1], px + 2, y + h - 2, 6, COL.stroke); }
 }
 function drawPitch(pitch) {
   var G = GRAPH, marks = [40, 60, 100, 200, 400];
-  for (var m = 0; m < marks.length; m++) { line(G.x + 50, fyPitch(marks[m]), G.x + G.w - 6, fyPitch(marks[m]), COL.inactive, 1, 0.7); text(marks[m] + "Hz", G.x + 6, fyPitch(marks[m]) + 3, 7, COL.stroke); }
-  col(COL.primary); mgraphics.set_line_width(1.6);
-  var cols = G.w - 60;
+  for (var m = 0; m < marks.length; m++) { line(G.x + PX0, fyPitch(marks[m]), G.x + G.w - 6, fyPitch(marks[m]), COL.inactive, 1, 0.7); text(String(marks[m]), G.x + 6, fyPitch(marks[m]) + 3, 6, COL.stroke); }
+  col(COL.primary); mgraphics.set_line_width(1.4);
+  var cols = G.w - PX0 - 8;
   for (var c = 0; c <= cols; c++) {
     var idx = Math.min(pitch.length - 1, Math.floor(c / cols * PITCH_MS / 1000 * PREV_SR));
-    var px = G.x + 50 + c, py = fyPitch(pitch[idx] || PITCH_FMIN);
+    var px = G.x + PX0 + c, py = fyPitch(pitch[idx] || PITCH_FMIN);
     if (c === 0) mgraphics.move_to(px, py); else mgraphics.line_to(px, py);
   }
   mgraphics.stroke();
-  text("0", G.x + 50, G.y + G.h - 3, 7, COL.stroke); text("100ms", G.x + 50 + cols / 2 - 12, G.y + G.h - 3, 7, COL.stroke); text("200ms", G.x + G.w - 40, G.y + G.h - 3, 7, COL.stroke);
+  text("0", G.x + PX0, G.y + G.h - 2, 6, COL.stroke); text("100ms", G.x + PX0 + cols / 2 - 10, G.y + G.h - 2, 6, COL.stroke); text("200ms", G.x + G.w - 30, G.y + G.h - 2, 6, COL.stroke);
 }
 function drawSpectrum(b, x, y, w, h) {
-  var mx = 1e-12, i, n = b.length, bw = (w - 16) / n;
+  var mx = 1e-12, i, n = b.length, bw = (w - 12) / n;
   for (i = 0; i < n; i++) mx = Math.max(mx, b[i]);
   col(COL.primary);
   for (i = 0; i < n; i++) {
-    var db = 10 * Math.log(b[i] / mx + 1e-12) / Math.LN10, hh = Math.max(0, 1 + db / 60) * (h - 30);
-    if (hh > 0.5) mgraphics.rectangle(x + 8 + i * bw, y + h - 8 - hh, Math.max(1, bw - 2), hh);
+    var db = 10 * Math.log(b[i] / mx + 1e-12) / Math.LN10, hh = Math.max(0, 1 + db / 60) * (h - 24);
+    if (hh > 0.5) mgraphics.rectangle(x + 6 + i * bw, y + h - 7 - hh, Math.max(1, bw - 1), hh);
   }
   mgraphics.fill();
   var fm = [100, 1000, 10000];
-  for (var k = 0; k < fm.length; k++) text(fm[k] >= 1000 ? fm[k] / 1000 + "k" : String(fm[k]), fxSpec(fm[k]) - 6, y + h - 1, 7, COL.stroke);
+  for (var k = 0; k < fm.length; k++) text(fm[k] >= 1000 ? fm[k] / 1000 + "k" : String(fm[k]), fxSpec(fm[k]) - 5, y + h - 1, 6, COL.stroke);
 }
 
 // ---------- LANES ----------
-var LX = 60, LTOP = 210, LH = 300, LCOL = 66;
 function laneY(v) { return LTOP + LH - 1 - v * (LH - 2); }
 function paintLanes(g) {
-  voiceRow(g, 72);
+  voiceRow(g);
   var t = g.selectedTrack, tr = S.tracks[t], keys = PARAMS[t];
   if (t === 0) {
-    text("PUNCH has no per-step values: one steady kick sound on every hit, exactly on the beat.", 24, 166, 12, COL.primary, true);
-    text("Shape it on SOUND. Choose another voice to draw per-step values.", 24, 190, 10, COL.stroke);
+    text("PUNCH has no per-step values: one steady kick sound on every hit, exactly on the beat.", MX, 60, 10, COL.primary, true);
+    text("Shape it on SOUND. Choose another voice to draw per-step values.", MX, 80, 8, COL.stroke);
     return;
   }
-  for (var i = 0; i < keys.length; i++) toggle(24 + i * 118, 110, 112, 26, LABEL[keys[i]], laneKey === keys[i], { kind: "lanekey", key: keys[i] }, 9);
+  for (var i = 0; i < keys.length; i++) toggle(MX + 330 + i * 62, 6, 58, 16, LABEL[keys[i]], laneKey === keys[i], { kind: "lanekey", key: keys[i] }, 6.5);
   var anyLong = tr.length > 16, off = anyLong ? g.selectedPage * 16 : 0;
-  if (anyLong) { toggle(1100, 110, 34, 26, "1", g.selectedPage === 0, { kind: "page", v: 0 }, 9); toggle(1138, 110, 34, 26, "2", g.selectedPage === 1, { kind: "page", v: 1 }, 9); }
-  text(NAMES[t] + "  " + LABEL[laneKey] + "  PER STEP", 24, 166, 12, COL.primary, true);
-  text("draw values with the mouse · option-click / double-click a column = back to the voice value (dashed)", 24, 184, 8, COL.stroke);
+  if (anyLong) { toggle(MR - 66, 6, 30, 16, "1-16", g.selectedPage === 0, { kind: "page", v: 0 }, 6); toggle(MR - 32, 6, 30, 16, "17-32", g.selectedPage === 1, { kind: "page", v: 1 }, 6); }
   var base = tr.params[laneKey], rd = drag && drag.kind === "lane" ? drag.last : -1;
+  text(rd >= 0 ? "STEP " + pad2(rd + 1) + "  " + valueText(t, laneKey, effOf(tr, tr.steps[rd], laneKey))
+    : LABEL[laneKey] + " per step · draw with the mouse · option-click = back to the voice value (dashed)", MX + 2, 31, 6.5, rd >= 0 ? COL.primary : COL.stroke, rd >= 0);
   for (var c = 0; c < 16; c++) {
-    var s = off + c, x = LX + c * LCOL, w = LCOL - 12;
+    var s = off + c, x = LX + c * LCOL, w = LCOL - 8;
     if (s >= tr.length) { line(x + 6, LTOP + LH / 2, x + w - 6, LTOP + LH / 2, COL.inactive); continue; }
     var st = tr.steps[s], lk = hasLock(st, laneKey), v = effOf(tr, st, laneKey), a = st.on ? 1 : 0.35;
     rect(x, LTOP, w, LH, COL.inactive, false, 1, a);
     var y1 = laneY(v), bh = Math.max(1, LTOP + LH - 1 - y1);
     if (lk) rect(x + 1, y1, w - 2, bh, COL.primary, true, 1, a); else rect(x + 1, y1, w - 2, bh, COL.stroke, false, 1, a * 0.6);
     var by = laneY(base);
-    for (var dx = 0; dx < w; dx += 8) line(x + dx, by, x + Math.min(w, dx + 4), by, COL.primary, 1, 0.6);
-    if (st.on) rect(x + w / 2 - 6, LTOP + LH + 12, 12, 12, COL.primary, true); else rect(x + w / 2 - 6, LTOP + LH + 12, 12, 12, COL.inactive, false);
-    if (phPos[t] === s) line(x, LTOP + LH + 32, x + w, LTOP + LH + 32, COL.stroke, 2);
-    textC(String(s + 1), x + w / 2, LTOP - 6, 8, COL.stroke);
+    for (var dx = 0; dx < w; dx += 6) line(x + dx, by, x + Math.min(w, dx + 3), by, COL.primary, 1, 0.6);
+    if (st.on) rect(x + w / 2 - 4, LTOP + LH + 6, 8, 8, COL.primary, true); else rect(x + w / 2 - 4, LTOP + LH + 6, 8, 8, COL.inactive, false);
+    if (phPos[t] === s) line(x, LTOP + LH + 18, x + w, LTOP + LH + 18, COL.stroke, 1.5);
     hit({ x: x, y: LTOP, w: LCOL, h: LH, kind: "lanecol", s: s });
   }
-  if (rd >= 0) text("STEP " + pad2(rd + 1) + "  " + valueText(t, laneKey, effOf(tr, tr.steps[rd], laneKey)), 760, 166, 12, COL.primary, true);
 }
 
 // ---------- node glyphs (one visual idea per parameter) ----------
@@ -594,6 +532,12 @@ function glyph(key, v, cx, cy, r) {
   else if (key === "amount") { circle(cx, cy, r, COL.primary, 0.3); circle(cx, cy, Math.max(2, r * v), COL.primary, 1, 2); }
   else if (key === "duck") { circle(cx, cy, r, COL.primary, 0.3); var dip = v * r * 0.8; col(COL.primary); mgraphics.move_to(cx - r * 0.8, cy - r * 0.3); mgraphics.line_to(cx - r * 0.2, cy - r * 0.3 + dip); mgraphics.line_to(cx + r * 0.8, cy - r * 0.3); mgraphics.stroke(); }
   else if (key === "level") circle(cx, cy, r * (0.25 + 0.75 * v), COL.primary, 1);
+  else if (key === "hum") { // long low sine whose height is the HUM level
+    circle(cx, cy, r, COL.primary, 0.3);
+    col(COL.primary); mgraphics.set_line_width(1.6);
+    for (i = 0; i <= 48; i++) { var hx = cx - r * 0.8 + i / 48 * r * 1.6, hy = cy - Math.sin(i / 48 * Math.PI * 3) * r * 0.65 * v; if (i === 0) mgraphics.move_to(hx, hy); else mgraphics.line_to(hx, hy); }
+    mgraphics.stroke();
+  }
   else if (key === "time") { // glide time: the knee of the pitch curve moves right
     circle(cx, cy, r, COL.primary, 0.3);
     col(COL.primary); mgraphics.set_line_width(1.4);
@@ -623,10 +567,10 @@ function path(cx, cy, fn) {
   mgraphics.stroke();
 }
 function drawNode(x, y, w, h, key, label, v, vtext, target, locked, t, r) {
-  var cx = x + w / 2, cy = y + r + 8, fs = r > 25 ? 11 : 8;
+  var cx = x + w / 2, cy = y + r + 8, fs = r > 25 ? 11 : 7.5;
   glyph(key, v, cx, cy, r);
   textC(label, cx, cy + r + fs + 6, fs - 1, COL.stroke);
-  textC(vtext, cx, cy + r + 2 * fs + 10, fs + 1, COL.primary, true);
+  textC(vtext, cx, cy + r + 2 * fs + 8, fs + 1, COL.primary, true);
   if (locked) rect(x + 4, y + 2, 6, 6, COL.primary, true);
   target.x = x; target.y = y; target.w = w; target.h = h; target.v = v;
   hit(target);
@@ -651,7 +595,6 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
   else if (h.kind === "hold") outlet(0, "hold", h.t, h.v);
   else if (h.kind === "page") outlet(0, "page", h.v);
   else if (h.kind === "view") outlet(0, "view", h.v);
-  else if (h.kind === "style") outlet(0, "style", h.v);
   else if (h.kind === "stylecycle") outlet(0, "style", STYLES[(STYLES.indexOf(g.style) + 1) % 4]);
   else if (h.kind === "interaction") outlet(0, "interaction", h.v);
   else if (h.kind === "open") outlet(0, "stepset", g.selectedTrack, g.selectedStep, "open", h.v);
@@ -663,7 +606,7 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
     outlet(0, "gesture", 1);
     drag = { kind: "lane", t: g.selectedTrack, last: h.s };
     outlet(0, "lane", g.selectedTrack, h.s, laneKey, laneValue(y));
-  } else if (h.kind === "param" || h.kind === "level") { outlet(0, "gesture", 1); drag = { kind: "node", target: h, y0: y, v0: h.v }; }
+  } else if (h.kind === "param" || h.kind === "level" || h.kind === "hum") { outlet(0, "gesture", 1); drag = { kind: "node", target: h, y0: y, v0: h.v }; }
   else if (h.kind === "handle") { outlet(0, "gesture", 1); drag = { kind: "handle", h: h }; }
   else if (h.kind === "num") {
     var st0 = g.selectedStep >= 0 ? tr.steps[g.selectedStep] : null;
@@ -676,7 +619,6 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
 function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
   if (!drag || !S) return;
   x /= scaleF; y /= scaleF;
-  var unit = MODE === "editor" ? 1.6 : 1; // larger editor nodes → same feel
   if (drag.kind === "amount") outlet(0, "amount", Math.max(0, Math.min(1, (x - drag.h.bx) / drag.h.bw)));
   else if (drag.kind === "handle") {
     var hv = drag.h.fn(x, y);
@@ -687,10 +629,11 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
     var s = findLane(x);
     if (s >= 0) { var v = laneValue(y), a = Math.min(s, drag.last), b = Math.max(s, drag.last); for (var k = a; k <= b; k++) outlet(0, "lane", drag.t, k, laneKey, v); drag.last = s; dirty = true; }
   } else if (drag.kind === "node") {
-    var sens = (shift ? 0.0007 : 0.007) / unit;
+    var sens = shift ? 0.0007 : 0.007;
     var nv = Math.max(0, Math.min(1, drag.v0 + (drag.y0 - y) * sens));
     nv = Math.round(nv * 1000) / 1000;
     if (drag.target.kind === "param") outlet(0, "param", drag.target.key, nv);
+    else if (drag.target.kind === "hum") outlet(0, "humlevel", nv);
     else outlet(0, "level", S.global.selectedTrack, vToLevel(nv));
     if (shift) { drag.v0 = nv; drag.y0 = y; }
   } else if (drag.kind === "num") {
@@ -715,6 +658,7 @@ function ondblclick(x, y) {
   if (!h) return;
   var t = S.global.selectedTrack;
   if (h.kind === "param") outlet(0, "paramreset", h.key);
+  else if (h.kind === "hum") outlet(0, "humreset");
   else if (h.kind === "level") outlet(0, "level", t, S.defaults.levelDb[t]);
   else if (h.kind === "lanecol") outlet(0, "clearlock", t, h.s, laneKey);
 }

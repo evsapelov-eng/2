@@ -4,17 +4,22 @@
     {
       "id": "A36 proxy: demo never reaches 0 dBFS",
       "pass": true,
-      "detail": "peak -4.3 dBFS"
+      "detail": "peak -3.0 dBFS"
+    },
+    {
+      "id": "HUM at 100% with all voices at 0 dB stays below full scale",
+      "pass": true,
+      "detail": "-0.9 dBFS"
     },
     {
       "id": "starter preset peak ≈ -6 dBFS (−9 … −3)",
       "pass": true,
-      "detail": "-6.3 dBFS"
+      "detail": "-5.0 dBFS"
     },
     {
       "id": "A10 proxy: PUNCH+SUB layered at 0 dB levels stays below full scale",
       "pass": true,
-      "detail": "-1.7 dBFS"
+      "detail": "-1.4 dBFS"
     },
     {
       "id": "A11 proxy: SUB duck active only briefly around PUNCH hits",
@@ -24,13 +29,13 @@
     {
       "id": "A36 proxy: worst case (6 voices, ratchet 8, drive 100%, rumble max) bounded",
       "pass": true,
-      "detail": "-0.6 dBFS"
+      "detail": "-0.5 dBFS"
     }
   ],
   "demo": {
     "seconds": 53.2,
     "hits": 654,
-    "peakDb": -4.3,
+    "peakDb": -3,
     "sections": [
       "starter preset",
       "GENERATE FOUNDATION",

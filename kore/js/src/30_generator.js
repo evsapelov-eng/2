@@ -235,12 +235,15 @@ function koreNudge(v, size, rng, minStep) {
 
 // New sound for a voice: archetype different from the last one, every param random
 // inside it, every base value guaranteed to change.
+// Params the user owns: never randomised by GENERATE (PUNCH HUM — user D8).
+var KORE_KEEP_ON_GENERATE = { hum: true };
 function koreGenerateSound(tr, rng) {
   var prev = koreClone(tr.params), list = KORE_ARCHETYPES[tr.id], keys = KORE_VOICE_PARAMS[tr.id];
   var idx = rng.int(0, list.length - 1);
   if (list[idx].name === tr.soundName && list.length > 1) idx = (idx + 1 + rng.int(0, list.length - 2)) % list.length;
   var a = list[idx];
   for (var i = 0; i < keys.length; i++) {
+    if (KORE_KEEP_ON_GENERATE[keys[i]] || !a.r[i]) continue;
     var v = koreRound(rng.range(a.r[i][0], a.r[i][1]), 3);
     tr.params[keys[i]] = v === prev[keys[i]] ? koreNudge(v, 0.05, rng) : v;
   }

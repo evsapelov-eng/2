@@ -89,3 +89,40 @@ test("stopped transport (playing 0) → silence and no duck", () => {
   const outs = Object.values(p.boxes).filter((b) => b.cls === "outlet");
   outs.forEach((o) => assert.ok(o.state.buf.every((v) => v === 0)));
 });
+
+// ---- HUM: long humming sub under the kick ----
+function runHum(humAmp, pattern, gate = 1, bars = 1.3) {
+  const p = new Patch(JSON.parse(fs.readFileSync(path.join(__dirname, "..", "max", "kore_kick.maxpat"), "utf8")), 1);
+  p.buffers["---kpat"] = Float64Array.from(pattern);
+  p.buffers["---kick_a"] = Float64Array.from(KICK);
+  const msg = p.inlets()[0];
+  p.send(msg.id, 0, ["sr", SR]); p.send(msg.id, 0, ["tempo", 120]); p.send(msg.id, 0, ["level", 1]);
+  p.send(msg.id, 0, ["playing", 1]); p.send(msg.id, 0, ["gate", gate]); p.send(msg.id, 0, ["hum", humAmp, 55]);
+  const barS = 2 * SR, n = Math.round(bars * barS);
+  const phb = Object.values(p.boxes).find((b) => b.cls === "phasor~");
+  phb.state.ext = Float64Array.from({ length: n }, (_, i) => (0.9 + i / barS) % 1); phb.state.i = 0;
+  p.run(n);
+  const outs = Object.values(p.boxes).filter((b) => b.cls === "outlet").sort((a, b) => a.patching_rect[0] - b.patching_rect[0]);
+  return { kick: outs[0].state.buf, hum: outs[2].state.buf, barS };
+}
+const four = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
+
+test("HUM: a sustained 55 Hz sine swells in after each kick and holds until the next one", () => {
+  const r = runHum(0.5, four);
+  const k1 = Math.round(0.1 * r.barS), q = r.barS / 4;   // first kick at 0.1 bar
+  const rms = (a, b) => Math.sqrt(r.hum.slice(a, b).reduce((s, v) => s + v * v, 0) / (b - a));
+  assert.ok(rms(k1, k1 + 100) < 0.05, "silent right at the kick");
+  assert.ok(rms(k1 + 0.15 * SR, k1 + 0.22 * SR) > 0.3, "sustained between kicks");
+  let zc = 0; for (let i = k1 + 0.12 * SR; i < k1 + 0.22 * SR; i++) if ((r.hum[i] < 0) !== (r.hum[i - 1] < 0)) zc++;
+  assert.ok(Math.abs(zc / 2 / 0.1 - 55) < 6, "55 Hz, got " + zc / 2 / 0.1);
+  let jump = 0; for (let i = 1; i < r.hum.length; i++) jump = Math.max(jump, Math.abs(r.hum[i] - r.hum[i - 1]));
+  assert.ok(jump < 0.02, "no clicks (max step " + jump + ")");
+  assert.ok(rms(k1 + q - 300, k1 + q) > 0.2, "holds until just before the next kick");
+});
+
+test("HUM 0 → silence; empty pattern (gate 0) → no kick, no hum, no replay of the last hit", () => {
+  const off = runHum(0, four);
+  assert.ok(off.hum.every((v) => Math.abs(v) < 1e-9));
+  const silent = runHum(0.5, new Array(16).fill(0), 0, 2.3);
+  assert.ok(silent.kick.every((v) => v === 0) && silent.hum.every((v) => v === 0));
+});

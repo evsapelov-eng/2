@@ -54,7 +54,7 @@ test("the rendered kick is identical every time for the same settings and change
   const p = Object.assign({}, MAP.voices.PUNCH.defaults);
   const a = MODEL.koreRenderKick(MAP, p, 48000).L, b = MODEL.koreRenderKick(MAP, p, 48000).L;
   assert.ok(a.length === b.length && a.every((x, i) => x === b[i]));
-  for (const k of MAP.voices.PUNCH.params) {
+  for (const k of MAP.voices.PUNCH.params.filter((x) => x !== "hum")) { // HUM = separate signal layer
     const q = Object.assign({}, p, { [k]: p[k] > 0.5 ? 0.05 : 0.95 });
     const c = MODEL.koreRenderKick(MAP, q, 48000).L;
     let diff = Math.abs(c.length - a.length);
@@ -105,7 +105,7 @@ test("user D1: every GENERATE changes rhythm+length of the 5 other voices and th
     e.setGlobal("style", C.KORE_STYLES[n % 4]);
     e.generate();
     e.state.tracks.forEach((t, i) => {
-      for (const k of C.KORE_VOICE_PARAMS[i]) assert.notStrictEqual(t.params[k], before[i].params[k], `gen ${n} ${t.name}.${k}`);
+      for (const k of C.KORE_VOICE_PARAMS[i]) if (k !== "hum") assert.notStrictEqual(t.params[k], before[i].params[k], `gen ${n} ${t.name}.${k}`);
       assert.ok(t.soundName.length > 0);
       if (i === 0) return;
       assert.notStrictEqual(t.length, before[i].length, `gen ${n} ${t.name} length`);
@@ -253,4 +253,17 @@ test("while playing, Generate applies at the next bar", () => {
   assert.ok(e.pending);
   while (pos < 4.2) { pos += 0.02; e.tick(pos, 130); }
   assert.ok(!e.pending);
+});
+
+test("D8: HUM is the user's knob — GENERATE and MUTATE never change it", () => {
+  const e = new C.KoreEngine();
+  e.setBase(0, "hum", 0.77);
+  for (let i = 0; i < 10; i++) { e.generate(); e.keep(); e.mutate("ALL", 1); }
+  assert.strictEqual(e.state.tracks[0].params.hum, 0.77);
+  const h = C.koreHum(e.state);
+  assert.ok(h.amp > 0 && Math.abs(h.hz - MODEL.koreModelInfo(MAP, "PUNCH", e.state.tracks[0].params).tuneHz) < 0.01);
+  e.setBase(0, "hum", 0);
+  assert.strictEqual(C.koreHum(e.state).amp, 0);
+  e.setMute(0, true);
+  assert.strictEqual(C.koreKickGate(e.state), 0);
 });

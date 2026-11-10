@@ -1,6 +1,6 @@
 {
   "name": "kore",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "KØRE — generative multi-kick techno drum synthesizer for Max for Live (sources, tests, tools)",
   "scripts": {

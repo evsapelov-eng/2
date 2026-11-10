@@ -311,3 +311,13 @@ function koreKickPattern(state) {
   return out;
 }
 function koreKickLevel(state) { return koreRound(koreDbToAmp(state.tracks[KORE_PUNCH].levelDb), 5); }
+// 1 when the kick plays at all (any hit, not muted). The player holds the last hit, so a
+// silent pattern must close its gate explicitly (otherwise the last hit would loop).
+function koreKickGate(state) { var p = koreKickPattern(state); for (var i = 0; i < 16; i++) if (p[i] > 0) return 1; return 0; }
+// HUM: amplitude (0 = off) and frequency (the kick's settled TUNE).
+function koreHum(state) {
+  var tr = state.tracks[KORE_PUNCH], h = KORE_DSP_MAP.voices.PUNCH.hum, v = tr.params.hum;
+  var amp = v > 0 ? koreDbToAmp(h.maxDb + 20 * Math.log(v) / Math.LN10) * koreDbToAmp(tr.levelDb + 6) : 0;
+  var hz = KORE_DSP_MAP.voices.PUNCH.tuneHz[0] * Math.pow(KORE_DSP_MAP.voices.PUNCH.tuneHz[1] / KORE_DSP_MAP.voices.PUNCH.tuneHz[0], tr.params.tune);
+  return { amp: koreRound(amp, 5), hz: koreRound(hz, 3) };
+}
