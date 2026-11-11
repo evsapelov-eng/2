@@ -20,7 +20,7 @@ The reference is **`docs/FEATURE_MATRIX.md`** (Beads → source → FLØCK → t
 5. In the reply to the user, a short **"Check against the matrix"** section: which rows were touched, what was confirmed and by what, what is still not like Beads.
 
 ## Technical
-- `gen/flock.genexpr` is the gen~ code. Only the subset that `tools/genexpr.js` runs and lints (reserved gen~ names, block scope of locals, History written at the end of a pass).
+- `gen/flock.genexpr` is the gen~ code. Only the subset that `tools/genexpr.js` runs and lints: reserved gen~ names, block scope of locals, History written at the end of a pass, **functions before Param/Data/History**, **no locals from outside a loop assigned inside it (accumulators in Data)**. The rules come from a real Max 9.1 compiler (see PORTING_NOTES). The very first test in Live (v0.1.1) was silent precisely because of them.
 - `js/flock_ui.js` is ES5 jsui. Every control is a Live parameter (`tools/build_device.py`).
 - Build: `npm run dist` (the .amxd is a test build; the final one is a Freeze in Max).
 - Beads is MIT: keep `LICENSE-BEADS.txt`; don't use the Mutable Instruments / Beads names and logos in the product.

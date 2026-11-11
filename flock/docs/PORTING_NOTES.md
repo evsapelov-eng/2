@@ -30,6 +30,12 @@ Source: `pichenettes/eurorack` @ f4cfa76 (`beads/`), `pichenettes/stmlib` (MIT, 
 - **TIME seconds**: the panel showed seconds for 48 kHz; it now takes the rate from `dspstate~` (at 44.1 kHz the buffer is 4.35 s).
 - **RND (P7)**: test against the exact formula from `randomized_parameter.h`. Full CCW in Beads only clusters mildly (≈28 % within ±0.1 instead of 20 % for uniform); the difference between CW and CCW is the **shape**: CW is even inside a window ±a/2, CCW is clustered with rare far values. The engine matches the formula at 4 knob positions.
 
+## gen~ compiler rules (fix for v0.1.2 "silent device in Live")
+The v0.1.0/0.1.1 report from Live: with FLØCK on there is no sound at all (not even dry) → gen~ was not running. Cause: the code broke two rules of the real gen~ compiler (Max 9.1), documented in the header of `nube.genexpr` (github.com/cipp0/Nube_Texture_Synth, a working GenExpr port of Clouds):
+1. **function definitions must come before any Param/Data/History** — ours came after them → the code does not compile;
+2. **loop-carried locals updated in a loop can be dropped by the compiler** — that is how we summed the grains (`outl = outl + …` inside `for`) → silent grains even when it compiles.
+Fix: functions first; the accumulators (L/R, grain counter, active-grain count, sort minimum) live in `Data sum`. Output matches the old code sample for sample in node (0 difference over 2 s with 30 active grains). `tools/genexpr.js` enforces both rules in its lint, and the panel shows "ENGINE NOT RUNNING" if gen~ is not running.
+
 ## Validation
 - `tests/engine.test.js` runs the very same codebox text through `tools/genexpr.js` (a translator + linter for the GenExpr subset used): pitch notches inside one grain, TIME position, reverse below 1/3, duration law, constant vs random rate and the C3 maximum, gated SEED (one grain per press), FREEZE, 10 s of 100 % feedback bounded, envelope shapes, 32-voice stealing without clicks, pan spread, dry/wet law, reverb tail.
 - Not done: comparison against the original C++ (building/running the downloaded code needs the owner's permission in this environment), and gen~ compilation in Max (no Max here).

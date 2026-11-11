@@ -40,7 +40,14 @@ var now = function () { return new Date().getTime(); };
 function sr(v) { if (v > 0) { BUF_S = Math.round(192000 / v * 100) / 100; dirty = true; } }   // from [dspstate~]
 
 function p(name, v) { if (P[name]) { P[name].v = +v; dirty = true; } }
-function tape(w, a) { tapeSt.w = +w; tapeSt.active = +a; dirty = true; }
+var engineMoved = -1;   // time the record head last moved (-1 = never)
+function tape(w, a) {
+  if (+w !== tapeSt.w) engineMoved = now();
+  tapeSt.w = +w; tapeSt.active = +a; dirty = true;
+}
+// the record head always moves while the engine runs (unless FROZEN): if it does not,
+// gen~ is not running (compile error → Max Console) or Live's audio engine is off
+function engineStopped() { return P.freeze.v < 0.5 && (engineMoved < 0 || now() - engineMoved > 1500); }
 function grain(pos, spd) { grains.push({ pos: +pos, spd: +spd, age: 0 }); if (grains.length > 40) grains.shift(); dirty = true; }
 
 // Beads SEED gestures (manual "Latched"): a short press while latched turns LATCH off;
@@ -54,7 +61,7 @@ function checkHold() {
 var frame = new Task(function () {
   checkHold();
   for (var i = grains.length - 1; i >= 0; i--) { grains[i].age += 1; if (grains[i].age > 24) grains.splice(i, 1); }
-  if (dirty || grains.length) { dirty = false; mgraphics.redraw(); }
+  if (dirty || grains.length || engineStopped()) { dirty = false; mgraphics.redraw(); }
 }, this);
 frame.interval = 40;
 frame.repeat();
@@ -202,6 +209,11 @@ function drawTape(x, y, w, h) {
   // record head at the left edge: "now"; older material to the right
   line(x + 2, y + 14, x + 2, y + h - 3, C.accent, 2);
   if (P.freeze.v > 0.5) textC("FROZEN", x + w / 2, y + h - 6, 7, C.accent, true);
+  if (engineStopped()) {
+    rect(x + 1, y + 14, w - 2, h - 15, C.ink, true, 1, 0.85);
+    textC("ENGINE NOT RUNNING", x + w / 2, y + 30, 8, C.panel, true);
+    textC("Live audio off, or a gen~ error - see Max Console", x + w / 2, y + 44, 6.5, C.panel);
+  }
   // TIME window
   var tx = x + 2 + P.time.v * (w - 6);
   line(tx, y + 14, tx, y + h - 3, C.ink, 1, 0.5);

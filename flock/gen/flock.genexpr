@@ -18,84 +18,7 @@
 //
 // Written in the subset that tools/genexpr.js can run and lint (see that file).
 
-Param time(0.5, min=0, max=1);
-Param size(0.45, min=0, max=1);
-Param shape(0.5, min=0, max=1);
-Param pitch(0.5, min=0, max=1);
-Param time_amt(0.5, min=0, max=1);
-Param size_amt(0.5, min=0, max=1);
-Param shape_amt(0.5, min=0, max=1);
-Param pitch_amt(0.5, min=0, max=1);
-Param time_cv(0, min=0, max=1);
-Param size_cv(0, min=0, max=1);
-Param shape_cv(0, min=0, max=1);
-Param pitch_cv(0, min=0, max=1);
-Param density(0.3, min=0, max=1);
-Param feedback(0, min=0, max=1);
-Param drywet(0.5, min=0, max=1);
-Param reverb(0.2, min=0, max=1);
-Param freeze(0, min=0, max=1);
-Param seed(0, min=0, max=1);
-Param seedlatch(1, min=0, max=1);
-Param ingain(1, min=0, max=40);
-Param outgain(1, min=0, max=4);
-
-Data buf(192004, 2);
-Data gr(32, 16);
-Data prio(32, 1);
-Data ftail(256, 2);
-Data rv(32768, 1);
-
-History init(0);
-History wp(0);
-History s_time(0.5);
-History s_size(0.45);
-History s_shape(0.5);
-History s_pitch(0);
-History s_tamt(0);
-History s_samt(0);
-History s_hamt(0);
-History s_pamt(0);
-History s_dens(0.3);
-History s_fb(0);
-History s_dry(0);
-History s_wet(0);
-History tg_phase(0);
-History tg_ratio(1);
-History tg_freq(0.0001);
-History tg_elapsed(24000);
-History prev_gate(0);
-History interval(1);
-History prev_l(0);
-History prev_r(0);
-History hp1(0);
-History hp2(0);
-History hq1(0);
-History hq2(0);
-History lim_in_p(0.5);
-History lim_in_lp(0.5);
-History lim_pre_p(0.5);
-History lim_pre_lp(0.5);
-History lim_out_p(0.5);
-History lim_out_lp(0.5);
-History was_frozen(0);
-History tail_wp(0);
-History tail_xf(0);
-History rv_wp(0);
-History rv_lp1(0);
-History rv_lp2(0);
-History rv_dry(0);
-History rv_wet(0);
-History rv_send(0);
-History l1y0(0.5);
-History l1y1(0.5);
-History l2y0(0.5);
-History l2y1(0.5);
-History l1v(0.5);
-History l2v(0.5);
-History lastpos(0);
-History lastspd(1);
-
+// gen~ rule (Max 9.1): function definitions come before any Param / Data / History.
 sstep(x) {
 	return x * x * (3 - 2 * x);
 }
@@ -146,6 +69,85 @@ ramount(att, hascv) {
 wrapi(x, n) {
 	return x - floor(x / n) * n;
 }
+
+Param time(0.5, min=0, max=1);
+Param size(0.45, min=0, max=1);
+Param shape(0.5, min=0, max=1);
+Param pitch(0.5, min=0, max=1);
+Param time_amt(0.5, min=0, max=1);
+Param size_amt(0.5, min=0, max=1);
+Param shape_amt(0.5, min=0, max=1);
+Param pitch_amt(0.5, min=0, max=1);
+Param time_cv(0, min=0, max=1);
+Param size_cv(0, min=0, max=1);
+Param shape_cv(0, min=0, max=1);
+Param pitch_cv(0, min=0, max=1);
+Param density(0.3, min=0, max=1);
+Param feedback(0, min=0, max=1);
+Param drywet(0.5, min=0, max=1);
+Param reverb(0.2, min=0, max=1);
+Param freeze(0, min=0, max=1);
+Param seed(0, min=0, max=1);
+Param seedlatch(1, min=0, max=1);
+Param ingain(1, min=0, max=40);
+Param outgain(1, min=0, max=4);
+
+Data buf(192004, 2);
+Data gr(32, 16);
+Data prio(32, 1);
+Data ftail(256, 2);
+Data rv(32768, 1);
+Data sum(8, 1);   // per-sample accumulators: 0 L, 1 R, 2 playing grains, 3 active count, 4 best, 5 best remaining
+
+History init(0);
+History wp(0);
+History s_time(0.5);
+History s_size(0.45);
+History s_shape(0.5);
+History s_pitch(0);
+History s_tamt(0);
+History s_samt(0);
+History s_hamt(0);
+History s_pamt(0);
+History s_dens(0.3);
+History s_fb(0);
+History s_dry(0);
+History s_wet(0);
+History tg_phase(0);
+History tg_ratio(1);
+History tg_freq(0.0001);
+History tg_elapsed(24000);
+History prev_gate(0);
+History interval(1);
+History prev_l(0);
+History prev_r(0);
+History hp1(0);
+History hp2(0);
+History hq1(0);
+History hq2(0);
+History lim_in_p(0.5);
+History lim_in_lp(0.5);
+History lim_pre_p(0.5);
+History lim_pre_lp(0.5);
+History lim_out_p(0.5);
+History lim_out_lp(0.5);
+History was_frozen(0);
+History tail_wp(0);
+History tail_xf(0);
+History rv_wp(0);
+History rv_lp1(0);
+History rv_lp2(0);
+History rv_dry(0);
+History rv_wet(0);
+History rv_send(0);
+History l1y0(0.5);
+History l1y1(0.5);
+History l2y0(0.5);
+History l2y1(0.5);
+History l1v(0.5);
+History l2v(0.5);
+History lastpos(0);
+History lastspd(1);
 
 // ---------------------------------------------------------------- per sample
 FS = samplerate;
@@ -282,12 +284,13 @@ gint = interval;
 lpos = lastpos;
 lspd = lastspd;
 if (trig) {
-	nact = 1;
+	poke(sum, 1, 3, 0);
 	for (k = 0; k < 32; k += 1) {
 		if (peek(gr, k, 0) < 2.5 && peek(gr, k, 6) > 0) {
-			nact = nact + 1;
+			poke(sum, peek(sum, 3, 0) + 1, 3, 0);
 		}
 	}
+	nact = peek(sum, 3, 0);
 	tamt = st_tamt;
 	samt = st_samt;
 	hamt = st_hamt;
@@ -385,15 +388,16 @@ if (trig) {
 		}
 	} else {
 		for (k = 0; k < 4; k += 1) {
-			best = k;
-			bestr = peek(gr, peek(prio, k, 0), 14);
+			poke(sum, k, 4, 0);
+			poke(sum, peek(gr, peek(prio, k, 0), 14), 5, 0);
 			for (j = k + 1; j < 32; j += 1) {
 				rj = peek(gr, peek(prio, j, 0), 14);
-				if (rj < bestr) {
-					best = j;
-					bestr = rj;
+				if (rj < peek(sum, 5, 0)) {
+					poke(sum, j, 4, 0);
+					poke(sum, rj, 5, 0);
 				}
 			}
+			best = peek(sum, 4, 0);
 			if (best != k) {
 				tmp = peek(prio, k, 0);
 				poke(prio, peek(prio, best, 0), k, 0);
@@ -423,14 +427,14 @@ if (trig) {
 }
 
 // ---- render all grains (DelayGrain::Render<STOP, fade_out>)
-outl = 0;
-outr = 0;
-nplay = 0;
+poke(sum, 0, 0, 0);
+poke(sum, 0, 1, 0);
+poke(sum, 0, 2, 0);
 for (k = 0; k < 32; k += 1) {
 	stg = peek(gr, k, 0);
 	vs = peek(gr, k, 6);
 	if (stg < 2.5 && vs > 0) {
-		nplay = nplay + 1;
+		poke(sum, peek(sum, 2, 0) + 1, 2, 0);
 		dl = peek(gr, k, 8) - peek(gr, k, 9);
 		if (!frozen) {
 			dl = dl + 1;
@@ -484,8 +488,8 @@ for (k = 0; k < 32; k += 1) {
 		}
 		vs = vs - peek(gr, k, 7);
 		genv = env * max(vs, 0) * ffr;
-		outl = outl + (yl * peek(gr, k, 10) + yr * peek(gr, k, 11)) * genv;
-		outr = outr + (yl * peek(gr, k, 12) + yr * peek(gr, k, 13)) * genv;
+		poke(sum, peek(sum, 0, 0) + (yl * peek(gr, k, 10) + yr * peek(gr, k, 11)) * genv, 0, 0);
+		poke(sum, peek(sum, 1, 0) + (yl * peek(gr, k, 12) + yr * peek(gr, k, 13)) * genv, 1, 0);
 		rem = peek(gr, k, 14) - 1;
 		if (stg > 2.5 || vs <= 0) {
 			rem = 0;
@@ -498,6 +502,9 @@ for (k = 0; k < 32; k += 1) {
 	}
 }
 gint = gint + 1;
+outl = peek(sum, 0, 0);
+outr = peek(sum, 1, 0);
+nplay = peek(sum, 2, 0);
 
 // ---- feedback path: DC blocker (Svf HP 40 Hz, q 0.5) → one-pole 0.999
 fhp = 40 / FS;

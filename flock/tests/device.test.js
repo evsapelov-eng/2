@@ -128,3 +128,25 @@ test("SIZE ∞ marked: fully CW shows the delay mode as coming; TIME seconds fol
   b.ctx.p("time", 1); assert.strictEqual(b.ctx.valueText("time"), "-4 s");
   b.ctx.sr(44100); assert.strictEqual(b.ctx.valueText("time"), "-4.4 s");
 });
+
+test("engine status: the panel warns when the record head stops moving (gen~ not running), not while FROZEN", () => {
+  const b = boot(); let t = 0; b.ctx.now = () => t;
+  const shown = () => { b.draw(); return b.mg.svg().includes("ENGINE NOT RUNNING"); };
+  assert.ok(shown(), "no engine data yet");
+  b.ctx.tape(0.5, 3); t += 100; b.ctx.tape(0.49, 3);
+  assert.ok(!shown(), "head moves → ok");
+  t += 2000; b.ctx.tape(0.49, 3);
+  assert.ok(shown(), "head stopped for 2 s → warning");
+  b.ctx.p("freeze", 1);
+  assert.ok(!shown(), "frozen: a standing head is expected");
+});
+
+test("gen~ code obeys the Max 9.1 compiler rules (functions first, no loop-carried locals) — lint passes", () => {
+  const { compile } = require("../tools/genexpr");
+  const src = fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf8");
+  assert.doesNotThrow(() => compile(src));
+  const bad = "Param a(0, min=0, max=1);\nf(x) {\n\treturn x;\n}\nout1 = f(a);\n";
+  assert.throws(() => compile(bad), /defined after a Param/);
+  const carried = "Param a(0, min=0, max=1);\ns = 0;\nfor (i = 0; i < 4; i += 1) {\n\tif (a > 0) {\n\t\ts = s + 1;\n\t}\n}\nout1 = s;\n";
+  assert.throws(() => compile(carried), /keep it in Data/);
+});

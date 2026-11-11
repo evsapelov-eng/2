@@ -56,4 +56,6 @@ Sources: M = `docs/modules/beads/manual.md`; C = `pichenettes/eurorack/beads` @ 
 | L1 | (FLØCK) Every control is a Live parameter: automation, Push | 17 parameters | every Live parameter | DONE |
 | L2 | (FLØCK) Fits the strip, light panel | 900×169 | gen~ box embeds | DONE |
 | L3 | (FLØCK) Every control is explained on hover | help line | panel: knobs send | DONE |
+| L5 | (FLØCK) The device warns when the engine is not running (the record head stands still while not frozen) | "ENGINE NOT RUNNING" on the tape | engine status | DONE |
+| L6 | (FLØCK) gen~ code follows the real compiler rules (Max 9.1): functions before declarations, no loop-carried locals | lint in `tools/genexpr.js` | gen~ code obeys | DONE |
 | L4 | (FLØCK) MOD tab: LFO 1/2, Random, Env, Clock → 10 destinations, RANDOM/CLEAR | — | — | PLANNED v0.5 |

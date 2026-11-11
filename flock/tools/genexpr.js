@@ -30,7 +30,8 @@ function stripComments(src) { return src.replace(/\/\*[\s\S]*?\*\//g, "").replac
 // split top level into declarations, functions and body
 function parse(src) {
   const s = stripComments(src);
-  const decl = { params: {}, history: {}, data: {} }, funcs = [];
+  const decl = { params: {}, history: {}, data: {} }, funcs = [], orderErrors = [];
+  let sawDecl = false;
   let body = "", i = 0;
   const declRe = /^\s*(Param|History|Data)\s+(\w+)\s*\(([^)]*)\)\s*;/;
   const funcRe = /^\s*(\w+)\s*\(([^)]*)\)\s*\{/;
@@ -45,6 +46,7 @@ function parse(src) {
         decl.params[m[2]] = p;
       } else if (m[1] === "History") decl.history[m[2]] = +args[0] || 0;
       else decl.data[m[2]] = { len: Math.round(evalConst(args[0])), ch: Math.round(evalConst(args[1] || "1")) };
+      sawDecl = true;
       i += m[0].length; continue;
     }
     m = rest.match(funcRe);
@@ -53,11 +55,13 @@ function parse(src) {
       let depth = 0, j = rest.indexOf("{");
       for (; j < rest.length; j++) { if (rest[j] === "{") depth++; else if (rest[j] === "}") { depth--; if (depth === 0) break; } }
       funcs.push({ name: m[1], args: m[2].split(",").map((x) => x.trim()).filter(Boolean), body: rest.slice(rest.indexOf("{") + 1, j) });
+      // gen~ (Max 9.1): function definitions must come before any Param/Data/History
+      if (sawDecl) orderErrors.push(`function '${m[1]}' is defined after a Param/Data/History declaration`);
       i += j + 1; continue;
     }
     body = rest; break;
   }
-  return { decl, funcs, body };
+  return { decl, funcs, body, orderErrors };
 }
 function evalConst(x) { return Function("return (" + x + ");")(); }
 
@@ -73,10 +77,24 @@ function lint(body, decl, where) {
   const hist = decl.history;
   const scopes = [new Set()];  // block scopes: an assignment to an invisible name declares it here
   const visible = (t) => scopes.some((sc) => sc.has(t));
+  // gen~ can drop loop-carried locals updated inside a loop body → state must live in Data
+  const loops = [];
+  let forState = 0, paren = 0;   // 1 = inside the for header, 2 = waiting for the body brace
   for (let k = 0; k < toks.length; k++) {
     const t = toks[k];
-    if (t === "{") { depth++; scopes.push(new Set()); continue; }
-    if (t === "}") { scopes.pop(); depth--; continue; }
+    if (t === "for") { forState = 1; paren = 0; continue; }
+    if (forState === 1) {
+      if (t === "(") paren++;
+      else if (t === ")") { paren--; if (paren === 0) forState = 2; }
+      if (forState === 1 && /^[A-Za-z_]/.test(t) && /^[+\-*/]?=$/.test(toks[k + 1] || "") && !visible(t)) scopes[scopes.length - 1].add(t);
+      continue;
+    }
+    if (t === "{") {
+      depth++; scopes.push(new Set());
+      if (forState === 2) { forState = 0; loops.push({ depth, outer: new Set([].concat(...scopes.slice(0, -1).map((x) => Array.from(x)))) }); }
+      continue;
+    }
+    if (t === "}") { if (loops.length && loops[loops.length - 1].depth === depth) loops.pop(); scopes.pop(); depth--; continue; }
     if (!/^[A-Za-z_]/.test(t)) continue;
     const next = toks[k + 1] || "";
     const isAssign = /^[+\-*/]?=$/.test(next);
@@ -87,6 +105,7 @@ function lint(body, decl, where) {
       else if (written.has(t)) errors.push(`${where}: History '${t}' read after it was written in the same pass`);
       continue;
     }
+    if (isAssign && loops.some((L) => L.outer.has(t))) errors.push(`${where}: local '${t}' (declared outside the loop) is assigned inside a for loop — gen~ may drop it; keep it in Data`);
     if (isAssign && next === "=" && !visible(t)) { scopes[scopes.length - 1].add(t); continue; }
     if (!visible(t)) errors.push(`${where}: local '${t}' used outside the block where it was assigned`);
   }
@@ -118,8 +137,8 @@ function translateBody(body, decl, locals) {
 }
 
 function compile(src, opts = {}) {
-  const { decl, funcs, body } = parse(src);
-  const errors = lint(body, decl, "body");
+  const { decl, funcs, body, orderErrors } = parse(src);
+  const errors = orderErrors.concat(lint(body, decl, "body"));
   for (const f of funcs) {
     const fl = lint(f.body.replace(/\breturn\b/g, ""), { params: {}, history: {}, data: {} }, "function " + f.name);
     // function args count as assigned
@@ -131,7 +150,7 @@ function compile(src, opts = {}) {
     let m; while ((m = localRe.exec(src))) names.push(m[1]);
   }
   for (const n of new Set(names)) if (RESERVED.has(n)) errors.push(`name '${n}' is a gen~ operator/constant — rename it`);
-  if (errors.length) throw new Error("GenExpr lint:\n  " + errors.join("\n  "));
+  if (errors.length && !opts.noLint) throw new Error("GenExpr lint:\n  " + errors.join("\n  "));
   const helpers = funcs.map((f) => `function ${f.name}(${f.args.join(",")}){${translateBody(f.body, { params: {}, history: {}, data: {} }, f.args)}}`).join("\n");
   const code = `
     "use strict";
@@ -150,8 +169,8 @@ function compile(src, opts = {}) {
 }
 
 class GenPatch {
-  constructor(src, { sr = 48000, seed = 1 } = {}) {
-    const c = compile(src);
+  constructor(src, { sr = 48000, seed = 1, noLint = false } = {}) {
+    const c = compile(src, { noLint });
     this.decl = c.decl;
     this.P = {}; this.H = {}; this.D = {};
     for (const [k, p] of Object.entries(c.decl.params)) this.P[k] = p.def;
