@@ -1,11 +1,12 @@
 {
   "name": "flock",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
-  "description": "FLØCK — granular texture audio effect for Max for Live (gen~ port of the open Beads DSP)",
+  "description": "FL\u00d8CK \u2014 granular texture audio effect for Max for Live (gen~ port of the open Beads DSP)",
   "scripts": {
     "test": "node --test tests/*.test.js && node tools/check_matrix.js",
-    "dist": "python3 tools/build_device.py --dist"
+    "dist": "python3 tools/build_device.py --dist",
+    "verify": "node tools/mutation_check.js"
   },
   "license": "MIT (Beads port, see LICENSE-BEADS.txt)"
 }

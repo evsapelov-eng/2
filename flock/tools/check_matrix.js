@@ -16,7 +16,9 @@ function testNames() {
   const dir = path.join(ROOT, "tests"), names = [];
   for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".test.js"))) {
     const src = fs.readFileSync(path.join(dir, f), "utf8");
-    for (const m of src.matchAll(/test\("([^"]+)"/g)) names.push(m[1]);
+    for (const m of src.matchAll(/test\(\s*(["`'])((?:(?!\1).)+)\1/g)) names.push(m[2].replace(/\$\{[^}]*\}/g, ""));
+    // case tables: [ ["name", …], … ] expanded into one test per row
+    for (const m of src.matchAll(/^\s*\["([^"]+)",/gm)) names.push(m[1]);
   }
   return names;
 }
@@ -30,7 +32,11 @@ function check() {
     if (!/^(DONE|PARTIAL|DEVIATION|N\/A|PLANNED v0\.\d)$/.test(r.status)) errs.push(`${r.id}: bad status '${r.status}'`);
     if (/^(DONE|PARTIAL|DEVIATION)$/.test(r.status)) {
       if (!r.test || r.test === "—") errs.push(`${r.id}: ${r.status} without a test`);
-      else if (!T.some((t) => t.startsWith(r.test) || t.includes(r.test))) errs.push(`${r.id}: no test named like '${r.test}'`);
+      else if (/^`?npm run \w+`?$/.test(r.test)) {
+        const script = r.test.replace(/`/g, "").split(" ")[2], pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+        if (!pkg.scripts[script]) errs.push(`${r.id}: no npm script '${script}'`);
+      }
+      else if (!/^`?npm run/.test(r.test) && !T.some((t) => t.startsWith(r.test) || t.includes(r.test))) errs.push(`${r.id}: no test named like '${r.test}'`);
     }
   }
   // every Live parameter of the device is in the matrix

@@ -245,3 +245,103 @@ test("CV mode: CW = amount of CV, CCW = CV-controlled randomness (MOD sources pl
   assert.ok(Math.max(...rnd) - Math.min(...rnd) > 0.2 && rnd.every((v) => v <= 0.41), "CCW: randomness scaled by CV");
   assert.ok(rnd0.every((v) => Math.abs(v) < 0.002), "CCW with CV 0: none");
 });
+
+// ---- MOD sources (v0.2): tempo from Live arrives as a bar phase on in7
+const BPM = 120, BAR = Math.round(SR * 60 / BPM * 4);   // 96000 samples per bar
+const barPhase = (n, start = 0) => Float64Array.from({ length: n }, (_, i) => ((i + start) / BAR) % 1);
+function modRun(params, bars, input, phase) {
+  const n = Math.round(bars * BAR), g = engine(Object.assign({ drywet: 1 }, params));
+  const x = input || sine(220, n, 0.4), z = new Float64Array(n);
+  const o = g.run(n, [x, x, z, z, z, z, phase || barPhase(n)]);
+  return { o, g, n };
+}
+const DIVIDX = { "1/4": 7, "1/8": 10, "1/8T": 11, "1/16": 12, "1/2T": 6 };
+test("CLOCK synced to Live → SEED (LATCH off, 12 o'clock): exactly one grain per division (1/16 = 16 per bar, 1/8T = 12, 1/4 = 4)", () => {
+  for (const [div, per] of [["1/16", 16], ["1/8T", 12], ["1/4", 4]]) {
+    const r = modRun({ seedlatch: 0, density: 0.5, dst_seed: 5, ck_sync: 1, ck_rate: DIVIDX[div] / 14, time: 0.02, size: 0.4 }, 2);
+    const t = grainStarts(r.o);
+    assert.strictEqual(t.length, per * 2, `${div}: ${t.length} grains in 2 bars`);
+    const step = BAR / per;
+    // the module delays SEED by 2.5 ms (120 samples); synced sources run that much ahead, so every
+    // grain is on the grid — except the very first after Play (nothing to run ahead of yet)
+    assert.ok(t[0] <= 121, `${div}: first grain within 2.5 ms of the downbeat (${t[0]})`);
+    t.slice(1).forEach((s) => { const k = s / step; assert.ok(Math.abs(k - Math.round(k)) * step <= 1, `${div}: grain at ${s} is on the grid`); });
+  }
+});
+test("Live stopped (bar phase frozen): a synced CLOCK sends no pulses", () => {
+  const n = BAR, frozenPhase = new Float64Array(n).fill(0.3);
+  const r = modRun({ seedlatch: 0, density: 0.5, dst_seed: 5, ck_sync: 1, ck_rate: DIVIDX["1/16"] / 14 }, 1, null, frozenPhase);
+  assert.strictEqual(grainStarts(r.o).length, 0);
+});
+test("CLOCK into SEED with LATCH on = Beads clocked mode: DENSITY CCW divides the pulses", () => {
+  const counts = [0.47, 0.3, 0.05].map((d) => grainStarts(modRun({ seedlatch: 1, density: d, dst_seed: 5, ck_sync: 1, ck_rate: DIVIDX["1/16"] / 14, time: 0.02, size: 0.4 }, 2).o).length);
+  assert.ok(counts[0] < counts[1] && counts[1] < counts[2], "more division towards 12 o'clock: " + counts);
+  assert.ok(counts[2] >= 31 && counts[2] <= 32, "fully CCW = every pulse: " + counts[2]);
+});
+test("SEQ → SEED: grains only on the steps that are on, exactly on the 1/16 grid", () => {
+  const on = [0, 3, 6, 8, 10, 14];
+  const steps = {}; for (let i = 0; i < 16; i++) steps["sq" + i] = on.includes(i) ? 0.5 : -1;
+  const r = modRun(Object.assign({ seedlatch: 0, density: 0.5, dst_seed: 6, sq_div: 12, sq_len: 16, time: 0.02, size: 0.4 }, steps), 2);
+  const t = grainStarts(r.o).map((s) => Math.round(s / (BAR / 16)) % 16);
+  assert.deepStrictEqual(t, on.concat(on));
+});
+test("SEQ length: a 3-step pattern repeats every 3 sixteenths (polyrhythm against the bar)", () => {
+  const steps = { sq0: 0.5, sq1: -1, sq2: -1 };
+  const r = modRun(Object.assign({ seedlatch: 0, density: 0.5, dst_seed: 6, sq_div: 12, sq_len: 3, time: 0.02, size: 0.4 }, steps), 1.5);
+  const t = grainStarts(r.o).slice(1), d = t.slice(1).map((v, i) => v - t[i]);   // after the first grain (see the CLOCK test)
+  assert.ok(d.every((x) => Math.abs(x - 3 * BAR / 16) <= 1), "every 3 sixteenths: " + d.slice(0, 4));
+});
+test("slicing: SEQ → SEED and SEQ → TIME (RND fully CW = CV amount): each step plays its own slice of the frozen buffer", () => {
+  const vals = [0.1, 0.4, 0.7, 0.25];
+  const steps = {}; for (let i = 0; i < 16; i++) steps["sq" + i] = i < 4 ? vals[i] : -1;
+  // record 2 s, then freeze and play the pattern
+  const n = 2 * SR + BAR, g = engine(Object.assign({ drywet: 1, seedlatch: 0, density: 0.5, time: 0, time_amt: 1, size: 0.4, dst_seed: 6, dst_time: 6, sq_div: 12, sq_len: 4 }, steps));
+  const z = new Float64Array(n), x = sine(220, n, 0.4);
+  const ph = Float64Array.from({ length: n }, (_, i) => (i < 2 * SR ? 0 : ((i - 2 * SR) / BAR) % 1));
+  g.set("freeze", 0); g.run(2 * SR, [x, x, z, z, z, z, ph.subarray(0, 2 * SR)]);
+  g.set("freeze", 1);
+  const o = g.run(BAR, [x.subarray(2 * SR), x.subarray(2 * SR), z, z, z, z, ph.subarray(2 * SR)]);
+  const pos = grainStarts(o).map((i) => (o[5][i] * 192000 - 257) / (192000 - 514));
+  assert.ok(pos.length >= 15, "grains: " + pos.length);
+  pos.forEach((p, k) => assert.ok(Math.abs(p - vals[k % 4]) < 0.003, `step ${k % 4}: slice ${p.toFixed(3)} vs ${vals[k % 4]}`));
+});
+test("LFO synced 1 bar → TIME: grain positions follow the LFO shape (sine / saw)", () => {
+  for (const shp of [0, 2]) {
+    const r = modRun({ density: 0.1, time: 0.5, time_amt: 0.75, dst_time: 1, l1_sync: 1, l1_rate: 3 / 14, l1_shape: shp }, 1);
+    const t = grainStarts(r.o), att = (2 / 0.47) * 0.25 * (0.25 - 0.03);
+    let err = 0;
+    for (const i of t) {
+      const want = Math.min(1, Math.max(0, 0.5 + att * (shp === 0 ? Math.sin(2 * Math.PI * i / BAR) : 1 - 2 * (i / BAR))));
+      err = Math.max(err, Math.abs((r.o[5][i] * 192000 - 257) / (192000 - 514) - want));
+    }
+    assert.ok(t.length > 20 && err < 0.02, `shape ${shp}: max error ${err.toFixed(4)} over ${t.length} grains`);
+  }
+});
+test("LFO free rate in Hz: 0.02 · 1000^rate; R restarts its phase when Live starts", () => {
+  const r = modRun({ density: 0.05, time: 0.5, time_amt: 0.75, dst_time: 1, l1_sync: 0, l1_rate: 0.5, l1_shape: 3 }, 1);
+  const hz = 0.02 * Math.pow(1000, 0.5), t = grainStarts(r.o), pos = t.map((i) => r.o[5][i]);
+  let flips = 0; for (let k = 1; k < pos.length; k++) if (Math.abs(pos[k] - pos[k - 1]) > 0.1) flips++;
+  assert.ok(Math.abs(flips - 2 * hz * BAR / SR) <= 2, `square flips ${flips} vs ${2 * hz * BAR / SR}`);
+  // R: Live stopped then started → phase restarts at 0 (square starts high)
+  const n = SR, ph = Float64Array.from({ length: n }, (_, i) => (i < SR / 2 ? 0 : ((i - SR / 2) / BAR) % 1));
+  const g = engine({ drywet: 1, density: 0.05, time: 0.5, time_amt: 0.75, dst_time: 1, l1_sync: 0, l1_rate: 0.3, l1_shape: 3, l1_reset: 1 });
+  const z = new Float64Array(n), x = sine(220, n);
+  const o = g.run(n, [x, x, z, z, z, z, ph]);
+  // Live starts on sample SR/2 + 1 (first sample where the bar phase moves): the phase restarts there
+  assert.ok(Math.abs(g.H.l1_ph - fract(0.02 * Math.pow(1000, 0.3) * (SR / 2 - 2) / SR)) < 1e-9, "phase counted from the restart");
+});
+function fract(x) { return x - Math.floor(x); }
+test("RANDOM: values stay within ±AMT; STEPS hold between changes, SMOOTH glides; own generator (grain random stream untouched)", () => {
+  const rr = (smooth) => { const r = modRun({ density: 0.05, time: 0.5, time_amt: 0.75, dst_time: 3, rn_rate: 0.5, rn_smooth: smooth, rn_amt: 0.5 }, 1); return grainStarts(r.o).map((i) => (r.o[5][i] * 192000 - 257) / (192000 - 514)); };
+  const att = (2 / 0.47) * 0.25 * 0.22, step = rr(0), smooth = rr(1);
+  for (const p of step.concat(smooth)) assert.ok(Math.abs(p - 0.5) <= att * 0.5 + 1e-6);
+  const distinct = (a) => new Set(a.map((v) => v.toFixed(5))).size;
+  assert.ok(distinct(step) < step.length / 2, "steps repeat values: " + distinct(step) + "/" + step.length);
+  assert.ok(distinct(smooth) > smooth.length * 0.8, "smooth keeps moving");
+});
+test("ENV → SEED (LATCH off): grains only while the input is loud", () => {
+  const n = BAR, x = Float64Array.from({ length: n }, (_, i) => (i < n / 2 ? 0.5 : 0.001) * Math.sin(2 * Math.PI * 220 * i / SR));
+  const r = modRun({ seedlatch: 0, density: 0.2, dst_seed: 4, env_gain: 0.5, time: 0.02 }, 1, x);
+  const t = grainStarts(r.o);
+  assert.ok(t.length > 5 && t.every((i) => i < n / 2 + 0.2 * SR), "grains in the loud half only: " + t.length);
+});

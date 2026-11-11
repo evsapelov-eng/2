@@ -14,7 +14,10 @@
 //
 // Inlets : in1 L, in2 R, in3..in6 CV for TIME, SIZE, SHAPE, PITCH (MOD matrix; used if *_cv = 1)
 // Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,
-//          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed)
+//          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed),
+//          out8 sequencer step, out9 Live transport running (bar phase moving)
+//          in7 bar phase from Live (phasor~ 1n @lock 1); in8..in11 external SEED / FREEZE / DENSITY / assign
+//          (destination index 7, used by the tests)
 //
 // Written in the subset that tools/genexpr.js can run and lint (see that file).
 
@@ -66,6 +69,21 @@ rparam(base, att, cv, hascv, range, clampit) {
 ramount(att, hascv) {
 	return hascv > 0.5 ? max(-att, 0) : abs(att);
 }
+// tempo divisions per bar: 8 bars, 4 bars, 2 bars, 1 bar, 1/2, 1/4D, 1/2T, 1/4, 1/8D, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32
+divper(i) {
+	return i < 0.5 ? 0.125 : i < 1.5 ? 0.25 : i < 2.5 ? 0.5 : i < 3.5 ? 1 : i < 4.5 ? 2 : i < 5.5 ? 2.6666667 : i < 6.5 ? 3 : i < 7.5 ? 4 : i < 8.5 ? 5.3333333 : i < 9.5 ? 6 : i < 10.5 ? 8 : i < 11.5 ? 12 : i < 12.5 ? 16 : i < 13.5 ? 24 : 32;
+}
+lfo_shape(ph, shp) {
+	return shp < 0.5 ? sin(twopi * ph) : shp < 1.5 ? (ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph) : shp < 2.5 ? 1 - 2 * ph : (ph < 0.5 ? 1 : -1);
+}
+// source 1..6: LFO 1, LFO 2, RANDOM, ENV, CLOCK, SEQ ; 7 = external inlet (tests / future)
+pick(i, a, b, c, d, v5, v6, x) {
+	return i < 0.5 ? 0 : i < 1.5 ? a : i < 2.5 ? b : i < 3.5 ? c : i < 4.5 ? d : i < 5.5 ? v5 : i < 6.5 ? v6 : x;
+}
+// the module's division table for the clocked SEED (kDivisionRatios)
+divratio(q) {
+	return q < 0.5 ? 1 : q < 1.5 ? 2 : q < 2.5 ? 3 : q < 3.5 ? 4 : q < 4.5 ? 6 : q < 5.5 ? 8 : q < 6.5 ? 12 : 16;
+}
 wrapi(x, n) {
 	return x - floor(x / n) * n;
 }
@@ -91,13 +109,65 @@ Param seed(0, min=0, max=1);
 Param seedlatch(1, min=0, max=1);
 Param ingain(1, min=0, max=40);
 Param outgain(1, min=0, max=4);
+// ---- modulation (MOD tab). Destinations take a source index: 0 none, 1 LFO1, 2 LFO2, 3 RANDOM,
+// 4 ENV, 5 CLOCK, 6 SEQ, 7 external inlet (in8..in11, tests / future)
+Param dst_freeze(0, min=0, max=7);
+Param dst_seed(0, min=0, max=7);
+Param dst_time(0, min=0, max=7);
+Param dst_pitch(0, min=0, max=7);
+Param dst_size(0, min=0, max=7);
+Param dst_shape(0, min=0, max=7);
+Param dst_density(0, min=0, max=7);
+Param dst_feedback(0, min=0, max=7);
+Param dst_reverb(0, min=0, max=7);
+Param dst_drywet(0, min=0, max=7);
+Param fb_amt(1, min=0, max=1);
+Param dw_amt(1, min=0, max=1);
+Param rv_amt(1, min=0, max=1);
+Param l1_rate(0.4, min=0, max=1);
+Param l1_sync(0, min=0, max=1);
+Param l1_shape(0, min=0, max=3);
+Param l1_reset(0, min=0, max=1);
+Param l1_amt(1, min=0, max=1);
+Param l2_rate(0.25, min=0, max=1);
+Param l2_sync(0, min=0, max=1);
+Param l2_shape(1, min=0, max=3);
+Param l2_reset(0, min=0, max=1);
+Param l2_amt(1, min=0, max=1);
+Param rn_rate(0.4, min=0, max=1);
+Param rn_sync(0, min=0, max=1);
+Param rn_smooth(1, min=0, max=1);
+Param rn_amt(1, min=0, max=1);
+Param env_gain(0.5, min=0, max=1);
+Param ck_rate(0.857, min=0, max=1);
+Param ck_sync(1, min=0, max=1);
+Param sq_div(12, min=0, max=14);
+Param sq_len(16, min=1, max=16);
+// sequencer steps: value 0..1, negative = step off
+Param sq0(1, min=-1, max=1);
+Param sq1(-1, min=-1, max=1);
+Param sq2(-1, min=-1, max=1);
+Param sq3(-1, min=-1, max=1);
+Param sq4(0.25, min=-1, max=1);
+Param sq5(-1, min=-1, max=1);
+Param sq6(-1, min=-1, max=1);
+Param sq7(-1, min=-1, max=1);
+Param sq8(0.5, min=-1, max=1);
+Param sq9(-1, min=-1, max=1);
+Param sq10(0.75, min=-1, max=1);
+Param sq11(-1, min=-1, max=1);
+Param sq12(0.625, min=-1, max=1);
+Param sq13(-1, min=-1, max=1);
+Param sq14(-1, min=-1, max=1);
+Param sq15(-1, min=-1, max=1);
 
 Data buf(192004, 2);
 Data gr(32, 16);
 Data prio(32, 1);
 Data ftail(256, 2);
 Data rv(32768, 1);
-Data sum(8, 1);   // per-sample accumulators: 0 L, 1 R, 2 playing grains, 3 active count, 4 best, 5 best remaining
+Data sum(8, 1);
+Data sdl(1024, 1);   // SEED input delay line (beads.cc event_delay: 10 blocks = 2.5 ms)   // per-sample accumulators: 0 L, 1 R, 2 playing grains, 3 active count, 4 best, 5 best remaining
 
 History init(0);
 History wp(0);
@@ -144,7 +214,7 @@ History rv_lp2(0);
 History rv_dry(0);
 History rv_wet(0);
 History rv_send(0);
-// stmlib ParameterInterpolator: mix parameters move linearly over blocks of 24 samples (like the module)
+// stmlib ParameterInterpolator: mix parameters move linearly over blocks of sr/4000 samples (12 at 48 kHz, like the module)
 History blk(0);
 History i_fb(0);
 History i_dry(0);
@@ -158,6 +228,36 @@ History l2y0(0.5);
 History l2y1(0.5);
 History l1v(0.5);
 History l2v(0.5);
+History prev_bp(0);
+History bar_cnt(0);
+History was_run(0);
+History l1_ph(0);
+History l2_ph(0);
+History rn_ph(0);
+History rn_from(0);
+History rn_to(0);
+History rn_seed(22222);
+History rn_pph(0);
+History env_st(0);
+History ck_ph(0);
+History c_t(0);
+History c_s(0);
+History c_h(0);
+History c_p(0);
+History c_d(0);
+History c_a1(0);
+History c_a2(0);
+History c_a3(0);
+History tg_target(0.0001);
+History tg_lpc(1);
+History tg_audio(0);
+History tg_accept(1);
+History tg_count(0);
+History tg_resetint(192000);
+History tg_quant(0);
+History tg_div(1);
+History prev_ext(0);
+History sdw(0);
 History lastpos(0);
 History lastspd(1);
 
@@ -176,10 +276,12 @@ if (init < 0.5) {
 }
 
 // ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)
-// Like the module: pots are read once per 24-sample block (cv_reader.Read in the audio
+// Like the module: pots are read once per block of sr/4000 samples (cv_reader.Read in the audio
 // callback): law → one-pole 0.05 → hysteresis (TIME 0.001). On load: no glide from zero.
 newblk = blk < 0.5;
-nblk = blk > 22.5 ? 0 : blk + 1;
+// the module's audio block: kBlockRate = 4000 → sr / 4000 samples (12 at 48 kHz)
+BLK = floor(FS / 4000 + 0.5);
+nblk = blk > BLK - 1.5 ? 0 : blk + 1;
 kp = init < 0.5 ? 1 : newblk ? 0.05 : 0;
 st_time = s_time + (time - s_time) * kp;
 th_err = st_time - s_timeh;
@@ -195,16 +297,101 @@ st_samt = s_samt + (attenu_law(size_amt) - s_samt) * kp;
 st_hamt = s_hamt + (attenu_law(shape_amt) - s_hamt) * kp;
 st_pamt = s_pamt + (attenu_law(pitch_amt) - s_pamt) * kp;
 st_dens = s_dens + (density - s_dens) * kp;
-frozen = freeze > 0.5;
 seedstate = seedlatch > 0.5 ? 2 : seed > 0.5 ? 1 : 0;
-cv_t = in3;
-cv_s = in4;
-cv_h = in5;
-cv_p = in6;
 
-// ---- trigger generator (TriggerGenerator::Render, no external SEED input yet)
-sgate = seedstate > 0.5;
-rising = sgate && prev_gate < 0.5;
+// ---- tempo from Live: bar phase (phasor~ 1n @lock 1) on in7; bars counted modulo 24
+bp = in7;
+running = abs(bp - prev_bp) > 0;
+nbars = bp < prev_bp - 0.5 ? (bar_cnt > 22.5 ? 0 : bar_cnt + 1) : bar_cnt;
+started = running && was_run < 0.5;
+// synced sources run 10 blocks ahead: the SEED input delay of the module (2.5 ms, kept for the
+// CV-settling it gives) then lands their gates exactly on Live's grid
+dph = running ? bp - prev_bp + (bp < prev_bp - 0.5 ? 1 : 0) : 0;
+pos = nbars + bp + dph * floor(FS / 4000 + 0.5) * 10 + 0.000000001;   // + 1e-9 bar: exact grid points round up, not down
+// ---- sources (MOD tab)
+l1d = divper(floor(l1_rate * 14 + 0.5));
+l1f = fract(l1_ph + 0.02 * pow(1000, l1_rate) / FS);
+l1f = (l1_reset > 0.5 && started) ? 0 : l1f;
+s1 = lfo_shape(l1_sync > 0.5 ? fract(pos * l1d) : l1f, l1_shape) * l1_amt;
+l2d = divper(floor(l2_rate * 14 + 0.5));
+l2f = fract(l2_ph + 0.02 * pow(1000, l2_rate) / FS);
+l2f = (l2_reset > 0.5 && started) ? 0 : l2f;
+s2 = lfo_shape(l2_sync > 0.5 ? fract(pos * l2d) : l2f, l2_shape) * l2_amt;
+// RANDOM: random walk like RandomWalkModulation (own generator, not the grains' random stream)
+rnf = rn_sync > 0.5 ? fract(pos * divper(floor(rn_rate * 14 + 0.5))) : fract(rn_ph + 0.02 * pow(1000, rn_rate) / FS);
+rnwrap = rnf < rn_pph || init < 0.5;   // also on load: start from a random value, not from 0
+nseed = rnwrap ? wrapi(rn_seed * 1664525 + 1013904223, 4294967296) : rn_seed;
+nfrom = rnwrap ? rn_to : rn_from;
+nto = rnwrap ? nseed / 4294967296 * 2 - 1 : rn_to;
+s3 = (rn_smooth > 0.5 ? nfrom + (nto - nfrom) * sstep(rnf) : nto) * rn_amt;
+// ENV: follower of the input, gain ×0.25 … ×16
+ein = max(abs(in1 * ingain), abs(in2 * ingain));
+nenv = env_st + (ein - env_st) * (ein > env_st ? 1 - exp(-1 / (0.003 * FS)) : 1 - exp(-1 / (0.15 * FS)));
+s4 = clamp(nenv * 0.25 * pow(64, env_gain), 0, 1);
+// CLOCK: tempo division (sync) or 0.1 … 40 Hz
+ckf = fract(ck_ph + 0.1 * pow(400, ck_rate) / FS);
+ckp = ck_sync > 0.5 ? fract(pos * divper(floor(ck_rate * 14 + 0.5))) : ckf;
+s5 = (ckp < 0.5 && (ck_sync < 0.5 || running)) ? 1 : 0;
+// SEQ: steps at the tempo division, length 1..16; value 0..1, gate in the first half of an "on" step
+spos = pos * divper(sq_div);
+sstp = wrapi(floor(spos), floor(sq_len));
+sval = sstp < 0.5 ? sq0 : sstp < 1.5 ? sq1 : sstp < 2.5 ? sq2 : sstp < 3.5 ? sq3 : sstp < 4.5 ? sq4 : sstp < 5.5 ? sq5 : sstp < 6.5 ? sq6 : sstp < 7.5 ? sq7 : sstp < 8.5 ? sq8 : sstp < 9.5 ? sq9 : sstp < 10.5 ? sq10 : sstp < 11.5 ? sq11 : sstp < 12.5 ? sq12 : sstp < 13.5 ? sq13 : sstp < 14.5 ? sq14 : sq15;
+s6 = max(sval, 0);
+g6 = (sval >= 0 && fract(spos) < 0.5 && running) ? 1 : 0;
+// gates: LFO / RANDOM positive half, ENV above 0.25, CLOCK and SEQ their pulses
+g1 = s1 > 0;
+g2 = s2 > 0;
+g3 = s3 > 0;
+g4 = s4 > 0.25;
+// ---- destinations, read like the module's CV inputs (once per block, CvReader low-pass)
+has_t = time_cv > 0.5 || dst_time > 0.5;
+has_s = size_cv > 0.5 || dst_size > 0.5;
+has_h = shape_cv > 0.5 || dst_shape > 0.5;
+has_p = pitch_cv > 0.5 || dst_pitch > 0.5;
+rt_ = dst_time > 0.5 ? pick(dst_time, s1, s2, s3, s4, s5, s6, in3) : in3;
+rs_ = dst_size > 0.5 ? pick(dst_size, s1, s2, s3, s4, s5, s6, in4) : in4;
+rh_ = dst_shape > 0.5 ? pick(dst_shape, s1, s2, s3, s4, s5, s6, in5) : in5;
+rp_ = dst_pitch > 0.5 ? pick(dst_pitch, s1, s2, s3, s4, s5, s6, in6 / 12) * 12 : in6;
+rd_ = pick(dst_density, s1, s2, s3, s4, s5, s6, in10);
+ra1 = pick(dst_feedback, s1, s2, s3, s4, s5, s6, in11);
+ra2 = pick(dst_drywet, s1, s2, s3, s4, s5, s6, in11);
+ra3 = pick(dst_reverb, s1, s2, s3, s4, s5, s6, in11);
+// CvChannel low-pass per block: TIME/SIZE/SHAPE 0.5, PITCH/DENSITY 1.0, ASSIGN 0.1 (first sample: direct)
+k5 = init < 0.5 ? 1 : newblk ? 0.5 : 0;
+k10 = init < 0.5 ? 1 : newblk ? 1 : 0;
+k1 = init < 0.5 ? 1 : newblk ? 0.1 : 0;
+cv_t = c_t + (rt_ - c_t) * k5;
+cv_s = c_s + (rs_ - c_s) * k5;
+cv_h = c_h + (rh_ - c_h) * k5;
+cv_p = c_p + (rp_ - c_p) * k10;
+cv_d = c_d + (rd_ - c_d) * k10;
+cv_a1 = c_a1 + (ra1 - c_a1) * k1;
+cv_a2 = c_a2 + (ra2 - c_a2) * k1;
+cv_a3 = c_a3 + (ra3 - c_a3) * k1;
+// FREEZE / SEED gate inputs (per sample, like the module's gate inputs)
+frozen = freeze > 0.5 || (dst_freeze > 0.5 && pick(dst_freeze, g1, g2, g3, g4, s5, g6, in9) > 0.5);
+ext = dst_seed > 0.5;
+egate_now = ext && pick(dst_seed, g1, g2, g3, g4, s5, g6, in8) > 0.5;
+// beads.cc: "Delay the seed input by 2.5ms" (event_delay.Read(size * 10)) — lets a CV
+// sent together with the gate (e.g. SEQ → TIME and SEQ → SEED) settle first
+poke(sdl, egate_now, sdw, 0);
+egate = ext && peek(sdl, wrapi(sdw - BLK * 10, 1024), 0) > 0.5;
+nsdw = wrapi(sdw + 1, 1024);
+
+// ---- trigger generator (Processor::Process + TriggerGenerator::Render)
+expo = clamp(20 * (abs(st_dens - 0.5) - 0.225), 0, 1);
+lin_fm = (1 - expo) * cv_d;
+exp_fm = expo * cv_d;
+divmode = ext && seedstate > 1.5;
+dens = clamp(st_dens + lin_fm + (divmode ? exp_fm : 0), 0, 1);
+fmr = divmode ? 1 : pow(2, exp_fm * 60 / 12);
+// gate stream: latched mode with an external SEED = the clock alone (divider), else button OR input
+// the SEED input has its own edge memory (beads.cc previous_seed, updated whenever patched);
+// the merged gate keeps TriggerGenerator::previous_flags_ (updated outside the divider)
+erising = egate && prev_ext < 0.5;
+sgate = divmode ? egate : (seedstate > 0.5 || egate);
+rising = divmode ? erising : (sgate && prev_gate < 0.5);
+npg = divmode ? prev_gate : sgate;
 ph = tg_phase;
 ratio = tg_ratio;
 tapf = tg_freq;
@@ -213,9 +400,68 @@ trig = 0;
 frac = 0;
 regularity = 1;
 maxf = 130.81278 / FS;
-if (st_dens < 0.48 || st_dens > 0.52) {
-	randomize = st_dens > 0.52;
-	f = randomize ? 0.5 * maxf * pow(2, -(1 - st_dens) * 16) : maxf * pow(2, -st_dens * 16);
+tgt = init < 0.5 ? 2 / FS : tg_target;
+tapf = init < 0.5 ? 2 / FS : tapf;
+ndiv = tg_div;
+lpc = tg_lpc;
+aud = tg_audio;
+acc_p = tg_accept;
+pcount = tg_count;
+rint = init < 0.5 ? trunc(FS * 4) : tg_resetint;
+quant = tg_quant;
+if (divmode) {
+	// ---- RenderDivider: clocked SEED (division CCW / probability CW of the incoming pulses)
+	qv = dens * 2.15 * 8 - 0.5;
+	qs = qv > quant ? -1 : 1;
+	quant = dens < 0.48 ? clamp(trunc(qv + qs * 0.075 + 0.5), 0, 7) : quant;
+	division = dens < 0.48 ? divratio(quant) : 1;
+	psq = dens < 0.48 ? 1.01 : max((dens - 0.52) * 2.15, 0);
+	prob = psq * psq;
+	tapf = tapf + (tgt - tapf) * lpc;
+	ph = ph + tapf;
+	if (rising) {
+		if (tg_el >= rint) {
+			pcount = 0;
+			ph = 0;
+		}
+		rint = max(trunc(FS * 4), 4 * tg_el);
+		thr = trunc(FS / 48) + (aud > 0.5 ? 8 : 0);
+		aud = (tg_el < thr) && (prob >= 1);
+		acc_p = rnd() < prob && wrapi(pcount, division) < 0.5;
+		if (acc_p) {
+			period = tg_el;
+			pfreq = 1 / period;
+			tgt = prob >= 1 ? pfreq / division : pfreq * prob;
+			if (aud) {
+				noglide = division != ndiv;
+				ndiv = division;
+				noglide = noglide || tgt > (1.02 + 2 * pfreq) * tapf || tgt < (0.98 - 2 * pfreq) * tapf;
+				lpc = noglide ? 1 : period / FS;
+			} else {
+				ph = 0;
+				lpc = 1;
+			}
+		} else if (prob < 1) {
+			tgt = tgt * (1 - prob);
+		}
+		pcount = wrapi(pcount + 1, 48);
+		tg_el = 0;
+	}
+	tg_el = tg_el + 1;
+	if (aud) {
+		if (ph >= 1) {
+			ph = ph - 1;
+			frac = ph / tapf;
+			trig = 1;
+		}
+	} else {
+		ph = min(ph, 1);
+		trig = acc_p && rising;
+	}
+	regularity = prob >= 1 ? 1 : 0;
+} else if (dens < 0.48 || dens > 0.52) {
+	randomize = dens > 0.52;
+	f = (randomize ? 0.5 * maxf * pow(2, -(1 - dens) * 16) : maxf * pow(2, -dens * 16)) * fmr;
 	if (!randomize) {
 		ratio = 1;
 	}
@@ -236,7 +482,7 @@ if (st_dens < 0.48 || st_dens > 0.52) {
 	}
 	trig = reset && sgate;
 	regularity = randomize ? 0 : 1;
-} else if (seedstate < 1.5) {
+} else if (seedstate < 1.5 || ext) {
 	// manual taps: one grain per press
 	ph = ph + tapf;
 	if (rising) {
@@ -247,13 +493,13 @@ if (st_dens < 0.48 || st_dens > 0.52) {
 	tg_el = tg_el + 1;
 	ph = min(ph, 1);
 	trig = rising;
-	regularity = 1 - (st_dens - 0.48) * 25;
+	regularity = 1 - (dens - 0.48) * 25;
 }
 
 // ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)
 inl = in1 * ingain;
 inr = in2 * ingain;
-inc_fb = newblk ? (min(st_fbk * 1.005, 1) - s_fb) / 24 : i_fb;
+inc_fb = newblk ? (clamp(st_fbk * 1.005 + (dst_feedback > 0.5 ? cv_a1 * fb_amt : 0), 0, 1) - s_fb) / BLK : i_fb;
 fbk = s_fb + inc_fb;
 sl = inl + prev_l * fbk * fbk * 3;
 sr = inr + prev_r * fbk * fbk * 3;
@@ -317,20 +563,20 @@ if (trig) {
 	samt = st_samt;
 	hamt = st_hamt;
 	pamt = st_pamt;
-	dur_k = rparam(st_size, samt, cv_s, size_cv, 1, 1);
+	dur_k = rparam(st_size, samt, cv_s, has_s, 1, 1);
 	rev = dur_k < 0.3333333;
 	amp = 1 / sqrt(nact);
-	spread = min(1, ramount(tamt, time_cv) + ramount(samt, size_cv) + ramount(hamt, shape_cv) + ramount(pamt, pitch_cv) + 1 - regularity);
+	spread = min(1, ramount(tamt, has_t) + ramount(samt, has_s) + ramount(hamt, has_h) + ramount(pamt, has_p) + 1 - regularity);
 	u = rnd();
 	v = rnd();
 	pan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);
 	maxdel = MAXD - 2 * 257;
-	gdelay = rparam(st_timeh, tamt, cv_t, time_cv, 1, 1) * maxdel + 257;
-	semis = rparam(st_pitch, pamt, cv_p, pitch_cv, 24, 0);
+	gdelay = rparam(st_timeh, tamt, cv_t, has_t, 1, 1) * maxdel + 257;
+	semis = rparam(st_pitch, pamt, cv_p, has_p, 24, 0);
 	speed = (rev ? -1 : 1) * pow(2, semis / 12);
 	csh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);
 	duration = pow(2, min(1, 1.025 * csh) * -9) * FS * 4;
-	shp = rparam(st_shape, hamt, cv_h, shape_cv, 1, 1);
+	shp = rparam(st_shape, hamt, cv_h, has_h, 1, 1);
 	g0 = peek(prio, 0, 0);
 	cons = speed - (frozen ? 0 : 1);
 	gdelay = gdelay - frac * cons;
@@ -547,11 +793,11 @@ n_prev_l = prev_l + 0.999 * (hpl - prev_l);
 n_prev_r = prev_r + 0.999 * (hpr - prev_r);
 
 // ---- dry / wet (Processor::Process)
-dw = min(st_dwk * 1.005, 1);
+dw = clamp(st_dwk * 1.005 + (dst_drywet > 0.5 ? cv_a2 * dw_amt : 0), 0, 1);
 dry_t = (1 - dw) * (1 + dw) * 0.75;
 wet_t = dw * (2 - dw) * 1.5;
-inc_dry = newblk ? (dry_t - s_dry) / 24 : i_dry;
-inc_wet = newblk ? (wet_t - s_wet) / 24 : i_wet;
+inc_dry = newblk ? (dry_t - s_dry) / BLK : i_dry;
+inc_wet = newblk ? (wet_t - s_wet) / BLK : i_wet;
 dry = s_dry + inc_dry;
 wet = s_wet + inc_wet;
 ml = dry * inl + wet * outl;
@@ -568,15 +814,15 @@ ml = ml * lg;
 mr = mr * lg;
 
 // ---- reverb (Griesinger / Dattorro topology, FxEngine 16-bit, 32768 words)
-rva = min(st_rvk * 1.005, 1);
+rva = clamp(st_rvk * 1.005 + (dst_reverb > 0.5 ? cv_a3 * rv_amt : 0), 0, 1);
 rmix = rva * rva * 0.9;
 rtime = 0.3 + 0.6 * rva * rva * rva;
 rlp = 0.6;
 ig = 0.2 * (1 - 0.333 * rtime);
 ssq = rmix * (2 - rmix);
-inc_rd = newblk ? ((1 - rmix) * (1 + rmix) - rv_dry) / 24 : i_rd;
-inc_rw = newblk ? (0.4 / ig - rv_wet) / 24 : i_rw;
-inc_rs = newblk ? (ssq * (2 - ssq) * ig - rv_send) / 24 : i_rs;
+inc_rd = newblk ? ((1 - rmix) * (1 + rmix) - rv_dry) / BLK : i_rd;
+inc_rw = newblk ? (0.4 / ig - rv_wet) / BLK : i_rw;
+inc_rs = newblk ? (ssq * (2 - ssq) * ig - rv_send) / BLK : i_rs;
 r_dry = rv_dry + inc_rd;
 r_wet = rv_wet + inc_rw;
 r_send = rv_send + inc_rs;
@@ -687,6 +933,8 @@ out4 = nplay;
 out5 = w / MAXD;
 out6 = lpos;
 out7 = lspd;
+out8 = sstp;
+out9 = running;
 
 // ---- state write-back (all History writes at the end of the pass)
 init = 1;
@@ -711,7 +959,9 @@ tg_phase = ph;
 tg_ratio = ratio;
 tg_freq = tapf;
 tg_elapsed = tg_el;
-prev_gate = sgate;
+prev_gate = npg;
+prev_ext = egate;
+sdw = nsdw;
 interval = gint;
 lastpos = lpos;
 lastspd = lspd;
@@ -748,4 +998,32 @@ l1y1 = y11;
 l2y0 = y20;
 l2y1 = y21;
 l1v = lv1;
+prev_bp = bp;
+bar_cnt = nbars;
+was_run = running;
+l1_ph = l1f;
+l2_ph = l2f;
+rn_ph = rnf;
+rn_pph = rnf;
+rn_seed = nseed;
+rn_from = nfrom;
+rn_to = nto;
+env_st = nenv;
+ck_ph = ckf;
+c_t = cv_t;
+c_s = cv_s;
+c_h = cv_h;
+c_p = cv_p;
+c_d = cv_d;
+c_a1 = cv_a1;
+c_a2 = cv_a2;
+c_a3 = cv_a3;
+tg_target = tgt;
+tg_lpc = lpc;
+tg_audio = aud;
+tg_accept = acc_p;
+tg_count = pcount;
+tg_resetint = rint;
+tg_quant = quant;
+tg_div = ndiv;
 l2v = lv2;

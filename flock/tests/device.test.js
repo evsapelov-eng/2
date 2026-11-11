@@ -14,7 +14,7 @@ const decl = parse(fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf
 
 test("every Live parameter reaches an existing gen~ Param and the panel; panel outputs route to the parameters", () => {
   const params = boxes.filter((b) => b.parameter_enable);
-  assert.strictEqual(params.length, 17);
+  assert.strictEqual(params.length, 65);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const outsOf = (id) => patch.lines.filter((l) => l.patchline.source[0] === id).map((l) => byId[l.patchline.destination[0]]);
   for (const p of params) {
@@ -29,6 +29,7 @@ test("every Live parameter reaches an existing gen~ Param and the panel; panel o
     const va = p.saved_attribute_attributes.valueof;
     const def = decl.params[eng].def;
     if (va.parameter_unitstyle !== 4) assert.strictEqual(va.parameter_initial[0], def, p.varname + " default = engine default");
+    if (decl.params[eng].min !== undefined && va.parameter_unitstyle !== 4) assert.ok(va.parameter_mmin >= decl.params[eng].min && va.parameter_mmax <= decl.params[eng].max, p.varname + " range inside the engine range");
   }
   const route = boxes.find((b) => (b.text || "").startsWith("route "));
   assert.deepStrictEqual(route.text.split(" ").slice(1).sort(), params.map((p) => p.varname).sort());
@@ -38,7 +39,10 @@ test("gen~ box embeds the engine code with matching inlet/outlet counts; device 
   const g = boxes.find((b) => b.text === "gen~");
   const cb = g.patcher.boxes.map((b) => b.box).find((b) => b.maxclass === "codebox");
   assert.ok(cb.code.includes("Param time(") && g.patcher.classnamespace === "dsp.gen");
-  assert.strictEqual(g.numinlets, 6); assert.strictEqual(g.numoutlets, 7);
+  assert.strictEqual(g.numinlets, 11); assert.strictEqual(g.numoutlets, 9);
+  const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
+  const ph = boxes.find((b) => b.text === "phasor~ 1n @lock 1");
+  assert.ok(patch.lines.some((l) => l.patchline.source[0] === ph.id && byId[l.patchline.destination[0]].text === "gen~" && l.patchline.destination[1] === 6), "bar phase → gen~ in7");
   assert.strictEqual(patch.devicewidth, 900);
   const ui = boxes.find((b) => b.maxclass === "jsui");
   assert.deepStrictEqual(ui.presentation_rect, [0, 0, 900, 169]);
@@ -55,6 +59,7 @@ function makeShim(w, h) {
     rectangle(x, y, ww, hh) { d += `M${x},${y}h${ww}v${hh}h${-ww}Z`; },
     ellipse(x, y, ww, hh) { const rx = ww / 2, ry = hh / 2; d += `M${x},${y + ry}a${rx},${ry} 0 1,0 ${ww},0a${rx},${ry} 0 1,0 ${-ww},0`; },
     move_to(x, y) { d += `M${x},${y}`; tx = [x, y]; }, line_to(x, y) { d += `L${x},${y}`; },
+    curve_to(a, b, c, e, x, y) { d += `C${a},${b} ${c},${e} ${x},${y}`; },
     fill() { els.push(`<path d="${d}" fill="${color()}"/>`); d = ""; },
     stroke() { els.push(`<path d="${d}" fill="none" stroke="${color()}" stroke-width="${lw}" stroke-linecap="round"/>`); d = ""; },
     select_font_face(n) { bold = /Bold/.test(n || ""); }, set_font_size(s) { font = s; },
@@ -149,4 +154,64 @@ test("gen~ code obeys the Max 9.1 compiler rules (functions first, no loop-carri
   assert.throws(() => compile(bad), /defined after a Param/);
   const carried = "Param a(0, min=0, max=1);\ns = 0;\nfor (i = 0; i < 4; i += 1) {\n\tif (a > 0) {\n\t\ts = s + 1;\n\t}\n}\nout1 = s;\n";
   assert.throws(() => compile(carried), /keep it in Data/);
+});
+
+
+test("MOD tab: drag a cable source → destination, pick it up again, RANDOM ≤ MAX cables, CLEAR; RND turns into CV when patched", () => {
+  const b = boot(); b.draw();
+  const tab = b.ctx.hits.find((h) => h.kind === "tab" && h.tab === "MOD");
+  b.ctx.onclick(tab.x + 5, tab.y + 5, 1); b.draw();
+  const src = (i) => b.ctx.hits.find((h) => h.kind === "jack_src" && h.src === i);
+  const dst = (n) => b.ctx.hits.find((h) => h.kind === "jack_dst" && h.name === "dst_" + n);
+  // CLOCK (5) → Seed
+  let s = src(5), d = dst("seed");
+  b.out.length = 0;
+  b.ctx.onclick(s.x + 8, s.y + 8, 1); b.ctx.ondrag(d.x + 8, d.y + 7, 1); b.ctx.ondrag(d.x + 8, d.y + 7, 0);
+  assert.deepStrictEqual(b.out.pop().slice(1), ["dst_seed", 5]);
+  b.ctx.p("dst_seed", 5); b.draw();
+  // pick it up and drop it nowhere → removed
+  b.out.length = 0; d = dst("seed");
+  b.ctx.onclick(d.x + 8, d.y + 7, 1); b.ctx.ondrag(400, 100, 0);
+  assert.deepStrictEqual(b.out.map((m) => m.slice(1)), [["dst_seed", 0]]);
+  // destination → source works too: Time ← SEQ (6)
+  b.ctx.p("dst_seed", 0); b.draw(); b.out.length = 0;
+  d = dst("time"); s = src(6);
+  b.ctx.onclick(d.x + 8, d.y + 7, 1); b.ctx.ondrag(s.x + 8, s.y + 8, 0);
+  assert.deepStrictEqual(b.out.pop().slice(1), ["dst_time", 6]);
+  b.ctx.p("dst_time", 6); b.ctx.p("time_amt", 0.9);
+  assert.match(b.ctx.valueText("time_amt"), /^CV x/);
+  b.ctx.p("time_amt", 0.1); assert.match(b.ctx.valueText("time_amt"), /^CV rnd/);
+  // RANDOM with MAX 3: 10 resets, then 1..3 cables
+  for (let k = 0; k < 20; k++) {
+    b.out.length = 0;
+    const r = b.ctx.hits.find((h) => h.name === "random"); b.ctx.onclick(r.x + 5, r.y + 5, 1);
+    const set = b.out.filter((m) => /^dst_/.test(m[1]) && m[2] > 0);
+    assert.ok(set.length >= 1 && set.length <= 3 && set.every((m) => m[2] >= 1 && m[2] <= 6));
+  }
+  b.out.length = 0;
+  const c = b.ctx.hits.find((h) => h.name === "clear"); b.ctx.onclick(c.x + 5, c.y + 5, 1);
+  assert.strictEqual(b.out.filter((m) => /^dst_/.test(m[1]) && m[2] === 0).length, 10);
+  b.ctx.p("dst_seed", 5); b.ctx.p("dst_time", 6); b.ctx.p("dst_reverb", 1); b.ctx.seq(3, 1); b.draw();
+  const svg = b.mg.svg();
+  for (const m of svg.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)" [^>]*font-size="([\d.]+)"[^>]*>([^<]*)</g)) {
+    const [x, y, f, t] = [+m[1], +m[2], +m[3], m[4]];
+    assert.ok(x >= 0 && y <= 169 && y - f >= 0 && x + t.length * f * 0.58 <= 901, `"${t}" at ${x},${y}`);
+  }
+  fs.writeFileSync(path.join(ROOT, "renders", "panel_mod.svg"), svg);
+});
+
+test("MOD tab sequencer: click toggles a step (value kept), drag sets its value; DIV / LEN drag in steps", () => {
+  const b = boot(); b.ctx.onclick(70, 55, 1); b.draw();
+  const tab = b.ctx.hits.find((h) => h.kind === "tab" && h.tab === "MOD"); b.ctx.onclick(tab.x + 5, tab.y + 5, 1); b.draw();
+  const step = (i) => b.ctx.hits.find((h) => h.kind === "step" && h.step === i);
+  let h = step(4); b.out.length = 0;                         // step 5 is on (0.25) → off, value kept
+  b.ctx.onclick(h.x + 3, h.y + 5, 1); b.ctx.ondrag(h.x + 3, h.y + 5, 0);
+  const off = b.out.pop(); assert.strictEqual(off[1], "sq4"); assert.ok(off[2] < 0);
+  b.ctx.p("sq4", off[2]); assert.ok(Math.abs(b.ctx.stepVal(4) - 0.25) < 0.01, "value kept while off");
+  h = step(1); b.out.length = 0;                             // drag on an off step: on + value
+  b.ctx.onclick(h.x + 3, h.y + h.h - 2, 1); b.ctx.ondrag(h.x + 3, h.y + 2, 1); b.ctx.ondrag(h.x + 3, h.y + 2, 0);
+  const on = b.out.pop(); assert.strictEqual(on[1], "sq1"); assert.ok(on[2] > 0.8);
+  const div = b.ctx.hits.find((x) => x.name === "sq_div"); b.out.length = 0;
+  b.ctx.onclick(div.x + 5, div.y + 5, 1); b.ctx.ondrag(div.x + 5, div.y - 20, 0);
+  const dv = b.out.pop(); assert.strictEqual(dv[1], "sq_div"); assert.ok(Number.isInteger(dv[2]) && dv[2] >= 0 && dv[2] <= 14);
 });

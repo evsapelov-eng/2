@@ -17,7 +17,9 @@ The reference is **`docs/FEATURE_MATRIX.md`** (Beads → source → FLØCK → t
    - Did it break other rows (run the tests again)?
    - Do the panel texts, help, `dist_README.txt` and the parameter names say the same thing?
    - If a test contradicts Beads, the test is wrong. If it contradicts my expectation but matches Beads, my expectation is wrong; fix the test against the formula from C.
-5. In the reply to the user, a short **"Check against the matrix"** section: which rows were touched, what was confirmed and by what, what is still not like Beads.
+5. After changing `gen/flock.genexpr` or `tools/beads_ref.js`: `npm run verify` (it breaks the engine on purpose; every mutation must be caught by the tests). If a mutation survives, find out why (is the code path unreachable, or is the test blind?) and fix the test or prove the mutation is equivalent.
+6. A differential test cannot see a mistake made in both models (example: the block size of 24 instead of sr/4000 = 12). So also check the constants against the Beads source code itself, not only against the reference.
+7. In the reply to the user, a short **"Check against the matrix"** section: which rows were touched, what was confirmed and by what, what is still not like Beads.
 
 ## Technical
 - `gen/flock.genexpr` is the gen~ code. Only the subset that `tools/genexpr.js` runs and lints: reserved gen~ names, block scope of locals, History written at the end of a pass, **functions before Param/Data/History**, **no locals from outside a loop assigned inside it (accumulators in Data)**. The rules come from a real Max 9.1 compiler (see PORTING_NOTES). The very first test in Live (v0.1.1) was silent precisely because of them.

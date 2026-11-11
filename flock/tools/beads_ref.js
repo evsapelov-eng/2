@@ -1,13 +1,13 @@
 // Independent REFERENCE of the Beads DSP (Pristine / 48 kHz path, granular mode), transcribed
 // class by class from the C++ (pichenettes/eurorack beads @ f4cfa76 + stmlib, MIT), WITHOUT
 // looking at gen/flock.genexpr. Used only by tests to check the gen~ port sample by sample.
-// Kept like the module: blocks of 24 samples with ParameterInterpolator, fixed-point (×1024)
+// Kept like the module: blocks of sr/4000 samples (kBlockRate = 4000 → 12 at 48 kHz) with ParameterInterpolator, fixed-point (×1024)
 // grain positions, 16-bit buffer. float32 rounding of the module is NOT emulated (double).
 // Random: one shared generator (Random::GetFloat) — the caller passes the same stream as gen~.
 "use strict";
 
 const kMaxGrainFrequency = 130.81278;
-const BLOCK = 24;
+const BLOCK = 12;   // beads.cc kBlockRate = 4000 → 48000 / 4000
 
 function SmoothStep(x) { return x * x * (3 - 2 * x); }
 function SemitonesToRatio(s) { return Math.pow(2, s / 12); }   // stmlib uses a LUT (≈ exact)
@@ -43,8 +43,11 @@ class Ref {
     this.instant = Math.trunc(sr * 0.005); this.preempt = Math.trunc(sr * 0.1); this.simpleThr = Math.trunc(sr * 0.025);
     this.grain_interval = 1; this.max_grain_duration = sr * 4;
     // ---- trigger generator
-    this.tg = { phase: 0, ratio: 1, elapsed: Math.trunc(sr / 2), frequency: 0, prev: 0 };
-    this.tg.frequency = 1 / this.tg.elapsed;
+    this.tg = { phase: 0, ratio: 1, elapsed: Math.trunc(sr / 2), frequency: 0, prev: false, prevExt: false,
+      target: 0, lp: 1, audio: false, accept: true, count: 0, division: 1, quant: 0,
+      defaultReset: Math.trunc(sr * 4), resetInt: Math.trunc(sr * 4), audioInt: Math.trunc(sr / 48), one_hertz: 1 / sr };
+    this.tg.frequency = this.tg.target = 1 / this.tg.elapsed;
+    this.cv = null;
     // ---- granular processor
     this.feedback = 0; this.prev = [0, 0];
     this.dc = [this.svf(40 / sr, 0.5), this.svf(40 / sr, 0.5)];
@@ -228,10 +231,71 @@ class Ref {
     this.grain_interval = 0;
   }
   // ---------------- trigger_generator.cc (no external SEED input)
-  triggers(seedState, density, n) {
+  // HysteresisQuantizer2(8, 0.075, false)
+  quantize(v) {
+    const value = v * 8 - 0.5, sign = value > this.tg.quant ? -1 : 1;
+    this.tg.quant = Math.min(7, Math.max(0, Math.trunc(value + sign * 0.075 + 0.5)));
+    return this.tg.quant;
+  }
+  renderDivider(flags, density, out) {
+    const tg = this.tg, ratios = [1, 2, 3, 4, 6, 8, 12, 16];
+    const division = density < 0.48 ? ratios[this.quantize(density * 2.15)] : 1;
+    const probability_sqrt = density < 0.48 ? 1.01 : Math.max((density - 0.52) * 2.15, 0);
+    const probability = probability_sqrt * probability_sqrt;
+    const regularity = probability >= 1 ? 1 : 0;
+    for (const fl of flags) {
+      tg.frequency = ONE_POLE(tg.frequency, tg.target, tg.lp);
+      tg.phase += tg.frequency;
+      if (fl.rising) {
+        if (tg.elapsed >= tg.resetInt) { tg.count = 0; tg.phase = 0; }
+        tg.resetInt = Math.max(tg.defaultReset, 4 * tg.elapsed);
+        const threshold = tg.audioInt + (tg.audio ? 8 : 0);
+        tg.audio = tg.elapsed < threshold && probability >= 1;
+        tg.accept = this.R() < probability && (tg.count % division) === 0;
+        if (tg.accept) {
+          const period = tg.elapsed, frequency = 1 / period;
+          tg.target = probability >= 1 ? frequency / division : frequency * probability;
+          if (tg.audio) {
+            let no_glide = division !== tg.division;
+            tg.division = division;
+            const up = (1.02 + 2 * frequency) * tg.frequency, down = (0.98 - 2 * frequency) * tg.frequency;
+            no_glide = no_glide || tg.target > up || tg.target < down;
+            tg.lp = no_glide ? 1 : period * tg.one_hertz;
+          } else { tg.phase = 0; tg.lp = 1; }
+        } else if (probability < 1) tg.target *= (1 - probability);
+        tg.count = (tg.count + 1) % 48;
+        tg.elapsed = 0;
+      }
+      tg.elapsed++;
+      if (tg.audio) {
+        let t = 0; const reset = tg.phase >= 1;
+        if (reset) { tg.phase -= 1; t = tg.phase / tg.frequency; }
+        out.push({ trigger: reset, fractional_sample: t, regularity });
+      } else {
+        if (tg.phase >= 1) tg.phase = 1;
+        out.push({ trigger: tg.accept && fl.rising, fractional_sample: 0, regularity });
+      }
+    }
+  }
+  // TriggerGenerator::Render(seed_button_state, external_input (null = unpatched), density, linear_fm, exponential_fm)
+  triggers(seedState, density, n, ext, linear_fm = 0, exponential_fm = 0) {
     const out = [], tg = this.tg, maxf = kMaxGrainFrequency / this.sr;
+    // beads.cc: the SEED input's own gate flags (previous_seed), updated whenever it is patched
+    const extFlags = [];
+    if (ext) for (let i = 0; i < n; i++) { const g = !!ext[i]; extFlags.push({ high: g, rising: g && !tg.prevExt }); tg.prevExt = g; }
+    if (ext && seedState === 2) {
+      density = Math.min(1, Math.max(0, density + linear_fm + exponential_fm));
+      this.renderDivider(extFlags, density, out);
+      return out;
+    }
+    density = Math.min(1, Math.max(0, density + linear_fm));
+    const fm = SemitonesToRatio(exponential_fm * 60);
     const flags = [];
-    for (let i = 0; i < n; i++) { const gate = seedState !== 0; flags.push({ high: gate, rising: gate && !tg.prev }); tg.prev = gate; }
+    for (let i = 0; i < n; i++) {
+      let gate = seedState !== 0;
+      if (ext) gate = gate || !!ext[i];
+      flags.push({ high: gate, rising: gate && !tg.prev }); tg.prev = gate;
+    }
     const pulse = (frequency, randomize) => {
       if (!randomize) tg.ratio = 1;
       for (const fl of flags) {
@@ -243,8 +307,8 @@ class Ref {
         out.push({ trigger: reset && fl.high, fractional_sample: t, regularity: randomize ? 0 : 1 });
       }
     };
-    if (density < 0.48) pulse(maxf * SemitonesToRatio(-density * 192), false);
-    else if (density > 0.52) pulse(0.5 * maxf * SemitonesToRatio(-(1 - density) * 192), true);
+    if (density < 0.48) pulse(maxf * SemitonesToRatio(-density * 192) * fm, false);
+    else if (density > 0.52) pulse(0.5 * maxf * SemitonesToRatio(-(1 - density) * 192) * fm, true);
     else if (seedState === 2) for (let i = 0; i < n; i++) out.push({ trigger: false, fractional_sample: 0, regularity: 0 });
     else for (const fl of flags) {
       tg.phase += tg.frequency;
@@ -313,9 +377,26 @@ class Ref {
     q.feedback = Math.min(1, q.fbk * 1.005); q.dry_wet = Math.min(1, q.dwk * 1.005); q.reverb = Math.min(1, q.rvk * 1.005);
     return q;
   }
-  processBlock(Praw, inL, inR, outL, outR, at, n) {
+  processBlock(Praw, inL, inR, outL, outR, at, n, X) {
     const P = this.pots(Praw);
-    const trig = this.triggers(P.seedState, P.density, n);
+    X = X || {};
+    // CvReader: CV channels read once per block with their low-pass (TIME/SIZE/SHAPE 0.5, PITCH/DENSITY 1, ASSIGN 0.1)
+    const lpc = { time: 0.5, size: 0.5, shape: 0.5, pitch: 1, density: 1, fb: 0.1, dw: 0.1, rv: 0.1 };
+    const raw = (k) => (X[k] ? X[k][at] : 0);
+    if (!this.cv) { this.cv = {}; for (const k in lpc) this.cv[k] = raw(k); }
+    else for (const k in lpc) this.cv[k] = ONE_POLE(this.cv[k], raw(k), lpc[k]);
+    for (const k of ["time", "size", "shape", "pitch"]) if (X[k]) { P[k].has_cv = true; P[k].cv = this.cv[k]; }
+    // assignable CV: mix = base·1.005 + cv·amount, clamped (only for routed destinations)
+    const amt = X.amt || {};
+    if (X.fb) P.feedback = Math.min(1, Math.max(0, P.fbk * 1.005 + this.cv.fb * amt.fb));
+    if (X.dw) P.dry_wet = Math.min(1, Math.max(0, P.dwk * 1.005 + this.cv.dw * amt.dw));
+    if (X.rv) P.reverb = Math.min(1, Math.max(0, P.rvk * 1.005 + this.cv.rv * amt.rv));
+    // Processor: DENSITY CV is linear in the middle, exponential FM near the extremes
+    const expo = Math.min(1, Math.max(0, 20 * (Math.abs(P.density - 0.5) - 0.225)));
+    const dcv = X.density ? this.cv.density : 0;
+    // beads.cc: the SEED input is delayed by 10 blocks (event_delay.Read(size * 10), 2.5 ms)
+    const ext = X.seed ? Array.from({ length: n }, (_, i) => { const j = at + i - 10 * BLOCK; return j >= 0 && X.seed[j] > 0.5; }) : null;
+    const trig = this.triggers(P.seedState, P.density, n, ext, (1 - expo) * dcv, expo * dcv);
     const fbInc = (P.feedback - this.feedback) / n;
     const wet_out = [];
     for (let i = 0; i < n; i++) {
@@ -325,7 +406,7 @@ class Ref {
       const s = [input[0] + this.prev[0] * fb * fb * 3, input[1] + this.prev[1] * fb * fb * 3];
       this.limiter(this.lim_in, s);
       const out = [0, 0];
-      this.writeFrame(s, P.freeze);
+      this.writeFrame(s, P.freeze || (X.freeze ? X.freeze[at + i] > 0.5 : false));
       this.playerRender(trig[i], P, out);
       this.prev[0] = ONE_POLE(this.prev[0], this.svfHP(this.dc[0], out[0]), 0.999);
       this.prev[1] = ONE_POLE(this.prev[1], this.svfHP(this.dc[1], out[1]), 0.999);
@@ -360,4 +441,4 @@ function fromKnobs(k) {
   };
 }
 
-module.exports = { Ref, fromKnobs, attenuverterLaw, detuneLaw };
+module.exports = { Ref, fromKnobs, attenuverterLaw, detuneLaw, BLOCK };

@@ -29,6 +29,32 @@ var P = {
   freeze: { v: 0, d: 0 }, seed: { v: 0, d: 0 }, seedlatch: { v: 1, d: 1 },
   input: { v: 0, d: 0, lo: -12, hi: 32 }, output: { v: 0, d: 0, lo: -24, hi: 12 }
 };
+// ---- MOD tab: sources, destinations (a destination takes one source, like a jack), modulators
+var SRC = ["LFO 1", "LFO 2", "RANDOM", "ENV", "CLOCK", "SEQ"];
+var SRC_COL = [[0.17, 0.30, 0.61, 1], [0.13, 0.52, 0.50, 1], [0.76, 0.22, 0.38, 1], [0.84, 0.55, 0.13, 1], [0.35, 0.35, 0.33, 1], [0.45, 0.30, 0.62, 1]];
+var DST = [["freeze", "Freeze"], ["seed", "Seed"], ["time", "Time"], ["pitch", "Pitch"], ["size", "Size"], ["shape", "Shape"],
+  ["density", "Density"], ["feedback", "Feedback"], ["reverb", "Reverb"], ["drywet", "Dry/Wet"]];
+var DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"];
+var SHAPES = ["sine", "tri", "saw", "square"];
+(function () {
+  var i, d = function (v, extra) { var o = { v: v, d: v }; if (extra) for (var k in extra) o[k] = extra[k]; return o; };
+  for (i = 0; i < DST.length; i++) P["dst_" + DST[i][0]] = d(0, { lo: 0, hi: 6, int: 1 });
+  P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1);
+  P.l1_rate = d(0.4); P.l1_sync = d(0); P.l1_shape = d(0, { lo: 0, hi: 3, int: 1 }); P.l1_reset = d(0); P.l1_amt = d(1);
+  P.l2_rate = d(0.25); P.l2_sync = d(0); P.l2_shape = d(1, { lo: 0, hi: 3, int: 1 }); P.l2_reset = d(0); P.l2_amt = d(1);
+  P.rn_rate = d(0.4); P.rn_sync = d(0); P.rn_smooth = d(1); P.rn_amt = d(1);
+  P.env_gain = d(0.5);
+  P.ck_rate = d(0.857); P.ck_sync = d(1);
+  P.sq_div = d(12, { lo: 0, hi: 14, int: 1 }); P.sq_len = d(16, { lo: 1, hi: 16, int: 1 });
+  var SQ = [1, -1, -1, -1, 0.25, -1, -1, -1, 0.5, -1, 0.75, -1, 0.625, -1, -1, -1];
+  for (i = 0; i < 16; i++) P["sq" + i] = d(SQ[i], { lo: -1, hi: 1 });
+})();
+var tab = "SOUND", maxCables = 3, seqPos = -1, running = 0;
+function seq(stepIndex, run) { seqPos = +stepIndex; running = +run; dirty = true; }   // from the engine
+// a sequencer step: value 0..1 when on; off = -(v + 0.01) / 1.01 (keeps the value while off)
+function stepOn(i) { return P["sq" + i].v >= 0; }
+function stepVal(i) { var v = P["sq" + i].v; return v >= 0 ? v : Math.max(0, -v * 1.01 - 0.01); }
+function stepCode(on, v) { return on ? Math.round(v * 1000) / 1000 : Math.round(-(v + 0.01) / 1.01 * 1000) / 1000; }
 var BIG = [["time", "TIME", "BUFFER POSITION"], ["density", "DENSITY", "GRAIN RATE"], ["pitch", "PITCH", "TRANSPOSE"],
   ["size", "SIZE", "GRAIN LENGTH"], ["shape", "SHAPE", "ENVELOPE"]];
 var MIX = [["feedback", "FEEDBACK"], ["drywet", "DRY/WET"], ["reverb", "REVERB"]];
@@ -81,6 +107,7 @@ function grainMs(s) {
   var rev = s < 0.3333333, csh = rev ? s * 3 * (2 - s * 3) : 1 - 1.5 * (s - 0.3333333);
   return Math.pow(2, Math.min(1, 1.025 * csh) * -9) * 4000;
 }
+function fmtHz(hz) { return (hz < 1 ? Math.round(hz * 100) / 100 : Math.round(hz * 10) / 10) + " Hz"; }
 function fmtMs(ms) { return ms >= 1000 ? (Math.round(ms / 100) / 10) + " s" : Math.round(ms) + " ms"; }
 function pct(v) { return Math.round(v * 100) + "%"; }
 function valueText(name) {
@@ -94,7 +121,18 @@ function valueText(name) {
   if (name === "pitch") { var st = detune(v); return (st > 0 ? "+" : "") + (Math.round(st * 10) / 10) + " st"; }
   if (name === "size") return v > 0.99 ? "inf: delay v0.3" : (v < 0.3333333 ? "rev " : "") + fmtMs(grainMs(v));
   if (name === "shape") return v < 0.12 ? "square" : v < 0.3 ? "hold+decay" : v < 0.45 ? "decay" : v < 0.6 ? "smooth" : v < 0.85 ? "bell" : "slow attack";
-  if (name.indexOf("_amt") > 0) { var a = attenu(v); return Math.abs(a) < 0.005 ? "0" : (a < 0 ? "peaky " : "even ") + pct(Math.abs(a)); }
+  if (/^(time|pitch|size|shape)_amt$/.test(name)) {
+    var a = attenu(v), routed = P["dst_" + name.split("_")[0]].v > 0.5;
+    if (Math.abs(a) < 0.005) return "0";
+    // with a cable (Beads, CV patched): CW = amount of the CV, CCW = CV-controlled randomness
+    if (routed) return (a < 0 ? "CV rnd " : "CV x") + pct(Math.abs(a));
+    return (a < 0 ? "peaky " : "even ") + pct(Math.abs(a));
+  }
+  if (/^l[12]_rate$|^rn_rate$/.test(name)) { var sy = P[name.replace("rate", "sync")].v > 0.5; return sy ? DIVS[Math.round(v * 14)] : fmtHz(0.02 * Math.pow(1000, v)); }
+  if (name === "ck_rate") return P.ck_sync.v > 0.5 ? DIVS[Math.round(v * 14)] : fmtHz(0.1 * Math.pow(400, v));
+  if (name === "env_gain") return "x" + (Math.round(0.25 * Math.pow(64, v) * 10) / 10);
+  if (name === "sq_div") return DIVS[Math.round(v)];
+  if (name === "sq_len") return String(Math.round(v));
   if (name === "input" || name === "output") return (v > 0 ? "+" : "") + (Math.round(v * 10) / 10) + " dB";
   return pct(v);
 }
@@ -153,8 +191,14 @@ function paint() {
   rect(0, 0, W0, H0, C.bg, true);
   rect(3, 3, W0 - 6, H0 - 6, C.line, false, 1);
   // ---- left: logo, FREEZE / SEED, LATCH
-  drawLogo(14, 34, 24);
-  text("granular texture", 15, 48, 7.5, C.mid);
+  drawLogo(14, 30, 22);
+  text("granular texture", 15, 42, 7, C.mid);
+  for (var ti = 0; ti < 2; ti++) {
+    var tn = ti ? "MOD" : "SOUND", tx0 = 14 + ti * 64, on = tab === tn;
+    rect(tx0, 49, 60, 13, C.ink, on, 1);
+    textC(tn, tx0 + 30, 59, 7, on ? C.panel : C.ink, true);
+    hit({ x: tx0, y: 49, w: 60, h: 13, kind: "tab", name: "tab_" + tn, tab: tn });
+  }
   roundButton(42, 82, 15, "FREEZE", P.freeze.v > 0.5, "freeze", false);
   roundButton(110, 82, 15, "SEED", P.seed.v > 0.5 || (P.seedlatch.v > 0.5 && pulseOn()), "seed", true);
   var lx = 14, ly = 120;
@@ -163,6 +207,7 @@ function paint() {
   hit({ x: lx, y: ly, w: 126, h: 16, kind: "toggle", name: "seedlatch" });
   text("grains " + tapeSt.active + " / 32", 15, 156, 7.5, C.mid);
   line(152, 12, 152, H0 - 12, C.line);
+  if (tab === "MOD") { paintMod(); return; }
   // ---- big knobs
   for (var i = 0; i < BIG.length; i++) {
     var b = BIG[i], cx = KX[i];
@@ -176,7 +221,7 @@ function paint() {
     } else {
       var an = b[0] + "_amt";
       knob(cx, 131, 8, an, true);
-      text("RND", cx + 14, 129, 6, C.mid, true);
+      text(P["dst_" + b[0]].v > 0.5 ? "CV" : "RND", cx + 14, 129, 6, P["dst_" + b[0]].v > 0.5 ? C.accent : C.mid, true);
       text(valueText(an), cx + 14, 138, 6, C.ink);
     }
   }
@@ -193,6 +238,131 @@ function paint() {
   // ---- tape: record head + where the grains start
   drawTape(598, 90, 290, 58);
   text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
+}
+// ================= MOD tab =================
+var JS_X = 575, JD_X = 790;
+function srcY(i) { return 26 + i * 23; }
+function dstY(j) { return 14 + j * 14.2; }
+// small knob for the MOD tab: thin ring, fits in a 14 px row
+function smallKnob(cx, cy, name) {
+  var v = norm(name, P[name].v), a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
+  arc(cx, cy, 6, A0, A1, C.line, 2);
+  arc(cx, cy, 6, A0, a, C.accent, 2);
+  circle(cx, cy, 3.2, C.ink, true);
+  line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * 6, cy + Math.sin(a) * 6, C.ink, 1.5);
+  if (act) circle(cx, cy, 8.5, C.accent, false, 1, 0.5);
+  hit({ x: cx - 8, y: cy - 8, w: 16, h: 16, kind: "knob", name: name });
+}
+// thin horizontal amount bar (FEEDBACK / DRY-WET / REVERB CV amounts next to their jacks)
+function amountBar(x, y, w, name) {
+  rect(x, y - 3, w, 6, C.line, true);
+  rect(x, y - 3, w * P[name].v, 6, C.accent, true);
+  hit({ x: x - 2, y: y - 6, w: w + 4, h: 12, kind: "knob", name: name });
+}
+function pill(x, y, w, label, on, kind, name, extra) {
+  rect(x, y, w, 12, C.ink, on, 1);
+  textC(label, x + w / 2, y + 9, 6.5, on ? C.panel : C.ink, true);
+  var o = { x: x, y: y, w: w, h: 12, kind: kind, name: name };
+  if (extra) for (var k in extra) o[k] = extra[k];
+  hit(o);
+}
+function shapeIcon(x, y, w, h, shp) {
+  col(C.ink); mgraphics.set_line_width(1.2);
+  for (var i = 0; i <= 20; i++) {
+    var ph = i / 20, v = shp === 0 ? Math.sin(2 * Math.PI * ph) : shp === 1 ? (ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph) : shp === 2 ? 1 - 2 * ph : (ph < 0.5 ? 1 : -1);
+    var px = x + ph * w, py = y + h / 2 - v * h / 2;
+    if (i === 0) mgraphics.move_to(px, py); else mgraphics.line_to(px, py);
+  }
+  mgraphics.stroke();
+}
+function paintMod() {
+  text("MODULATORS", 160, 13, 7, C.mid, true);
+  text(running ? "PLAYING (synced to Live)" : "Live stopped: synced sources wait", 260, 13, 6.5, running ? C.accent : C.mid);
+  for (var i = 0; i < 6; i++) {
+    var y = srcY(i);
+    text(SRC[i], 160, y + 3, 7.5, C.ink, true);
+    if (i < 2) {
+      var pre = "l" + (i + 1) + "_";
+      smallKnob(222, y, pre + "rate"); text(valueText(pre + "rate"), 233, y + 3, 6.5, C.ink);
+      pill(282, y - 6, 28, "SYNC", P[pre + "sync"].v > 0.5, "toggle", pre + "sync");
+      rect(314, y - 6, 34, 12, C.ink, false, 1); shapeIcon(317, y - 4, 28, 8, Math.round(P[pre + "shape"].v));
+      hit({ x: 314, y: y - 6, w: 34, h: 12, kind: "cycle", name: pre + "shape", n: 4 });
+      pill(352, y - 6, 14, "R", P[pre + "reset"].v > 0.5, "toggle", pre + "reset");
+      smallKnob(384, y, pre + "amt"); text("AMT " + pct(P[pre + "amt"].v), 395, y + 3, 6.5, C.ink);
+    } else if (i === 2) {
+      smallKnob(222, y, "rn_rate"); text(valueText("rn_rate"), 233, y + 3, 6.5, C.ink);
+      pill(282, y - 6, 28, "SYNC", P.rn_sync.v > 0.5, "toggle", "rn_sync");
+      pill(314, y - 6, 42, P.rn_smooth.v > 0.5 ? "SMOOTH" : "STEPS", P.rn_smooth.v > 0.5, "toggle", "rn_smooth");
+      smallKnob(384, y, "rn_amt"); text("AMT " + pct(P.rn_amt.v), 395, y + 3, 6.5, C.ink);
+    } else if (i === 3) {
+      smallKnob(222, y, "env_gain"); text("GAIN " + valueText("env_gain"), 233, y + 3, 6.5, C.ink);
+      text("follows the input level", 300, y + 3, 6.5, C.mid);
+    } else if (i === 4) {
+      smallKnob(222, y, "ck_rate"); text(valueText("ck_rate"), 233, y + 3, 6.5, C.ink);
+      pill(282, y - 6, 28, "SYNC", P.ck_sync.v > 0.5, "toggle", "ck_sync");
+      text("pulses -> SEED: LATCH on = DENSITY divides / thins them", 316, y + 3, 6, C.mid);
+    } else {
+      rect(202, y - 7, 34, 14, C.ink, false, 1); textC(valueText("sq_div"), 219, y + 3, 6.5, C.ink, true);
+      hit({ x: 202, y: y - 7, w: 34, h: 14, kind: "knob", name: "sq_div" });
+      rect(240, y - 7, 22, 14, C.ink, false, 1); textC(valueText("sq_len"), 251, y + 3, 6.5, C.ink, true);
+      hit({ x: 240, y: y - 7, w: 22, h: 14, kind: "knob", name: "sq_len" });
+      drawSeq(268, y - 10, 290, 20);
+    }
+    // source jack
+    circle(JS_X, y, 5, C.panel, true); circle(JS_X, y, 5, SRC_COL[i], false, 2); circle(JS_X, y, 1.8, SRC_COL[i], true);
+    hit({ x: JS_X - 8, y: y - 8, w: 16, h: 16, kind: "jack_src", name: "src" + i, src: i + 1 });
+  }
+  // destinations
+  for (var j = 0; j < DST.length; j++) {
+    var dy = dstY(j), dn = "dst_" + DST[j][0], si = Math.round(P[dn].v);
+    circle(JD_X, dy, 5, C.panel, true); circle(JD_X, dy, 5, si ? SRC_COL[si - 1] : C.ink, false, si ? 2 : 1.2);
+    if (si) circle(JD_X, dy, 1.8, SRC_COL[si - 1], true);
+    text(DST[j][1], 800, dy + 3, 7, C.ink, si > 0);
+    hit({ x: JD_X - 8, y: dy - 7, w: 60, h: 14, kind: "jack_dst", name: dn, dst: j });
+    var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt" }[DST[j][0]];
+    if (an) amountBar(852, dy, 30, an);
+  }
+  // cables (drawn last, on top)
+  for (var k = 0; k < DST.length; k++) {
+    var s2 = Math.round(P["dst_" + DST[k][0]].v);
+    if (s2 > 0) cable(JS_X, srcY(s2 - 1), JD_X, dstY(k), SRC_COL[s2 - 1], 1);
+  }
+  if (drag && drag.kind === "cable") cable(drag.x0, drag.y0, drag.x, drag.y, drag.src ? SRC_COL[drag.src - 1] : C.ink, 0.6);
+  // RANDOM patch / MAX / CLEAR
+  pill(596, 152, 56, "RANDOM", false, "cmd", "random");
+  rect(656, 152, 40, 12, C.ink, false, 1); textC("MAX " + maxCables, 676, 161, 6.5, C.ink, true);
+  hit({ x: 656, y: 152, w: 40, h: 12, kind: "max", name: "maxcables" });
+  pill(700, 152, 50, "CLEAR", false, "cmd", "clear");
+  fitHelp(160, 162, 420);
+}
+function cable(x1, y1, x2, y2, c, a) {
+  col(c, a); mgraphics.set_line_width(2);
+  var sag = 10 + Math.abs(x2 - x1) * 0.08;
+  mgraphics.move_to(x1, y1);
+  mgraphics.curve_to(x1 + (x2 - x1) * 0.35, y1 + sag, x1 + (x2 - x1) * 0.65, y2 + sag, x2, y2);
+  mgraphics.stroke();
+}
+function drawSeq(x, y, w, h) {
+  var cw = w / 16, len = Math.round(P.sq_len.v);
+  for (var i = 0; i < 16; i++) {
+    var cx = x + i * cw, inLen = i < len, on = stepOn(i), v = stepVal(i);
+    rect(cx + 0.5, y, cw - 1.5, h, inLen ? C.ink : C.line, false, 1, inLen ? 1 : 0.6);
+    if (on) rect(cx + 1.5, y + h - 1 - v * (h - 2), cw - 3.5, Math.max(1.5, v * (h - 2)), inLen ? SRC_COL[5] : C.line, true);
+    if (i === seqPos && running) rect(cx + 0.5, y - 3, cw - 1.5, 2, C.accent, true);
+    if (i % 4 === 0) line(cx, y + h + 1, cx, y + h + 3, C.mid);
+    hit({ x: cx, y: y, w: cw, h: h, kind: "step", name: "sq" + i, step: i, top: y, h2: h });
+  }
+}
+function fitHelp(x, y, w) {
+  var s = hoverHelp(), fs = 6.5;
+  while (tw(s, fs, !!hover) > w && s.length > 8) s = s.substring(0, s.length - 2);
+  text(s, x, y, fs, hover ? C.ink : C.mid, !!hover);
+}
+function randomPatch() {
+  var i, n = 1 + Math.floor(Math.random() * maxCables), order = [];
+  for (i = 0; i < DST.length; i++) { order.push(i); send("dst_" + DST[i][0], 0); }
+  for (i = order.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = order[i]; order[i] = order[j]; order[j] = t; }
+  for (i = 0; i < Math.min(n, DST.length); i++) send("dst_" + DST[order[i]][0], 1 + Math.floor(Math.random() * 6));
 }
 var t0 = new Date().getTime();
 function pulseOn() { return Math.floor((new Date().getTime() - t0) / 600) % 2 === 0; }
@@ -239,15 +409,42 @@ var HELP = {
   output: "OUT: output gain",
   freeze: "FREEZE: stop recording - the grains keep playing what is in the buffer",
   seed: "SEED: hold = grains (LATCH off) · tap = 1 grain at 12h · tap while latched = LATCH off · hold 4 s = LATCH on",
-  seedlatch: "LATCH: grains are generated continuously at the DENSITY rate"
+  seedlatch: "LATCH: grains are generated continuously at the DENSITY rate",
+  tab_SOUND: "SOUND: the sound controls", tab_MOD: "MOD: modulators and the patch matrix",
+  l1_rate: "LFO 1 RATE: Hz, or a tempo division when SYNC is on", l2_rate: "LFO 2 RATE: Hz, or a tempo division when SYNC is on",
+  l1_sync: "SYNC: lock to Live's tempo and bar", l2_sync: "SYNC: lock to Live's tempo and bar", rn_sync: "SYNC: lock to Live's tempo and bar", ck_sync: "SYNC: clock divisions of Live's tempo (else Hz)",
+  l1_shape: "SHAPE: sine / triangle / saw / square (click)", l2_shape: "SHAPE: sine / triangle / saw / square (click)",
+  l1_reset: "R: restart the LFO when Live starts playing", l2_reset: "R: restart the LFO when Live starts playing",
+  l1_amt: "AMT: LFO level", l2_amt: "AMT: LFO level", rn_amt: "AMT: random level",
+  rn_rate: "RANDOM RATE: how often a new random value is chosen", rn_smooth: "SMOOTH glides between random values, STEPS jumps",
+  env_gain: "ENV GAIN: input level follower x0.25 ... x16",
+  ck_rate: "CLOCK: pulses at a tempo division (SYNC) or in Hz - into SEED for rhythmic grains",
+  sq_div: "SEQ RATE: step length (drag) - 1/16 = sixteenth notes", sq_len: "SEQ LENGTH: 1 ... 16 steps (drag)",
+  step: "STEP: click = on/off, drag up/down = value (into TIME = which slice, into PITCH = transposition)",
+  jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
+  random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
+  fb_amt: "FEEDBACK CV amount (Beads assignable CV)", dw_amt: "DRY/WET CV amount (Beads assignable CV)", rv_amt: "REVERB CV amount (Beads assignable CV)",
+  dst_freeze: "Freeze: freezes while the source is high", dst_seed: "Seed: gate/clock input - LATCH on: DENSITY divides (CCW) or thins (CW) the pulses; LATCH off: grains while high",
+  dst_time: "Time CV: RND knob turns into CV amount (CW) / CV randomness (CCW)", dst_pitch: "Pitch CV: +-12 st per unit, scaled by the PITCH RND knob",
+  dst_size: "Size CV via the SIZE RND knob", dst_shape: "Shape CV via the SHAPE RND knob", dst_density: "Density CV: linear in the middle, exponential FM near the ends",
+  dst_feedback: "Feedback CV x amount", dst_reverb: "Reverb CV x amount", dst_drywet: "Dry/Wet CV x amount"
 };
-function hoverHelp() { return hover && HELP[hover] ? HELP[hover] : "drag knobs up/down · shift = fine · double-click = default · hover = help"; }
+function hoverHelp() {
+  var k = hover;
+  if (k && /^sq\d+$/.test(k)) k = "step";
+  if (k && /^src\d$/.test(k)) k = "jack_src";
+  return k && HELP[k] ? HELP[k] : "drag knobs up/down · shift = fine · double-click = default · hover = help";
+}
 
 // ---------- interaction ----------
 function find(x, y) { for (var i = hits.length - 1; i >= 0; i--) { var h = hits[i]; if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h; } return null; }
 function send(name, v) { outlet(0, name, v); }
 function norm(name, v) { var q = P[name]; return q.lo !== undefined ? (v - q.lo) / (q.hi - q.lo) : v; }
-function denorm(name, n) { var q = P[name]; return q.lo !== undefined ? Math.round((q.lo + n * (q.hi - q.lo)) * 10) / 10 : Math.round(n * 1000) / 1000; }
+function denorm(name, n) {
+  var q = P[name];
+  if (q.int) return Math.round(q.lo + n * (q.hi - q.lo));
+  return q.lo !== undefined ? Math.round((q.lo + n * (q.hi - q.lo)) * 10) / 10 : Math.round(n * 1000) / 1000;
+}
 function onclick(x, y, but, cmd, shift) {
   x /= scaleF; y /= scaleF;
   var h = find(x, y); if (!h) return;
@@ -258,6 +455,17 @@ function onclick(x, y, but, cmd, shift) {
     drag = { kind: "momentary", name: h.name, t0: now() };
   }
   else if (h.kind === "knob") drag = { kind: "knob", name: h.name, y0: y, n0: norm(h.name, P[h.name].v) };
+  else if (h.kind === "tab") { tab = h.tab; dirty = true; }
+  else if (h.kind === "cycle") send(h.name, (Math.round(P[h.name].v) + 1) % h.n);
+  else if (h.kind === "cmd") { if (h.name === "random") randomPatch(); else for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); }
+  else if (h.kind === "max") drag = { kind: "max", y0: y, m0: maxCables };
+  else if (h.kind === "step") drag = { kind: "step", name: h.name, step: h.step, top: h.top, h2: h.h2, y0: y, moved: false };
+  else if (h.kind === "jack_src") drag = { kind: "cable", src: h.src, x0: JS_X, y0: srcY(h.src - 1), x: x, y: y };
+  else if (h.kind === "jack_dst") {
+    var cur = Math.round(P[h.name].v);
+    if (cur > 0) { send(h.name, 0); drag = { kind: "cable", src: cur, x0: JS_X, y0: srcY(cur - 1), x: x, y: y, fromDst: h.name }; }  // pick up the cable
+    else drag = { kind: "cable", dst: h.name, x0: JD_X, y0: dstY(h.dst), x: x, y: y };
+  }
 }
 function ondrag(x, y, but, cmd, shift) {
   if (!drag) return;
@@ -267,7 +475,24 @@ function ondrag(x, y, but, cmd, shift) {
     send(drag.name, denorm(drag.name, n));
     if (shift) { drag.n0 = n; drag.y0 = y; }
   }
-  if (!but) { if (drag.kind === "momentary") send(drag.name, 0); drag = null; dirty = true; }
+  if (drag.kind === "max") maxCables = Math.max(1, Math.min(10, drag.m0 + Math.round((drag.y0 - y) / 8)));
+  if (drag.kind === "step") {
+    if (Math.abs(y - drag.y0) > 2) drag.moved = true;
+    if (drag.moved) send(drag.name, stepCode(true, Math.max(0, Math.min(1, (drag.top + drag.h2 - y) / drag.h2))));
+  }
+  if (drag.kind === "cable") { drag.x = x; drag.y = y; dirty = true; }
+  if (!but) {
+    if (drag.kind === "momentary") send(drag.name, 0);
+    if (drag.kind === "step" && !drag.moved) send(drag.name, stepCode(!stepOn(drag.step), stepVal(drag.step)));
+    if (drag.kind === "cable") dropCable(x, y);
+    drag = null; dirty = true;
+  }
+}
+function dropCable(x, y) {
+  var h = find(x, y);
+  if (drag.src && h && h.kind === "jack_dst") send(h.name, drag.src);          // source → destination
+  else if (drag.dst && h && h.kind === "jack_src") send(drag.dst, h.src);       // destination → source
+  // dropped anywhere else: no cable (a picked-up cable is removed)
 }
 function ondblclick(x, y) {
   x /= scaleF; y /= scaleF;
