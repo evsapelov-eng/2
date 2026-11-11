@@ -1,0 +1,704 @@
+// FLØCK engine — gen~ codebox (GenExpr). v0.1: Pristine quality (16-bit stereo buffer), granular mode.
+//
+// Port of the Beads DSP by Emilie Gillet (Mutable Instruments), MIT licence:
+//   Copyright 2017 Emilie Gillet. Permission is hereby granted, free of charge, to any person
+//   obtaining a copy of this software ... (full text: flock/LICENSE-BEADS.txt).
+// Files ported here: beads/dsp/processor.cc, granular_processor.h, granular_player.h,
+// delay_granular_player.h, delay_grain.h, grain_envelope.h, voice_stealing_envelope.h,
+// delay_line.h (16-bit, Hermite read, freeze tail), trigger_generator.cc (latched / gated),
+// randomized_parameter.h, limiter.h, fx/reverb.h + fx_engine.h, cv_reader.h (pot laws),
+// stmlib SoftClip / Svf / CosineOscillator / Random.
+// Deviations (documented in docs/PORTING_NOTES.md): runs at the host sample rate with the
+// buffer length of the 48 kHz module (192000 frames); block-rate interpolation → per-sample
+// one-pole; no hysteresis on the pots; noise() instead of the module's LCG.
+//
+// Inlets : in1 L, in2 R, in3..in6 CV for TIME, SIZE, SHAPE, PITCH (MOD matrix; used if *_cv = 1)
+// Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,
+//          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed)
+//
+// Written in the subset that tools/genexpr.js can run and lint (see that file).
+
+Param time(0.5, min=0, max=1);
+Param size(0.45, min=0, max=1);
+Param shape(0.5, min=0, max=1);
+Param pitch(0.5, min=0, max=1);
+Param time_amt(0.5, min=0, max=1);
+Param size_amt(0.5, min=0, max=1);
+Param shape_amt(0.5, min=0, max=1);
+Param pitch_amt(0.5, min=0, max=1);
+Param time_cv(0, min=0, max=1);
+Param size_cv(0, min=0, max=1);
+Param shape_cv(0, min=0, max=1);
+Param pitch_cv(0, min=0, max=1);
+Param density(0.3, min=0, max=1);
+Param feedback(0, min=0, max=1);
+Param drywet(0.5, min=0, max=1);
+Param reverb(0.2, min=0, max=1);
+Param freeze(0, min=0, max=1);
+Param seed(0, min=0, max=1);
+Param seedlatch(1, min=0, max=1);
+Param ingain(1, min=0, max=40);
+Param outgain(1, min=0, max=4);
+
+Data buf(192004, 2);
+Data gr(32, 16);
+Data prio(32, 1);
+Data ftail(256, 2);
+Data rv(32768, 1);
+
+History init(0);
+History wp(0);
+History s_time(0.5);
+History s_size(0.45);
+History s_shape(0.5);
+History s_pitch(0);
+History s_tamt(0);
+History s_samt(0);
+History s_hamt(0);
+History s_pamt(0);
+History s_dens(0.3);
+History s_fb(0);
+History s_dry(0);
+History s_wet(0);
+History tg_phase(0);
+History tg_ratio(1);
+History tg_freq(0.0001);
+History tg_elapsed(24000);
+History prev_gate(0);
+History interval(1);
+History prev_l(0);
+History prev_r(0);
+History hp1(0);
+History hp2(0);
+History hq1(0);
+History hq2(0);
+History lim_in_p(0.5);
+History lim_in_lp(0.5);
+History lim_pre_p(0.5);
+History lim_pre_lp(0.5);
+History lim_out_p(0.5);
+History lim_out_lp(0.5);
+History was_frozen(0);
+History tail_wp(0);
+History tail_xf(0);
+History rv_wp(0);
+History rv_lp1(0);
+History rv_lp2(0);
+History rv_dry(0);
+History rv_wet(0);
+History rv_send(0);
+History l1y0(0.5);
+History l1y1(0.5);
+History l2y0(0.5);
+History l2y1(0.5);
+History l1v(0.5);
+History l2v(0.5);
+History lastpos(0);
+History lastspd(1);
+
+sstep(x) {
+	return x * x * (3 - 2 * x);
+}
+interval_st(n) {
+	return n < 0.5 ? 0 : n < 1.5 ? 1 : n < 2.5 ? 3 : n < 3.5 ? 4 : n < 4.5 ? 7 : n < 5.5 ? 12 : 24;
+}
+attenu_law(k) {
+	v = k - 0.5;
+	return (2 / 0.47) * v * max(abs(v) - 0.03, 0);
+}
+detune_law(k) {
+	d = 2 * k - 1;
+	sg = d < 0 ? -1 : 1;
+	d = d * sg * 6;
+	di = floor(d);
+	df = d - di;
+	df = max((df - 0.33333333) * 1.5, 0);
+	a = interval_st(di);
+	b = interval_st(di + 1);
+	return (a + (b - a) * sstep(df)) * sg;
+}
+q16(x) {
+	return clamp(trunc(x * 32768), -32768, 32767) / 32768;
+}
+rnd() {
+	return (noise() + 1) * 0.5;
+}
+// RandomizedParameter::value(NULL, 0, range, clamp)
+rparam(base, att, cv, hascv, range, clampit) {
+	res = base;
+	if (hascv < 0.5) {
+		blend = att > 0 ? att : min(1, att * rnd() * -3);
+		rval = clampit > 0.5 ? rnd() * range - res : (2 * rnd() - 1) * range;
+		res = res + rval * blend;
+	} else {
+		if (att < 0) {
+			u = rnd();
+			res = res + max(cv, 0) * -att * (u * (u * (4 * u - 6) + 4) - 1);
+		} else {
+			res = res + att * cv;
+		}
+	}
+	return clampit > 0.5 ? clamp(res, 0, 1) : res;
+}
+ramount(att, hascv) {
+	return hascv > 0.5 ? max(-att, 0) : abs(att);
+}
+wrapi(x, n) {
+	return x - floor(x / n) * n;
+}
+
+// ---------------------------------------------------------------- per sample
+FS = samplerate;
+MAXD = 192000;
+k = 0;
+j = 0;
+// one-time init of the grain priority list
+if (init < 0.5) {
+	for (k = 0; k < 32; k += 1) {
+		poke(prio, k, k, 0);
+		poke(gr, 3, k, 0);
+		poke(gr, 1, k, 6);
+	}
+}
+
+// ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)
+kp = init < 0.5 ? 1 : 0.05 / 24;
+st_time = s_time + (time - s_time) * kp;
+st_size = s_size + (size - s_size) * kp;
+st_shape = s_shape + (shape - s_shape) * kp;
+st_pitch = s_pitch + (detune_law(pitch) - s_pitch) * kp;
+st_tamt = s_tamt + (attenu_law(time_amt) - s_tamt) * kp;
+st_samt = s_samt + (attenu_law(size_amt) - s_samt) * kp;
+st_hamt = s_hamt + (attenu_law(shape_amt) - s_hamt) * kp;
+st_pamt = s_pamt + (attenu_law(pitch_amt) - s_pamt) * kp;
+st_dens = s_dens + (density - s_dens) * kp;
+frozen = freeze > 0.5;
+seedstate = seedlatch > 0.5 ? 2 : seed > 0.5 ? 1 : 0;
+cv_t = in3;
+cv_s = in4;
+cv_h = in5;
+cv_p = in6;
+
+// ---- trigger generator (TriggerGenerator::Render, no external SEED input yet)
+sgate = seedstate > 0.5;
+rising = sgate && prev_gate < 0.5;
+ph = tg_phase;
+ratio = tg_ratio;
+tapf = tg_freq;
+tg_el = tg_elapsed;
+trig = 0;
+frac = 0;
+regularity = 1;
+maxf = 130.81278 / FS;
+if (st_dens < 0.48 || st_dens > 0.52) {
+	randomize = st_dens > 0.52;
+	f = randomize ? 0.5 * maxf * pow(2, -(1 - st_dens) * 16) : maxf * pow(2, -st_dens * 16);
+	if (!randomize) {
+		ratio = 1;
+	}
+	ff = clamp(f * ratio, 0.000001, 0.25);
+	ph = ph + (sgate ? ff : 0);
+	reset = 0;
+	if (rising) {
+		ph = 0;
+		reset = 1;
+	} else if (ph >= 1) {
+		ph = ph - 1;
+		frac = ph / ff;
+		reset = 1;
+	}
+	if (reset && randomize) {
+		x = 0.1 + 0.9 * rnd();
+		ratio = -1 / (-x * (1 + x * (0.5 + x * (0.3333 + x * 0.25))));
+	}
+	trig = reset && sgate;
+	regularity = randomize ? 0 : 1;
+} else if (seedstate < 1.5) {
+	// manual taps: one grain per press
+	ph = ph + tapf;
+	if (rising) {
+		ph = 0;
+		tapf = 1 / tg_el;
+		tg_el = 0;
+	}
+	tg_el = tg_el + 1;
+	ph = min(ph, 1);
+	trig = rising;
+	regularity = 1 - (st_dens - 0.48) * 25;
+}
+
+// ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)
+inl = in1 * ingain;
+inr = in2 * ingain;
+fbk = s_fb + (min(feedback * 1.005, 1) - s_fb) * 0.05;
+sl = inl + prev_l * fbk * fbk * 3;
+sr = inr + prev_r * fbk * fbk * 3;
+pk = min(max(abs(sl), abs(sr)), 40);
+e1 = pk - lim_in_p;
+li_p = lim_in_p + (e1 > 0 ? 0.1 : 1 / FS) * e1;
+e2 = li_p - lim_in_lp;
+li_lp = lim_in_lp + (e2 > 0 ? 0.5 : 1 / FS) * e2;
+lg = li_lp <= 0.95 ? 1 : 0.95 / li_lp;
+sl = sl * lg;
+sr = sr * lg;
+
+// ---- recording buffer with freeze tail (DelayLine::Write(in, frozen))
+w = wp;
+twp = tail_wp;
+txf = tail_xf;
+if (frozen) {
+	if (was_frozen < 0.5) {
+		twp = 0;
+	}
+	if (twp < 256) {
+		poke(ftail, sl, twp, 0);
+		poke(ftail, sr, twp, 1);
+		twp = twp + 1;
+	}
+} else {
+	if (was_frozen > 0.5 && twp > 0) {
+		txf = twp;
+	}
+	if (twp > 0) {
+		tpos = txf - twp;
+		g = sstep(twp / txf);
+		sl = sl + (peek(ftail, tpos, 0) - sl) * g;
+		sr = sr + (peek(ftail, tpos, 1) - sr) * g;
+		twp = twp - 1;
+	}
+	ql = q16(sl);
+	qr = q16(sr);
+	poke(buf, ql, w, 0);
+	poke(buf, qr, w, 1);
+	if (w < 4) {
+		poke(buf, ql, w + MAXD, 0);
+		poke(buf, qr, w + MAXD, 1);
+	}
+	w = w == 0 ? MAXD - 1 : w - 1;
+}
+
+// ---- grain start (DelayGranularPlayer::Render + DelayGrain::Start)
+gint = interval;
+lpos = lastpos;
+lspd = lastspd;
+if (trig) {
+	nact = 1;
+	for (k = 0; k < 32; k += 1) {
+		if (peek(gr, k, 0) < 2.5 && peek(gr, k, 6) > 0) {
+			nact = nact + 1;
+		}
+	}
+	tamt = st_tamt;
+	samt = st_samt;
+	hamt = st_hamt;
+	pamt = st_pamt;
+	dur_k = rparam(st_size, samt, cv_s, size_cv, 1, 1);
+	rev = dur_k < 0.3333333;
+	amp = 1 / sqrt(nact);
+	spread = min(1, ramount(tamt, time_cv) + ramount(samt, size_cv) + ramount(hamt, shape_cv) + ramount(pamt, pitch_cv) + 1 - regularity);
+	u = rnd();
+	v = rnd();
+	pan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);
+	maxdel = MAXD - 2 * 257;
+	gdelay = rparam(st_time, tamt, cv_t, time_cv, 1, 1) * maxdel + 257;
+	semis = rparam(st_pitch, pamt, cv_p, pitch_cv, 24, 0);
+	speed = (rev ? -1 : 1) * pow(2, semis / 12);
+	csh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);
+	duration = pow(2, min(1, 1.025 * csh) * -9) * FS * 4;
+	shp = rparam(st_shape, hamt, cv_h, shape_cv, 1, 1);
+	g0 = peek(prio, 0, 0);
+	cons = speed - (frozen ? 0 : 1);
+	gdelay = gdelay - frac * cons;
+	if (cons != 0) {
+		duration = min(duration, MAXD / abs(cons));
+	}
+	if (cons > 0) {
+		gdelay = max(gdelay, duration * cons);
+	} else if (cons < 0) {
+		gdelay = min(gdelay, MAXD + duration * cons);
+	}
+	if (pan < 0.5) {
+		pn = pan * 2;
+		poke(gr, amp, g0, 10);
+		poke(gr, (1 - pn) * (1 + pn) * amp, g0, 11);
+		poke(gr, 0, g0, 12);
+		poke(gr, pn * (2 - pn) * amp, g0, 13);
+	} else {
+		pn = (1 - pan) * 2;
+		poke(gr, pn * (2 - pn) * amp, g0, 10);
+		poke(gr, 0, g0, 11);
+		poke(gr, (1 - pn) * (1 + pn) * amp, g0, 12);
+		poke(gr, amp, g0, 13);
+	}
+	poke(gr, gdelay, g0, 8);
+	lpos = gdelay / MAXD;
+	lspd = speed;
+	poke(gr, speed, g0, 9);
+	// GrainEnvelope::Start(duration, shape, fractional)
+	sus = max(1 - 3 * shp, 0);
+	at = (shp - 0.33333333) * 1.5;
+	if (at < 0) {
+		at = 0;
+	} else if (at < 0.5) {
+		at = at * at * at * 4;
+	}
+	re = (1 - at) * (1 - sus);
+	ia = 1 / max(duration * at, 0.0005 * FS * (1 + 3 * sus));
+	is = 1 / max(duration * sus, 2);
+	ir = 1 / max(duration * re, 0.010 * FS);
+	poke(gr, ia, g0, 2);
+	poke(gr, is, g0, 3);
+	poke(gr, ir, g0, 4);
+	poke(gr, at < 0.5 ? 2 * at : 2 - 2 * at, g0, 5);
+	gph = ia * frac;
+	gst = 0;
+	if (gph >= 1) {
+		gph = (gph - 1) / ia * is;
+		gst = 1;
+	}
+	poke(gr, gst, g0, 0);
+	poke(gr, gph, g0, 1);
+	poke(gr, trunc(duration), g0, 14);
+	poke(gr, 1, g0, 6);
+	poke(gr, 0, g0, 7);
+	// SortGrainList (polyphonic)
+	inst = trunc(FS * 0.005);
+	pre = trunc(FS * 0.1);
+	f0 = 1;
+	f1 = 1;
+	f2 = 1;
+	f3 = 1;
+	if (gint < trunc(FS * 0.025)) {
+		first = peek(prio, 0, 0);
+		for (k = 0; k < 31; k += 1) {
+			poke(prio, peek(prio, k + 1, 0), k, 0);
+		}
+		poke(prio, first, 31, 0);
+		f0 = gint + 1;
+		f1 = inst;
+		f2 = inst;
+		f3 = pre;
+		if (gint > inst) {
+			tmp = f0;
+			f0 = f2;
+			f2 = tmp;
+		}
+	} else {
+		for (k = 0; k < 4; k += 1) {
+			best = k;
+			bestr = peek(gr, peek(prio, k, 0), 14);
+			for (j = k + 1; j < 32; j += 1) {
+				rj = peek(gr, peek(prio, j, 0), 14);
+				if (rj < bestr) {
+					best = j;
+					bestr = rj;
+				}
+			}
+			if (best != k) {
+				tmp = peek(prio, k, 0);
+				poke(prio, peek(prio, best, 0), k, 0);
+				poke(prio, tmp, best, 0);
+			}
+		}
+		f0 = inst;
+		f1 = inst;
+		f2 = gint;
+		f3 = pre;
+		if (gint > pre) {
+			tmp = f2;
+			f2 = f3;
+			f3 = tmp;
+		}
+	}
+	for (k = 0; k < 4; k += 1) {
+		gk = peek(prio, k, 0);
+		fd = k == 0 ? f0 : k == 1 ? f1 : k == 2 ? f2 : f3;
+		fd = max(fd, 1);
+		if (peek(gr, gk, 14) > fd) {
+			poke(gr, 1 / fd, gk, 7);
+			poke(gr, trunc(peek(gr, gk, 6) * fd), gk, 14);
+		}
+	}
+	gint = 0;
+}
+
+// ---- render all grains (DelayGrain::Render<STOP, fade_out>)
+outl = 0;
+outr = 0;
+nplay = 0;
+for (k = 0; k < 32; k += 1) {
+	stg = peek(gr, k, 0);
+	vs = peek(gr, k, 6);
+	if (stg < 2.5 && vs > 0) {
+		nplay = nplay + 1;
+		dl = peek(gr, k, 8) - peek(gr, k, 9);
+		if (!frozen) {
+			dl = dl + 1;
+		}
+		if (dl < 0 || dl >= MAXD) {
+			dl = 0;
+			stg = 3;
+		}
+		dd = abs(dl >= MAXD * 0.5 ? dl - MAXD : dl);
+		fr = dd < 256 ? dd / 256 : 1;
+		di = floor(dl);
+		df = dl - di;
+		idx = wrapi(w + di + MAXD - 1, MAXD);
+		xl0 = peek(buf, idx, 0);
+		xl1 = peek(buf, idx + 1, 0);
+		xl2 = peek(buf, idx + 2, 0);
+		xl3 = peek(buf, idx + 3, 0);
+		xr0 = peek(buf, idx, 1);
+		xr1 = peek(buf, idx + 1, 1);
+		xr2 = peek(buf, idx + 2, 1);
+		xr3 = peek(buf, idx + 3, 1);
+		cl = (xl2 - xl0) * 0.5;
+		vl = xl1 - xl2;
+		wl = cl + vl;
+		al = wl + vl + (xl3 - xl1) * 0.5;
+		yl = (((al * df) - (wl + al)) * df + cl) * df + xl1;
+		cr = (xr2 - xr0) * 0.5;
+		vr = xr1 - xr2;
+		wr = cr + vr;
+		ar = wr + vr + (xr3 - xr1) * 0.5;
+		yr = (((ar * df) - (wr + ar)) * df + cr) * df + xr1;
+		ffr = sstep(fr);
+		// GrainEnvelope::Render
+		env = 0;
+		gph = peek(gr, k, 1);
+		if (stg < 2.5) {
+			if (stg > 0.5 && stg < 1.5) {
+				env = 1;
+			} else {
+				tt = stg < 0.5 ? gph : 1 - gph;
+				bs = stg < 0.5 ? tt : tt * tt * tt * tt;
+				env = bs + (sstep(tt) - bs) * peek(gr, k, 5);
+			}
+			inc = peek(gr, k, 2 + stg);
+			gph = gph + inc;
+			if (gph >= 1) {
+				t2 = (gph - 1) / inc;
+				stg = stg + 1;
+				gph = stg < 2.5 ? t2 * peek(gr, k, 2 + stg) : 0;
+			}
+		}
+		vs = vs - peek(gr, k, 7);
+		genv = env * max(vs, 0) * ffr;
+		outl = outl + (yl * peek(gr, k, 10) + yr * peek(gr, k, 11)) * genv;
+		outr = outr + (yl * peek(gr, k, 12) + yr * peek(gr, k, 13)) * genv;
+		rem = peek(gr, k, 14) - 1;
+		if (stg > 2.5 || vs <= 0) {
+			rem = 0;
+		}
+		poke(gr, stg, k, 0);
+		poke(gr, gph, k, 1);
+		poke(gr, vs, k, 6);
+		poke(gr, dl, k, 8);
+		poke(gr, rem, k, 14);
+	}
+}
+gint = gint + 1;
+
+// ---- feedback path: DC blocker (Svf HP 40 Hz, q 0.5) → one-pole 0.999
+fhp = 40 / FS;
+gg = fhp * (pi + fhp * fhp * (0.326 * pi * pi * pi + 0.1823 * pi * pi * pi * pi * pi * fhp * fhp));
+hh = 1 / (1 + 2 * gg + gg * gg);
+hpl = (outl - 2 * hp1 - gg * hp1 - hp2) * hh;
+bpl = gg * hpl + hp1;
+n_hp1 = gg * hpl + bpl;
+lpl = gg * bpl + hp2;
+n_hp2 = gg * bpl + lpl;
+hpr = (outr - 2 * hq1 - gg * hq1 - hq2) * hh;
+bpr = gg * hpr + hq1;
+n_hq1 = gg * hpr + bpr;
+lpr = gg * bpr + hq2;
+n_hq2 = gg * bpr + lpr;
+n_prev_l = prev_l + 0.999 * (hpl - prev_l);
+n_prev_r = prev_r + 0.999 * (hpr - prev_r);
+
+// ---- dry / wet (Processor::Process)
+dw = min(drywet * 1.005, 1);
+dry_t = (1 - dw) * (1 + dw) * 0.75;
+wet_t = dw * (2 - dw) * 1.5;
+dry = s_dry + (dry_t - s_dry) * 0.05;
+wet = s_wet + (wet_t - s_wet) * 0.05;
+ml = dry * inl + wet * outl;
+mr = dry * inr + wet * outr;
+
+// ---- pre-reverb limiter (decay 1/(4 sr), 0.9)
+pk = min(max(abs(ml), abs(mr)), 40);
+e1 = pk - lim_pre_p;
+lp_p = lim_pre_p + (e1 > 0 ? 0.1 : 1 / (FS * 4)) * e1;
+e2 = lp_p - lim_pre_lp;
+lp_lp = lim_pre_lp + (e2 > 0 ? 0.5 : 1 / (FS * 4)) * e2;
+lg = lp_lp <= 0.9 ? 1 : 0.9 / lp_lp;
+ml = ml * lg;
+mr = mr * lg;
+
+// ---- reverb (Griesinger / Dattorro topology, FxEngine 16-bit, 32768 words)
+rva = min(reverb * 1.005, 1);
+rmix = rva * rva * 0.9;
+rtime = 0.3 + 0.6 * rva * rva * rva;
+rlp = 0.6;
+ig = 0.2 * (1 - 0.333 * rtime);
+ssq = rmix * (2 - rmix);
+r_dry = rv_dry + ((1 - rmix) * (1 + rmix) - rv_dry) * 0.05;
+r_wet = rv_wet + (0.4 / ig - rv_wet) * 0.05;
+r_send = rv_send + (ssq * (2 - ssq) * ig - rv_send) * 0.05;
+rw = rv_wp - 1;
+if (rw < 0) {
+	rw = rw + 32768;
+}
+y10 = l1y0;
+y11 = l1y1;
+y20 = l2y0;
+y21 = l2y1;
+lv1 = l1v;
+lv2 = l2v;
+if (wrapi(rw, 32) < 0.5) {
+	// stmlib CosineOscillator (approximate), frequency 0.5 Hz × 32 (updated every 32 samples)
+	c1 = 16 * (0.25 - 0.5 / FS * 32) * (1 - 2 * (0.25 - 0.5 / FS * 32));
+	tmp = y10;
+	y10 = c1 * y10 - y11;
+	y11 = tmp;
+	lv1 = tmp + 0.5;
+	c2 = 16 * (0.25 - 0.3 / FS * 32) * (1 - 2 * (0.25 - 0.3 / FS * 32));
+	tmp = y20;
+	y20 = c2 * y20 - y21;
+	y21 = tmp;
+	lv2 = tmp + 0.5;
+}
+kap = 0.625;
+// smear AP1: interpolate at 10 + 80*lfo1, write at 100
+o = 10 + 80 * lv1;
+oi = floor(o);
+of = o - oi;
+ra = peek(rv, wrapi(rw + oi, 32768), 0);
+rb = peek(rv, wrapi(rw + oi + 1, 32768), 0);
+acc = ra + (rb - ra) * of;
+poke(rv, q16(acc), wrapi(rw + 100, 32768), 0);
+acc = (ml + mr) * r_send;
+// 4 diffusers: base/length 0/150, 151/214, 366/319, 686/527
+pr = peek(rv, wrapi(rw + 149, 32768), 0);
+acc = acc + pr * kap;
+poke(rv, q16(acc), wrapi(rw, 32768), 0);
+acc = acc * -kap + pr;
+pr = peek(rv, wrapi(rw + 151 + 213, 32768), 0);
+acc = acc + pr * kap;
+poke(rv, q16(acc), wrapi(rw + 151, 32768), 0);
+acc = acc * -kap + pr;
+pr = peek(rv, wrapi(rw + 366 + 318, 32768), 0);
+acc = acc + pr * kap;
+poke(rv, q16(acc), wrapi(rw + 366, 32768), 0);
+acc = acc * -kap + pr;
+pr = peek(rv, wrapi(rw + 686 + 526, 32768), 0);
+acc = acc + pr * kap;
+poke(rv, q16(acc), wrapi(rw + 686, 32768), 0);
+acc = acc * -kap + pr;
+apout = acc;
+// left loop: del2 (15314/6312) → lp → dap1a (1214/2182) → dap1b (3397/2690) → del1 (6088/4501)
+o = 6261 + 50 * lv2;
+oi = floor(o);
+of = o - oi;
+ra = peek(rv, wrapi(rw + oi + 15314, 32768), 0);
+rb = peek(rv, wrapi(rw + oi + 15315, 32768), 0);
+acc = apout + (ra + (rb - ra) * of) * rtime;
+lp1 = rv_lp1 + rlp * (acc - rv_lp1);
+acc = lp1;
+pr = peek(rv, wrapi(rw + 1214 + 2181, 32768), 0);
+acc = acc + pr * -kap;
+poke(rv, q16(acc), wrapi(rw + 1214, 32768), 0);
+acc = acc * kap + pr;
+pr = peek(rv, wrapi(rw + 3397 + 2689, 32768), 0);
+acc = acc + pr * kap;
+poke(rv, q16(acc), wrapi(rw + 3397, 32768), 0);
+acc = acc * -kap + pr;
+poke(rv, q16(acc), wrapi(rw + 6088, 32768), 0);
+wl_ = acc;
+// right loop: del1 → lp → dap2a (10590/2525) → dap2b (13116/2197) → del2
+o = 4460 + 40 * lv1;
+oi = floor(o);
+of = o - oi;
+ra = peek(rv, wrapi(rw + oi + 6088, 32768), 0);
+rb = peek(rv, wrapi(rw + oi + 6089, 32768), 0);
+acc = apout + (ra + (rb - ra) * of) * rtime;
+lp2 = rv_lp2 + rlp * (acc - rv_lp2);
+acc = lp2;
+pr = peek(rv, wrapi(rw + 10590 + 2524, 32768), 0);
+acc = acc + pr * kap;
+poke(rv, q16(acc), wrapi(rw + 10590, 32768), 0);
+acc = acc * -kap + pr;
+pr = peek(rv, wrapi(rw + 13116 + 2196, 32768), 0);
+acc = acc + pr * -kap;
+poke(rv, q16(acc), wrapi(rw + 13116, 32768), 0);
+acc = acc * kap + pr;
+poke(rv, q16(acc), wrapi(rw + 15314, 32768), 0);
+wr_ = acc;
+ml = ml * r_dry + wl_ * r_wet;
+mr = mr * r_dry + wr_ * r_wet;
+
+// ---- output limiter (decay 1/(6 sr), 0.9) and output gain
+pk = min(max(abs(ml), abs(mr)), 40);
+e1 = pk - lim_out_p;
+lo_p = lim_out_p + (e1 > 0 ? 0.1 : 1 / (FS * 6)) * e1;
+e2 = lo_p - lim_out_lp;
+lo_lp = lim_out_lp + (e2 > 0 ? 0.5 : 1 / (FS * 6)) * e2;
+lg = lo_lp <= 0.9 ? 1 : 0.9 / lo_lp;
+out1 = ml * lg * outgain;
+out2 = mr * lg * outgain;
+out3 = trig;
+out4 = nplay;
+out5 = w / MAXD;
+out6 = lpos;
+out7 = lspd;
+
+// ---- state write-back (all History writes at the end of the pass)
+init = 1;
+wp = w;
+s_time = st_time;
+s_size = st_size;
+s_shape = st_shape;
+s_pitch = st_pitch;
+s_tamt = st_tamt;
+s_samt = st_samt;
+s_hamt = st_hamt;
+s_pamt = st_pamt;
+s_dens = st_dens;
+s_fb = fbk;
+s_dry = dry;
+s_wet = wet;
+tg_phase = ph;
+tg_ratio = ratio;
+tg_freq = tapf;
+tg_elapsed = tg_el;
+prev_gate = sgate;
+interval = gint;
+lastpos = lpos;
+lastspd = lspd;
+prev_l = n_prev_l;
+prev_r = n_prev_r;
+hp1 = n_hp1;
+hp2 = n_hp2;
+hq1 = n_hq1;
+hq2 = n_hq2;
+lim_in_p = li_p;
+lim_in_lp = li_lp;
+lim_pre_p = lp_p;
+lim_pre_lp = lp_lp;
+lim_out_p = lo_p;
+lim_out_lp = lo_lp;
+was_frozen = frozen;
+tail_wp = twp;
+tail_xf = txf;
+rv_wp = rw;
+rv_lp1 = lp1;
+rv_lp2 = lp2;
+rv_dry = r_dry;
+rv_wet = r_wet;
+rv_send = r_send;
+l1y0 = y10;
+l1y1 = y11;
+l2y0 = y20;
+l2y1 = y21;
+l1v = lv1;
+l2v = lv2;
