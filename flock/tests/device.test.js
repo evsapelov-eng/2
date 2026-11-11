@@ -85,6 +85,7 @@ test("panel: knobs send their parameter, toggles toggle, SEED is momentary, doub
     b.ctx.p(name, m[2]); b.draw();
   }
   const fz = hitFor("freeze"); b.out.length = 0; b.ctx.onclick(fz.x + 5, fz.y + 5, 1); assert.deepStrictEqual(b.out.pop().slice(1), ["freeze", 1]);
+  b.ctx.p("seedlatch", 0);   // gated mode: SEED is a plain momentary button
   const sd = hitFor("seed"); b.out.length = 0; b.ctx.onclick(sd.x + 5, sd.y + 5, 1); b.ctx.ondrag(sd.x + 5, sd.y + 5, 0);
   assert.deepStrictEqual(b.out.map((m) => m.slice(1)), [["seed", 1], ["seed", 0]]);
   const t = hitFor("time"); b.out.length = 0; b.ctx.ondblclick(t.x + 10, t.y + 10); assert.deepStrictEqual(b.out.pop().slice(1), ["time", 0.5]);
@@ -105,4 +106,25 @@ test("value texts follow the engine laws (grain rate, transposition, grain lengt
   b.ctx.p("density", 0.5); assert.strictEqual(b.ctx.valueText("density"), "no grains");
   b.ctx.p("pitch", (5.15 / 6 + 1) / 2); assert.strictEqual(b.ctx.valueText("pitch"), "+12 st");
   b.ctx.p("size", 0.2); assert.match(b.ctx.valueText("size"), /^rev /);
+});
+
+test("SEED gestures as on Beads: short press while latched → LATCH off (+ a grain); hold 4 s → LATCH on", () => {
+  const b = boot(); b.draw();
+  let t = 1000; b.ctx.now = () => t;
+  const sd = b.ctx.hits.find((h) => h.name === "seed");
+  b.out.length = 0;
+  b.ctx.onclick(sd.x + 5, sd.y + 5, 1); b.ctx.ondrag(sd.x + 5, sd.y + 5, 0);
+  assert.deepStrictEqual(b.out.map((m) => m.slice(1)), [["seedlatch", 0], ["seed", 1], ["seed", 0]]);
+  b.ctx.p("seedlatch", 0); b.out.length = 0;
+  b.ctx.onclick(sd.x + 5, sd.y + 5, 1); t += 3900; b.ctx.checkHold();
+  assert.ok(!b.out.some((m) => m[1] === "seedlatch"), "not yet at 3.9 s");
+  t += 200; b.ctx.checkHold(); b.ctx.checkHold();
+  assert.strictEqual(b.out.filter((m) => m[1] === "seedlatch" && m[2] === 1).length, 1, "latched once at 4 s");
+});
+
+test("SIZE ∞ marked: fully CW shows the delay mode as coming; TIME seconds follow the host sample rate", () => {
+  const b = boot();
+  b.ctx.p("size", 1); assert.match(b.ctx.valueText("size"), /inf: delay v0\.3/);
+  b.ctx.p("time", 1); assert.strictEqual(b.ctx.valueText("time"), "-4 s");
+  b.ctx.sr(44100); assert.strictEqual(b.ctx.valueText("time"), "-4.4 s");
 });

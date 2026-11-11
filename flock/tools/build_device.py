@@ -157,6 +157,10 @@ def build():
     P.connect(s_pos, 0, pg, 0); P.connect(s_spd, 0, pg, 1)
     pgr = P.obj("prepend grain", 1, 1, x=560, y=600)
     P.connect(pg, 0, pgr, 0); P.connect(pgr, 0, ui, 0)
+    dsp = P.obj("dspstate~", 1, 4, ["int", "float", "int", "int"], x=900, y=80)
+    P.connect(lb, 0, dsp, 0)
+    psr = P.obj("prepend sr", 1, 1, x=900, y=110)
+    P.connect(dsp, 1, psr, 0); P.connect(psr, 0, ui, 0)
     patcher = {"fileversion": 1, "appversion": {"major": 8, "minor": 6, "revision": 0, "architecture": "x64", "modernui": 1},
                "classnamespace": "box", "rect": [40, 40, 1400, 900], "openinpresentation": 1,
                "devicewidth": float(W), "boxes": P.boxes, "lines": P.lines}

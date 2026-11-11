@@ -35,13 +35,24 @@ var MIX = [["feedback", "FEEDBACK"], ["drywet", "DRY/WET"], ["reverb", "REVERB"]
 var KX = [204, 288, 372, 456, 540], KY = 58, KR = 23;
 var hits = [], drag = null, dirty = true, scaleF = 1, hover = null;
 var tapeSt = { w: 0, active: 0 }, grains = [];
-var SR = 48000, BUF_S = 192000 / 48000;
+var BUF_S = 192000 / 48000;
+var now = function () { return new Date().getTime(); };
+function sr(v) { if (v > 0) { BUF_S = Math.round(192000 / v * 100) / 100; dirty = true; } }   // from [dspstate~]
 
 function p(name, v) { if (P[name]) { P[name].v = +v; dirty = true; } }
 function tape(w, a) { tapeSt.w = +w; tapeSt.active = +a; dirty = true; }
 function grain(pos, spd) { grains.push({ pos: +pos, spd: +spd, age: 0 }); if (grains.length > 40) grains.shift(); dirty = true; }
 
+// Beads SEED gestures (manual "Latched"): a short press while latched turns LATCH off;
+// holding SEED for 4 s turns LATCH on. (FREEZE+SEED needs two buttons at once — use LATCH.)
+function checkHold() {
+  if (drag && drag.kind === "momentary" && drag.name === "seed" && !drag.latched && P.seedlatch.v < 0.5 && now() - drag.t0 >= 4000) {
+    drag.latched = true;
+    send("seedlatch", 1);
+  }
+}
 var frame = new Task(function () {
+  checkHold();
   for (var i = grains.length - 1; i >= 0; i--) { grains[i].age += 1; if (grains[i].age > 24) grains.splice(i, 1); }
   if (dirty || grains.length) { dirty = false; mgraphics.redraw(); }
 }, this);
@@ -74,7 +85,7 @@ function valueText(name) {
     return P.seedlatch.v > 0.5 ? "no grains" : "1 per SEED";
   }
   if (name === "pitch") { var st = detune(v); return (st > 0 ? "+" : "") + (Math.round(st * 10) / 10) + " st"; }
-  if (name === "size") return (v < 0.3333333 ? "rev " : "") + fmtMs(grainMs(v));
+  if (name === "size") return v > 0.99 ? "inf: delay v0.3" : (v < 0.3333333 ? "rev " : "") + fmtMs(grainMs(v));
   if (name === "shape") return v < 0.12 ? "square" : v < 0.3 ? "hold+decay" : v < 0.45 ? "decay" : v < 0.6 ? "smooth" : v < 0.85 ? "bell" : "slow attack";
   if (name.indexOf("_amt") > 0) { var a = attenu(v); return Math.abs(a) < 0.005 ? "0" : (a < 0 ? "peaky " : "even ") + pct(Math.abs(a)); }
   if (name === "input" || name === "output") return (v > 0 ? "+" : "") + (Math.round(v * 10) / 10) + " dB";
@@ -203,19 +214,19 @@ var HELP = {
   time: "TIME: where the grains start in the recorded buffer - fresh (left) to old (right)",
   density: "DENSITY: grain rate - CCW even, CW random; 12 o'clock = none (latched) / 1 per SEED",
   pitch: "PITCH: transposition +-24 st with notches at 1, 3, 4, 7, 12, 24",
-  size: "SIZE: grain length - CCW reversed grains, CW longer up to 4 s",
+  size: "SIZE: grain length - CCW reversed grains, CW longer up to 4 s; fully CW = delay mode (coming in v0.3)",
   shape: "SHAPE: grain envelope - square (CCW) > decay > bell > slow attack (CW)",
-  time_amt: "RND: CW even random spread, CCW peaky (mostly small) spread",
-  pitch_amt: "RND: CW even random spread, CCW peaky (mostly small) spread",
-  size_amt: "RND: CW even random spread, CCW peaky (mostly small) spread",
-  shape_amt: "RND: CW even random spread, CCW peaky (mostly small) spread",
+  time_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
+  pitch_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
+  size_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
+  shape_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
   feedback: "FEEDBACK: output fed back into the recording (limited)",
   drywet: "DRY/WET: input vs grains",
   reverb: "REVERB: amount and length of the reverb",
   input: "IN: input gain (drag) - the grains record what they hear",
   output: "OUT: output gain",
   freeze: "FREEZE: stop recording - the grains keep playing what is in the buffer",
-  seed: "SEED: hold to make grains (LATCH off) / tap for one grain at 12 o'clock",
+  seed: "SEED: hold = grains (LATCH off) · tap = 1 grain at 12h · tap while latched = LATCH off · hold 4 s = LATCH on",
   seedlatch: "LATCH: grains are generated continuously at the DENSITY rate"
 };
 function hoverHelp() { return hover && HELP[hover] ? HELP[hover] : "drag knobs up/down · shift = fine · double-click = default · hover = help"; }
@@ -229,7 +240,11 @@ function onclick(x, y, but, cmd, shift) {
   x /= scaleF; y /= scaleF;
   var h = find(x, y); if (!h) return;
   if (h.kind === "toggle") send(h.name, P[h.name].v > 0.5 ? 0 : 1);
-  else if (h.kind === "momentary") { send(h.name, 1); drag = { kind: "momentary", name: h.name }; }
+  else if (h.kind === "momentary") {
+    if (h.name === "seed" && P.seedlatch.v > 0.5) send("seedlatch", 0);   // short press unlatches (Beads)
+    send(h.name, 1);
+    drag = { kind: "momentary", name: h.name, t0: now() };
+  }
   else if (h.kind === "knob") drag = { kind: "knob", name: h.name, y0: y, n0: norm(h.name, P[h.name].v) };
 }
 function ondrag(x, y, but, cmd, shift) {

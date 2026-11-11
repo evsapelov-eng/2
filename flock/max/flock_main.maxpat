@@ -2010,6 +2010,45 @@
      ],
      "id": "obj-70"
     }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "dspstate~",
+     "numinlets": 1,
+     "numoutlets": 4,
+     "outlettype": [
+      "int",
+      "float",
+      "int",
+      "int"
+     ],
+     "patching_rect": [
+      900,
+      80,
+      77,
+      22
+     ],
+     "id": "obj-71"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend sr",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      900,
+      110,
+      84,
+      22
+     ],
+     "id": "obj-72"
+    }
    }
   ],
   "lines": [
@@ -3505,6 +3544,42 @@
     "patchline": {
      "source": [
       "obj-70",
+      0
+     ],
+     "destination": [
+      "obj-5",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-6",
+      0
+     ],
+     "destination": [
+      "obj-71",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-71",
+      1
+     ],
+     "destination": [
+      "obj-72",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-72",
       0
      ],
      "destination": [

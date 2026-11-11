@@ -164,3 +164,84 @@ test("dry/wet law: 0 = dry ×0.75, 1 = no dry; reverb adds a tail and stays stab
   assert.ok(rms(r1, SR / 2, SR) > 1e-3 && rms(r0, SR / 2, SR) < 1e-6, "reverb tail");
   assert.ok(rms(r1, 2.5 * SR, 3 * SR) < rms(r1, SR / 2, SR), "decays");
 });
+
+test("buffer: 192000 frames, 16-bit truncation like Clip16, record head moves backwards and wraps", () => {
+  const g = engine({ density: 0.5 });
+  const n = 192000 + 10, x = Float64Array.from({ length: n }, (_, i) => 0.3 + 0.1 * Math.sin(i * 0.001));
+  g.run(n, [x, x]);
+  assert.strictEqual(g.H.wp, (((-n) % 192000) + 192000) % 192000);
+  const i = 1000, w = (((-(n - 1 - 0)) % 192000) + 192000) % 192000; // the sample written last sits at wp+1
+  const last = g.D.buf.a[(g.H.wp + 1) % 192000];
+  assert.strictEqual(last, Math.trunc(x[n - 1] * 32768) / 32768);
+  assert.ok(g.D.buf.a.length === 192004 * 2 && i < w + 192000);
+});
+
+test("IN gain scales what is recorded; OUT gain scales the output", () => {
+  const n = 2000, x = sine(300, n, 0.2);
+  const a = engine({ density: 0.5, ingain: 2 }); a.run(n, [x, x]);
+  const b = engine({ density: 0.5, ingain: 1 }); b.run(n, [x, x]);
+  const peak = (d) => { let m = 0; for (let i = 0; i < 192000; i++) m = Math.max(m, Math.abs(d[i])); return m; };
+  const pa = peak(a.D.buf.a), pb = peak(b.D.buf.a);
+  assert.ok(Math.abs(pa / pb - 2) < 0.01, "recorded ×2: " + pa / pb);
+  const o1 = engine({ drywet: 0, density: 0.5, outgain: 1 }).run(n, [x, x])[0];
+  const o2 = engine({ drywet: 0, density: 0.5, outgain: 0.5 }).run(n, [x, x])[0];
+  assert.ok(Math.abs(rms(o2, 1000, n) / rms(o1, 1000, n) - 0.5) < 0.01);
+});
+
+test("parameters are read once at the start of a grain (turning PITCH later does not bend a playing grain)", () => {
+  const g = engine({ seedlatch: 0, density: 0.5, size: 0.8, shape: 0, time: 0.3, pitch: knobForSemis(0) });
+  const n = SR * 3, x = sine(220, n);
+  g.run(SR * 2, [x.subarray(0, SR * 2), x.subarray(0, SR * 2)]);
+  g.set("seed", 1);
+  const a = g.run(SR / 4, [x.subarray(SR * 2), x.subarray(SR * 2)]);
+  g.set("pitch", knobForSemis(12));
+  const b = g.run(SR / 4, [x.subarray(SR * 2.25), x.subarray(SR * 2.25)]);
+  assert.ok(Math.abs(zcHz(a[0], 2400, SR / 4) - 220) < 3 && Math.abs(zcHz(b[0], 0, SR / 4) - 220) < 3, "still 220 Hz");
+  assert.strictEqual(grainStarts(b).length, 0, "no new grain was started");
+});
+
+function startPositions(params, n = SR * 6) {
+  const g = engine(Object.assign({ density: 0.05, size: 0.35, time: 0.5 }, params));
+  const o = g.run(n, [new Float64Array(n), new Float64Array(n)]);
+  return grainStarts(o).map((i) => (o[5][i] * 192000 - 257) / (192000 - 514));
+}
+// the exact law of RandomizedParameter::value() without CV (C randomized_parameter.h), simulated
+function lawNear(att, base, N = 200000) {
+  let near = 0, s = 12345;
+  const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = 0; i < N; i++) {
+    const blend = att > 0 ? att : Math.min(1, att * r() * -3);
+    const v = Math.min(1, Math.max(0, base + (r() - base) * blend));
+    if (Math.abs(v - base) < 0.1) near++;
+  }
+  return near / N;
+}
+test("RND: CW uniform spread, CCW peaky spread — distributions match the Beads law; centre = none", () => {
+  const near = (a) => a.filter((v) => Math.abs(v - 0.5) < 0.1).length / a.length;
+  const att = (k) => { const v = k - 0.5; return (2 / 0.47) * v * Math.max(Math.abs(v) - 0.03, 0); };
+  const none = startPositions({ time_amt: 0.5 });
+  assert.ok(none.every((v) => Math.abs(v - 0.5) < 0.002), "centre: no spread");
+  for (const k of [1, 0.75, 0.25, 0]) {
+    const got = near(startPositions({ time_amt: k }, SR * 10)), want = lawNear(att(k), 0.5);
+    assert.ok(Math.abs(got - want) < 0.06, `knob ${k}: near-centre share ${got.toFixed(3)} vs law ${want.toFixed(3)}`);
+  }
+  // shape: CW = even spread inside a bounded window (±|att|/2); CCW = clustered with rare far outliers
+  const cw = startPositions({ time_amt: 0.75 }, SR * 10), ccw = startPositions({ time_amt: 0.25 }, SR * 10), a = Math.abs(att(0.75));
+  const far = (arr) => Math.max(...arr.map((v) => Math.abs(v - 0.5)));
+  assert.ok(far(cw) <= a / 2 + 0.01, `CW bounded: ${far(cw).toFixed(3)} ≤ ${(a / 2).toFixed(3)}`);
+  assert.ok(far(ccw) > a / 2 + 0.05, `CCW has outliers: ${far(ccw).toFixed(3)}`);
+});
+
+test("CV mode: CW = amount of CV, CCW = CV-controlled randomness (MOD sources plug in here)", () => {
+  const run = (amt, cv) => {
+    const g = engine({ density: 0.05, size: 0.35, time: 0, time_amt: amt, time_cv: 1 });
+    const n = SR * 3, c = new Float64Array(n).fill(cv), z = new Float64Array(n);
+    const o = g.run(n, [z, z, c]);
+    return grainStarts(o).map((i) => (o[5][i] * 192000 - 257) / (192000 - 514));
+  };
+  const amount = run(1, 0.4);
+  assert.ok(amount.every((v) => Math.abs(v - 0.4) < 0.01), "CW: base + CV");
+  const rnd = run(0, 0.4), rnd0 = run(0, 0);
+  assert.ok(Math.max(...rnd) - Math.min(...rnd) > 0.2 && rnd.every((v) => v <= 0.41), "CCW: randomness scaled by CV");
+  assert.ok(rnd0.every((v) => Math.abs(v) < 0.002), "CCW with CV 0: none");
+});
