@@ -110,6 +110,10 @@ History s_samt(0);
 History s_hamt(0);
 History s_pamt(0);
 History s_dens(0.3);
+History s_timeh(0.5);
+History s_fbk(0);
+History s_dwk(0.5);
+History s_rvk(0.2);
 History s_fb(0);
 History s_dry(0);
 History s_wet(0);
@@ -140,6 +144,14 @@ History rv_lp2(0);
 History rv_dry(0);
 History rv_wet(0);
 History rv_send(0);
+// stmlib ParameterInterpolator: mix parameters move linearly over blocks of 24 samples (like the module)
+History blk(0);
+History i_fb(0);
+History i_dry(0);
+History i_wet(0);
+History i_rd(0);
+History i_rw(0);
+History i_rs(0);
 History l1y0(0.5);
 History l1y1(0.5);
 History l2y0(0.5);
@@ -164,8 +176,17 @@ if (init < 0.5) {
 }
 
 // ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)
-kp = init < 0.5 ? 1 : 0.05 / 24;
+// Like the module: pots are read once per 24-sample block (cv_reader.Read in the audio
+// callback): law → one-pole 0.05 → hysteresis (TIME 0.001). On load: no glide from zero.
+newblk = blk < 0.5;
+nblk = blk > 22.5 ? 0 : blk + 1;
+kp = init < 0.5 ? 1 : newblk ? 0.05 : 0;
 st_time = s_time + (time - s_time) * kp;
+th_err = st_time - s_timeh;
+st_timeh = init < 0.5 ? st_time : th_err > 0.001 ? st_time - 0.001 : th_err < -0.001 ? st_time + 0.001 : s_timeh;
+st_fbk = s_fbk + (feedback - s_fbk) * kp;
+st_dwk = s_dwk + (drywet - s_dwk) * kp;
+st_rvk = s_rvk + (reverb - s_rvk) * kp;
 st_size = s_size + (size - s_size) * kp;
 st_shape = s_shape + (shape - s_shape) * kp;
 st_pitch = s_pitch + (detune_law(pitch) - s_pitch) * kp;
@@ -232,7 +253,8 @@ if (st_dens < 0.48 || st_dens > 0.52) {
 // ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)
 inl = in1 * ingain;
 inr = in2 * ingain;
-fbk = s_fb + (min(feedback * 1.005, 1) - s_fb) * 0.05;
+inc_fb = newblk ? (min(st_fbk * 1.005, 1) - s_fb) / 24 : i_fb;
+fbk = s_fb + inc_fb;
 sl = inl + prev_l * fbk * fbk * 3;
 sr = inr + prev_r * fbk * fbk * 3;
 pk = min(max(abs(sl), abs(sr)), 40);
@@ -303,7 +325,7 @@ if (trig) {
 	v = rnd();
 	pan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);
 	maxdel = MAXD - 2 * 257;
-	gdelay = rparam(st_time, tamt, cv_t, time_cv, 1, 1) * maxdel + 257;
+	gdelay = rparam(st_timeh, tamt, cv_t, time_cv, 1, 1) * maxdel + 257;
 	semis = rparam(st_pitch, pamt, cv_p, pitch_cv, 24, 0);
 	speed = (rev ? -1 : 1) * pow(2, semis / 12);
 	csh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);
@@ -333,10 +355,11 @@ if (trig) {
 		poke(gr, (1 - pn) * (1 + pn) * amp, g0, 12);
 		poke(gr, amp, g0, 13);
 	}
-	poke(gr, gdelay, g0, 8);
+	// DelayGrain stores position and speed in fixed point (×1024, truncated) like the module
+	poke(gr, trunc(gdelay * 1024) / 1024, g0, 8);
 	lpos = gdelay / MAXD;
 	lspd = speed;
-	poke(gr, speed, g0, 9);
+	poke(gr, trunc(speed * 1024) / 1024, g0, 9);
 	// GrainEnvelope::Start(duration, shape, fractional)
 	sus = max(1 - 3 * shp, 0);
 	at = (shp - 0.33333333) * 1.5;
@@ -524,11 +547,13 @@ n_prev_l = prev_l + 0.999 * (hpl - prev_l);
 n_prev_r = prev_r + 0.999 * (hpr - prev_r);
 
 // ---- dry / wet (Processor::Process)
-dw = min(drywet * 1.005, 1);
+dw = min(st_dwk * 1.005, 1);
 dry_t = (1 - dw) * (1 + dw) * 0.75;
 wet_t = dw * (2 - dw) * 1.5;
-dry = s_dry + (dry_t - s_dry) * 0.05;
-wet = s_wet + (wet_t - s_wet) * 0.05;
+inc_dry = newblk ? (dry_t - s_dry) / 24 : i_dry;
+inc_wet = newblk ? (wet_t - s_wet) / 24 : i_wet;
+dry = s_dry + inc_dry;
+wet = s_wet + inc_wet;
 ml = dry * inl + wet * outl;
 mr = dry * inr + wet * outr;
 
@@ -543,33 +568,37 @@ ml = ml * lg;
 mr = mr * lg;
 
 // ---- reverb (Griesinger / Dattorro topology, FxEngine 16-bit, 32768 words)
-rva = min(reverb * 1.005, 1);
+rva = min(st_rvk * 1.005, 1);
 rmix = rva * rva * 0.9;
 rtime = 0.3 + 0.6 * rva * rva * rva;
 rlp = 0.6;
 ig = 0.2 * (1 - 0.333 * rtime);
 ssq = rmix * (2 - rmix);
-r_dry = rv_dry + ((1 - rmix) * (1 + rmix) - rv_dry) * 0.05;
-r_wet = rv_wet + (0.4 / ig - rv_wet) * 0.05;
-r_send = rv_send + (ssq * (2 - ssq) * ig - rv_send) * 0.05;
+inc_rd = newblk ? ((1 - rmix) * (1 + rmix) - rv_dry) / 24 : i_rd;
+inc_rw = newblk ? (0.4 / ig - rv_wet) / 24 : i_rw;
+inc_rs = newblk ? (ssq * (2 - ssq) * ig - rv_send) / 24 : i_rs;
+r_dry = rv_dry + inc_rd;
+r_wet = rv_wet + inc_rw;
+r_send = rv_send + inc_rs;
 rw = rv_wp - 1;
 if (rw < 0) {
 	rw = rw + 32768;
 }
-y10 = l1y0;
-y11 = l1y1;
-y20 = l2y0;
-y21 = l2y1;
-lv1 = l1v;
-lv2 = l2v;
+// stmlib CosineOscillator (approximate), 0.5 Hz / 0.3 Hz × 32, updated every 32 samples.
+// Start(): y1 = c·0.25, y0 = 0.5 → value() = y1 + 0.5 until the first update.
+c1 = 16 * (0.25 - 0.5 / FS * 32) * (1 - 2 * (0.25 - 0.5 / FS * 32));
+c2 = 16 * (0.25 - 0.3 / FS * 32) * (1 - 2 * (0.25 - 0.3 / FS * 32));
+y10 = init < 0.5 ? 0.5 : l1y0;
+y11 = init < 0.5 ? c1 * 0.25 : l1y1;
+y20 = init < 0.5 ? 0.5 : l2y0;
+y21 = init < 0.5 ? c2 * 0.25 : l2y1;
+lv1 = init < 0.5 ? c1 * 0.25 + 0.5 : l1v;
+lv2 = init < 0.5 ? c2 * 0.25 + 0.5 : l2v;
 if (wrapi(rw, 32) < 0.5) {
-	// stmlib CosineOscillator (approximate), frequency 0.5 Hz × 32 (updated every 32 samples)
-	c1 = 16 * (0.25 - 0.5 / FS * 32) * (1 - 2 * (0.25 - 0.5 / FS * 32));
 	tmp = y10;
 	y10 = c1 * y10 - y11;
 	y11 = tmp;
 	lv1 = tmp + 0.5;
-	c2 = 16 * (0.25 - 0.3 / FS * 32) * (1 - 2 * (0.25 - 0.3 / FS * 32));
 	tmp = y20;
 	y20 = c2 * y20 - y21;
 	y21 = tmp;
@@ -671,6 +700,10 @@ s_samt = st_samt;
 s_hamt = st_hamt;
 s_pamt = st_pamt;
 s_dens = st_dens;
+s_timeh = st_timeh;
+s_fbk = st_fbk;
+s_dwk = st_dwk;
+s_rvk = st_rvk;
 s_fb = fbk;
 s_dry = dry;
 s_wet = wet;
@@ -703,6 +736,13 @@ rv_lp2 = lp2;
 rv_dry = r_dry;
 rv_wet = r_wet;
 rv_send = r_send;
+blk = nblk;
+i_fb = inc_fb;
+i_dry = inc_dry;
+i_wet = inc_wet;
+i_rd = inc_rd;
+i_rw = inc_rw;
+i_rs = inc_rs;
 l1y0 = y10;
 l1y1 = y11;
 l2y0 = y20;

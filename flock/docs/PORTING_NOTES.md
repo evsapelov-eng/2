@@ -17,7 +17,7 @@ Source: `pichenettes/eurorack` @ f4cfa76 (`beads/`), `pichenettes/stmlib` (MIT, 
 | Module | FLØCK v0.1 | Why |
 |---|---|---|
 | Runs at a fixed 48 kHz | runs at the host rate; buffer keeps 192000 frames (4 s @48k, 4.35 s @44.1k); reverb delay lengths in samples unchanged | gen~ cannot change the host rate |
-| Block interpolation (24-sample blocks), pot ADC low-pass + hysteresis | per-sample one-pole smoothing, no hysteresis; values jump to their targets on load | per-sample engine |
+| Block interpolation (24-sample blocks), pot ADC low-pass + hysteresis | ported since v0.1.3 (blocks of 24, LP per block, TIME hysteresis); only the load glide differs | |
 | Global LCG random | gen~ `noise()` | same distribution, different sequence |
 | Auto input gain (+0…+32 dB) | manual IN gain parameter (auto gain: later) | a DAW signal is already at line level |
 | Mono buffer when only L is patched (twice as long) | always stereo (mono option: v0.2) | Live always feeds stereo |
@@ -35,6 +35,14 @@ The v0.1.0/0.1.1 report from Live: with FLØCK on there is no sound at all (not 
 1. **function definitions must come before any Param/Data/History** — ours came after them → the code does not compile;
 2. **loop-carried locals updated in a loop can be dropped by the compiler** — that is how we summed the grains (`outl = outl + …` inside `for`) → silent grains even when it compiles.
 Fix: functions first; the accumulators (L/R, grain counter, active-grain count, sort minimum) live in `Data sum`. Output matches the old code sample for sample in node (0 difference over 2 s with 30 active grains). `tools/genexpr.js` enforces both rules in its lint, and the panel shows "ENGINE NOT RUNNING" if gen~ is not running.
+
+## Re-check 2026-11-11 (v0.1.3): independent reference
+`tools/beads_ref.js` is transcribed class by class from the C++ (not from the gen~ code): DelayLine, DelayGrain (fixed point ×1024), GrainEnvelope, VoiceStealingEnvelope, GranularPlayer (priority list), TriggerGenerator, GranularProcessor, Limiter, FxEngine/Reverb (CosineOscillator), Processor (blocks of 24, ParameterInterpolator), CvReader (law → LP 0.05 per block → hysteresis). `tests/reference.test.js` feeds the same random stream to both. The comparison found **4 real discrepancies** in the port, now fixed:
+1. grain position and speed were floats, the module uses fixed point ×1024 (speed error up to 0.1 %);
+2. the reverb LFOs started at 0.5 instead of `y1 = c·0.25` (value ≈ 1.0);
+3. mix parameters used a one-pole; the module interpolates linearly over a 24-sample block (left a difference in the reverb tail);
+4. pots used a per-sample one-pole; the module reads them once per block (LP 0.05, hysteresis 0.001 on TIME), including FEEDBACK/DRY-WET/REVERB.
+Result: relative error < 1e-9 over 10 scenarios. **Remaining deliberate differences:** the trigger generator's randomness (random rate) is drawn per sample rather than for the whole block up front (same statistics, checked by the grain count); float32 rounding of the module is not emulated; the time-multiplexing of the pot ADC is not modelled; on load the knobs don't glide up from zero.
 
 ## Validation
 - `tests/engine.test.js` runs the very same codebox text through `tools/genexpr.js` (a translator + linter for the GenExpr subset used): pitch notches inside one grain, TIME position, reverse below 1/3, duration law, constant vs random rate and the C3 maximum, gated SEED (one grain per press), FREEZE, 10 s of 100 % feedback bounded, envelope shapes, 32-voice stealing without clicks, pan spread, dry/wet law, reverb tail.
