@@ -105,14 +105,14 @@ q12(x) {
 // 8-bit item: Lin2MuLaw(Clip16(x · 32768)) then MuLaw2Lin (lut_ulaw_f: the G.711 decoder / 32768,
 // printed with 5 decimals in mu_law.cc — reproduced here, all 256 values checked)
 mulaw(x) {
-	c = clamp(trunc(x * 32768), -32768, 32767);
-	p = floor(c / 4);
-	ng = p < 0;
-	m = min(ng ? -p : p, 8159) + 33;
-	seg = m <= 63 ? 0 : m <= 127 ? 1 : m <= 255 ? 2 : m <= 511 ? 3 : m <= 1023 ? 4 : m <= 2047 ? 5 : m <= 4095 ? 6 : m <= 8191 ? 7 : 8;
-	man = seg > 7.5 ? 15 : wrapi(floor(m / pow(2, seg + 1)), 16);
-	t = (man * 8 + 132) * pow(2, min(seg, 7)) - 132;
-	return floor((ng ? -t : t) / 32768 * 100000 + 0.5) / 100000;
+	cq = clamp(trunc(x * 32768), -32768, 32767);
+	pq = floor(cq / 4);
+	ng = pq < 0;
+	mq = min(ng ? -pq : pq, 8159) + 33;
+	seg = mq <= 63 ? 0 : mq <= 127 ? 1 : mq <= 255 ? 2 : mq <= 511 ? 3 : mq <= 1023 ? 4 : mq <= 2047 ? 5 : mq <= 4095 ? 6 : mq <= 8191 ? 7 : 8;
+	man = seg > 7.5 ? 15 : wrapi(floor(mq / pow(2, seg + 1)), 16);
+	tq = (man * 8 + 132) * pow(2, min(seg, 7)) - 132;
+	return floor((ng ? -tq : tq) / 32768 * 100000 + 0.5) / 100000;
 }
 // stmlib SoftLimit / SoftClip
 soft_limit(x) {
@@ -122,31 +122,31 @@ sclip(x) {
 	return x < -3 ? -1 : x > 3 ? 1 : soft_limit(x);
 }
 // beads SineOscillator: lut_sine (1024 points) with linear interpolation, 0.5 + 0.5 · value
-lsin(p) {
-	x = p * 1024;
-	i = trunc(x);
-	return sin(twopi * i / 1024) + (sin(twopi * (i + 1) / 1024) - sin(twopi * i / 1024)) * (x - i);
+lsin(ph0) {
+	xq = ph0 * 1024;
+	ix = trunc(xq);
+	return sin(twopi * ix / 1024) + (sin(twopi * (ix + 1) / 1024) - sin(twopi * ix / 1024)) * (xq - ix);
 }
 // FLØCK codec converters: modified Bessel I0 (Abramowitz & Stegun 9.8.1 / 9.8.2) for the Kaiser window
 bessel_i0(x) {
 	ax = abs(x);
 	res = 0;
 	if (ax < 3.75) {
-		y = (x / 3.75) * (x / 3.75);
-		res = 1 + y * (3.5156229 + y * (3.0899424 + y * (1.2067492 + y * (0.2659732 + y * (0.0360768 + y * 0.0045813)))));
+		yb = (x / 3.75) * (x / 3.75);
+		res = 1 + yb * (3.5156229 + yb * (3.0899424 + yb * (1.2067492 + yb * (0.2659732 + yb * (0.0360768 + yb * 0.0045813)))));
 	} else {
-		y = 3.75 / ax;
-		res = (exp(ax) / sqrt(ax)) * (0.39894228 + y * (0.01328592 + y * (0.00225319 + y * (-0.00157565 + y * (0.00916281 + y * (-0.02057706 + y * (0.02635537 + y * (-0.01647633 + y * 0.00392377))))))));
+		yb = 3.75 / ax;
+		res = (exp(ax) / sqrt(ax)) * (0.39894228 + yb * (0.01328592 + yb * (0.00225319 + yb * (-0.00157565 + yb * (0.00916281 + yb * (-0.02057706 + yb * (0.02635537 + yb * (-0.01647633 + yb * 0.00392377))))))));
 	}
 	return res;
 }
 // low-pass kernel in samples of the slower rate: cutoff 0.47 · rate, Kaiser β 7.5, ±16 samples
 csinc(x) {
-	a = abs(x);
-	r = a / 16;
-	wv = r < 1 ? bessel_i0(7.5 * sqrt(1 - r * r)) / bessel_i0(7.5) : 0;
-	s = a < 0.000001 ? 1 : sin(pi * 0.94 * a) / (pi * 0.94 * a);
-	return 0.94 * s * wv;
+	ac = abs(x);
+	rk = ac / 16;
+	wv = rk < 1 ? bessel_i0(7.5 * sqrt(1 - rk * rk)) / bessel_i0(7.5) : 0;
+	sk = ac < 0.000001 ? 1 : sin(pi * 0.94 * ac) / (pi * 0.94 * ac);
+	return 0.94 * sk * wv;
 }
 
 Param time(0.15, min=0, max=1);
@@ -348,7 +348,7 @@ History g_rst(0);
 History lastpos(0);
 History lastspd(1);
 History hinit(0);
-History qc(-1);
+History qc(0);
 History cacc(0);
 History hw(0);
 History ew(0);
@@ -411,14 +411,14 @@ if (hinit < 0.5) {
 }
 poke(hin, in1, hw, 0);
 poke(hin, in2, hw, 1);
-// codec clock: integer accumulator (RC per host sample), a tick when it passes the host rate
+// codec clock: integer accumulator (RC per host sample), a ctk when it passes the host rate
 nacc = (qchg || !rsm) ? 0 : cacc + RC;
-tick = qchg || !rsm || nacc >= FSH;
+ctk = qchg || !rsm || nacc >= FSH;
 nacc = nacc >= FSH ? nacc - FSH : nacc;
 dlt = nacc / RC;   // time since this codec sample, in codec samples
 ein1 = in1;
 ein2 = in2;
-if (rsm && tick) {
+if (rsm && ctk) {
 	// down-converter: kernel centred 16 codec samples back (latency), weights normalised
 	poke(acs, 0, 0, 0);
 	poke(acs, 0, 1, 0);
@@ -429,9 +429,9 @@ if (rsm && tick) {
 		ki = floor(ka);
 		if (ki < 4096) {
 			wk = peek(ck, ki, 0) + (peek(ck, ki + 1, 0) - peek(ck, ki, 0)) * (ka - ki);
-			hi = wrapi(hw - k, 512);
-			poke(acs, peek(acs, 0, 0) + peek(hin, hi, 0) * wk, 0, 0);
-			poke(acs, peek(acs, 1, 0) + peek(hin, hi, 1) * wk, 1, 0);
+			hix = wrapi(hw - k, 512);
+			poke(acs, peek(acs, 0, 0) + peek(hin, hix, 0) * wk, 0, 0);
+			poke(acs, peek(acs, 1, 0) + peek(hin, hix, 1) * wk, 1, 0);
 			poke(acs, peek(acs, 2, 0) + wk, 2, 0);
 		}
 	}
@@ -441,7 +441,7 @@ if (rsm && tick) {
 nhw = wrapi(hw + 1, 512);
 
 // ================================================================ codec stage (one codec sample)
-if (tick) {
+if (ctk) {
 FS = RC;
 MAXD = qi < 0.5 ? 192000 : qi > 2.5 ? 384000 : 256000;
 // Processor::Configure on a quality change: buffer cleared, grains / trigger generator / limiters /
@@ -1177,11 +1177,11 @@ if (qi > 2.5) {
 		pph = wrph;
 		wrph = wrph + wrf * BLK;
 		wrph = wrph >= 1 ? wrph - 1 : wrph;
-		rmod = 0.5 + 0.5 * lsin(wrph);
+		wrm = 0.5 + 0.5 * lsin(wrph);
 		// the new random rate is drawn after the grains of this block (see the end of the codec stage)
 		wpend = wrph >= 0.25 && pph < 0.25;
-		fm = 0.5 + 1.5 * rmod * rmod;
-		wam = 1 - 0.4 * rmod;
+		fm = 0.5 + 1.5 * wrm * wrm;
+		wam = 1 - 0.4 * wrm;
 		wwph = wwph + (1 / 24000) * 0.23 * BLK * fm;
 		wwph = wwph >= 1 ? wwph - 1 : wwph;
 		wfph = wfph + (1 / 24000) * 1.99 * BLK;
@@ -1451,7 +1451,7 @@ new_ = ew;
 o1 = peek(cx, 0, 0);
 o2 = peek(cx, 1, 0);
 if (rsm) {
-	if (tick) {
+	if (ctk) {
 		new_ = wrapi(ew + 1, 64);
 		poke(eo, peek(cx, 0, 0), new_, 0);
 		poke(eo, peek(cx, 1, 0), new_, 1);
@@ -1475,7 +1475,7 @@ if (rsm) {
 }
 out1 = o1;
 out2 = o2;
-out3 = tick ? peek(cx, 2, 0) : 0;
+out3 = ctk ? peek(cx, 2, 0) : 0;
 out4 = peek(cx, 3, 0);
 out5 = peek(cx, 4, 0);
 out6 = peek(cx, 5, 0);

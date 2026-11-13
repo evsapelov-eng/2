@@ -103,3 +103,6 @@ Test control (`npm run verify`, 37 mutations, 15 of them for the qualities): 35 
 - **DYNAMIC soft clip 0.75 → 0.7**: the ×4 manual-gain case clamps the amount to 1. A ×2 case (amount ≈ 0.72) was added.
 
 Both were re-checked one at a time (caught). All 37 are now caught.
+
+## v0.3.1 — silent in Live again (v0.3.0)
+v0.3.0 gave no sound at all in Live, not even the dry signal, which points to gen~ not compiling. The new code used names that are gen~ operators in Max: `rmod` (reverse modulo), `r` and `s` (receive / send). The linter's reserved list did not know them. Renamed (`wrm`, `rk`, `sk`, and the other short locals of the new functions); `History qc(-1)` → `qc(0)` (a negative initial value is not needed). The linter now also knows rsub / rdiv / rmod / r / s, fast math and the *p comparisons. Not confirmed in Max until the user tests it.

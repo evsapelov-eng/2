@@ -23,7 +23,10 @@ const RESERVED = new Set(("gate latch delay elapsed e E mix smoothstep step rate
   "fixnan fixdenorm isnan isdenorm mean minimum maximum degrees radians atodb dbtoa ftom mtof cartopol poltocar " +
   "halfpi invpi ln2 ln10 log2e log10e sqrt2 sqrt1_2 degtorad radtodeg PI TWOPI vectorsize voice channels splat " +
   "absdiff hypot round floor ceil trunc fract sqrt exp log pow sin cos tan atan atan2 tanh sign min max clamp abs noise " +
-  "peek poke dim samplerate pi twopi gt lt gte lte eq neq mod div mul add sub").split(" "));
+  "peek poke dim samplerate pi twopi gt lt gte lte eq neq mod div mul add sub " +
+  // more gen~ operators (Max 9 object list): reverse ops, send/receive, fast math, comparisons (f / i compiled fine in v0.2)
+  "rsub rdiv rmod r s expr constant float acos acosh asin asinh atanh cosh sinh fastcos fastsin fasttan fastexp fastpow " +
+  "phasewrap trapezoid gtp ltp gtep ltep eqp neqp mulequals setparam nearest cos").split(" "));
 
 function stripComments(src) { return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, ""); }
 
