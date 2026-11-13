@@ -171,15 +171,90 @@ function arc(cx, cy, r, a0, a1, c, lw, a) {
   mgraphics.stroke();
 }
 function hit(o) { hits.push(o); }
+// ---------- "live" look: soft gradients, shadows, knurled knobs, engraved lace, brushed panel ----------
+// mgraphics radial gradients if available (Max jsui); a flat colour otherwise — never throws
+var HAS_GRAD = typeof mgraphics.pattern_create_radial === "function";
+function radialFill(cx, cy, r, hx, hy, c0, c1) {   // circle lit from (hx, hy): c0 at the highlight, c1 at the rim
+  if (HAS_GRAD) {
+    try {
+      var pt = mgraphics.pattern_create_radial(hx, hy, 0, cx, cy, r);
+      pt.add_color_stop_rgba(0, c0[0], c0[1], c0[2], c0[3]);
+      pt.add_color_stop_rgba(1, c1[0], c1[1], c1[2], c1[3]);
+      mgraphics.set_source(pt);
+      mgraphics.ellipse(cx - r, cy - r, 2 * r, 2 * r); mgraphics.fill();
+      return;
+    } catch (e) { HAS_GRAD = false; }
+  }
+  circle(cx, cy, r, [(c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2, (c0[2] + c1[2]) / 2, 1], true);
+}
+function shadow(cx, cy, r) {
+  circle(cx + 1.2, cy + 2.2, r + 1.5, [0, 0, 0, 1], true, 1, 0.07);
+  circle(cx + 0.8, cy + 1.6, r + 0.5, [0, 0, 0, 1], true, 1, 0.14);
+}
+// brushed / anodised panel: fixed hairlines and specks (same every frame)
+var TEX = (function () {
+  var s = 12345, r = function () { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; }, o = { lines: [], dots: [] };
+  for (var i = 0; i < 70; i++) o.lines.push([r() * W0, 6 + r() * (H0 - 12), 20 + r() * 160, r() < 0.5 ? 1 : 0, 0.025 + r() * 0.035]);
+  for (var j = 0; j < 160; j++) o.dots.push([6 + r() * (W0 - 12), 6 + r() * (H0 - 12), 0.35 + r() * 0.5, r() < 0.6 ? 0 : 1]);
+  return o;
+})();
+function panelTexture() {
+  for (var i = 0; i < TEX.lines.length; i++) {
+    var L = TEX.lines[i];
+    line(L[0], L[1], Math.min(W0 - 6, L[0] + L[2]), L[1], L[3] ? [1, 1, 1, 1] : [0.45, 0.43, 0.38, 1], 0.6, L[4]);
+  }
+  for (var j = 0; j < TEX.dots.length; j++) {
+    var D = TEX.dots[j];
+    circle(D[0], D[1], D[2], D[3] ? [1, 1, 1, 1] : [0.35, 0.33, 0.3, 1], true, 1, 0.12);
+  }
+}
+// engraved lace around a big knob: dots and dashes on two rings (own pattern)
+function lace(cx, cy, r) {
+  var n = 40;
+  for (var i = 0; i < n; i++) {
+    var t = i / n * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t);
+    if (i % 2) circle(cx + c * r, cy + sn * r, 0.75, C.mid, true, 1, 0.35);
+    else line(cx + c * (r - 1.6), cy + sn * (r - 1.6), cx + c * (r + 1.6), cy + sn * (r + 1.6), C.mid, 0.8, 0.28);
+    var t2 = t + Math.PI / n;
+    circle(cx + Math.cos(t2) * (r + 3.2), cy + Math.sin(t2) * (r + 3.2), 0.55, C.mid, true, 1, 0.22);
+  }
+}
+// a jack: metal nut, dark hole, coloured ring (source colour / patched cable)
+function jack(x, y, c, patched) {
+  shadow(x, y, 5.5);
+  radialFill(x, y, 6, x - 2.2, y - 2.6, [0.95, 0.95, 0.93, 1], [0.55, 0.55, 0.53, 1]);
+  circle(x, y, 6, [0, 0, 0, 1], false, 0.6, 0.35);
+  circle(x, y, 3.6, c || [0.2, 0.2, 0.2, 1], false, c ? 1.6 : 0.8, c ? 1 : 0.6);
+  radialFill(x, y, 2.6, x + 0.6, y + 0.8, [0.22, 0.22, 0.22, 1], [0, 0, 0, 1]);
+  if (patched) circle(x, y, 1.4, c, true);
+}
+var SKIRT0 = [0.30, 0.30, 0.29, 1], SKIRT1 = [0.04, 0.04, 0.04, 1], CAP0 = [1, 1, 0.99, 1], CAP1 = [0.86, 0.85, 0.81, 1];
+// a real-looking knob body: shadow, black skirt with knurling that turns with the value, cream cap
+function knobBody(cx, cy, r, a, capR) {
+  shadow(cx, cy, r);
+  radialFill(cx, cy, r, cx - r * 0.35, cy - r * 0.45, SKIRT0, SKIRT1);
+  var n = Math.max(16, Math.round(r * 1.6));
+  for (var i = 0; i < n; i++) {
+    var t = a + i / n * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t), lit = 0.5 - 0.5 * Math.sin(t + Math.PI * 0.25);
+    line(cx + c * r * 0.8, cy + sn * r * 0.8, cx + c * r * 0.97, cy + sn * r * 0.97, lit > 0.5 ? [0.5, 0.5, 0.48, 1] : [0, 0, 0, 1], 0.8, 0.35 + 0.3 * lit);
+  }
+  if (capR > 0) {
+    circle(cx, cy, capR + 0.8, [0, 0, 0, 1], true, 1, 0.5);
+    radialFill(cx, cy, capR, cx - capR * 0.4, cy - capR * 0.5, CAP0, CAP1);
+    circle(cx, cy, capR, [1, 1, 1, 1], false, 0.8, 0.6);
+  }
+}
 var A0 = Math.PI * 0.75, A1 = Math.PI * 2.25;   // 270° knob travel, 0 at 7:30
 function knob(cx, cy, r, name, bipolar) {
   var v = P[name].v, a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
-  arc(cx, cy, r + 4, A0, A1, C.line, 3);
-  if (bipolar) { var am = (A0 + A1) / 2; arc(cx, cy, r + 4, Math.min(am, a), Math.max(am, a), C.accent, 3); }
-  else arc(cx, cy, r + 4, A0, a, C.accent, 3);
-  circle(cx, cy, r, C.ink, true);
-  circle(cx, cy, r * 0.62, C.panel, true);
-  line(cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62, cx + Math.cos(a) * r * 0.98, cy + Math.sin(a) * r * 0.98, C.panel, Math.max(2, r * 0.12));
+  if (r > 14) lace(cx, cy, r + 8);
+  arc(cx, cy, r + 4, A0, A1, C.line, 2.5);
+  if (bipolar) { var am = (A0 + A1) / 2; arc(cx, cy, r + 4, Math.min(am, a), Math.max(am, a), C.accent, 2.5); }
+  else arc(cx, cy, r + 4, A0, a, C.accent, 2.5);
+  knobBody(cx, cy, r, a, r * 0.6);
+  // white notch on the skirt, continued as a dark line on the cap
+  line(cx + Math.cos(a) * r * 0.6, cy + Math.sin(a) * r * 0.6, cx + Math.cos(a) * r * 0.97, cy + Math.sin(a) * r * 0.97, [0.98, 0.98, 0.96, 1], Math.max(2, r * 0.11));
+  line(cx + Math.cos(a) * r * 0.25, cy + Math.sin(a) * r * 0.25, cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, C.ink, Math.max(1.2, r * 0.06), 0.55);
   if (act) circle(cx, cy, r + 7, C.accent, false, 1, 0.5);
   hit({ x: cx - r - 6, y: cy - r - 6, w: 2 * r + 12, h: 2 * r + 12, kind: "knob", name: name });
 }
@@ -191,9 +266,12 @@ function drawLogo(x, y, s) {
   text("CK", ox + ow + 1, y, s, C.ink, true);
 }
 function roundButton(cx, cy, r, label, on, name, momentary) {
-  circle(cx, cy, r, on ? C.on : C.panel, true);
-  circle(cx, cy, r, C.ink, false, 1.5);
-  if (on) circle(cx, cy, r * 0.45, C.panel, true, 1, 0.9);
+  if (on) { circle(cx, cy, r + 6, C.accent, true, 1, 0.08); circle(cx, cy, r + 3.5, C.accent, true, 1, 0.16); }
+  shadow(cx, cy, r + 1.5);
+  radialFill(cx, cy, r + 2.5, cx - r * 0.5, cy - r * 0.6, [0.80, 0.80, 0.78, 1], [0.38, 0.38, 0.36, 1]);   // metal bezel
+  radialFill(cx, cy, r, cx - r * 0.35, cy - r * 0.45, on ? [0.92, 0.95, 1, 1] : CAP0, on ? [0.45, 0.58, 0.85, 1] : [0.83, 0.82, 0.78, 1]);
+  circle(cx, cy, r, [0, 0, 0, 1], false, 0.8, 0.35);
+  if (on) circle(cx, cy, r * 0.35, [1, 1, 1, 1], true, 1, 0.55);
   textC(label, cx, cy + r + 12, 8, C.ink, true);
   hit({ x: cx - r - 2, y: cy - r - 2, w: 2 * r + 4, h: 2 * r + 4, kind: momentary ? "momentary" : "toggle", name: name });
 }
@@ -204,7 +282,9 @@ function paint() {
   mgraphics.scale(scaleF, scaleF);
   hits = [];
   rect(0, 0, W0, H0, C.bg, true);
+  panelTexture();
   rect(3, 3, W0 - 6, H0 - 6, C.line, false, 1);
+  rect(4, 4, W0 - 8, H0 - 8, [1, 1, 1, 1], false, 1, 0.55);   // engraved edge: dark line + light line
   // ---- left: logo, FREEZE / SEED, LATCH
   drawLogo(14, 30, 22);
   text("granular texture", 15, 42, 7, C.mid);
@@ -277,10 +357,10 @@ function dstY(j) { return 14 + j * 14.2; }
 // small knob for the MOD tab: thin ring, fits in a 14 px row
 function smallKnob(cx, cy, name) {
   var v = norm(name, P[name].v), a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
-  arc(cx, cy, 6, A0, A1, C.line, 2);
-  arc(cx, cy, 6, A0, a, C.accent, 2);
-  circle(cx, cy, 3.2, C.ink, true);
-  line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * 6, cy + Math.sin(a) * 6, C.ink, 1.5);
+  arc(cx, cy, 6.5, A0, A1, C.line, 1.6);
+  arc(cx, cy, 6.5, A0, a, C.accent, 1.6);
+  knobBody(cx, cy, 4.6, a, 0);
+  line(cx + Math.cos(a) * 1.2, cy + Math.sin(a) * 1.2, cx + Math.cos(a) * 4.4, cy + Math.sin(a) * 4.4, [0.98, 0.98, 0.96, 1], 1.2);
   if (act) circle(cx, cy, 8.5, C.accent, false, 1, 0.5);
   hit({ x: cx - 8, y: cy - 8, w: 16, h: 16, kind: "knob", name: name });
 }
@@ -340,14 +420,13 @@ function paintMod() {
       drawSeq(268, y - 10, 290, 20);
     }
     // source jack
-    circle(JS_X, y, 5, C.panel, true); circle(JS_X, y, 5, SRC_COL[i], false, 2); circle(JS_X, y, 1.8, SRC_COL[i], true);
+    jack(JS_X, y, SRC_COL[i], true);
     hit({ x: JS_X - 8, y: y - 8, w: 16, h: 16, kind: "jack_src", name: "src" + i, src: i + 1 });
   }
   // destinations
   for (var j = 0; j < DST.length; j++) {
     var dy = dstY(j), dn = "dst_" + DST[j][0], si = Math.round(P[dn].v);
-    circle(JD_X, dy, 5, C.panel, true); circle(JD_X, dy, 5, si ? SRC_COL[si - 1] : C.ink, false, si ? 2 : 1.2);
-    if (si) circle(JD_X, dy, 1.8, SRC_COL[si - 1], true);
+    jack(JD_X, dy, si ? SRC_COL[si - 1] : null, !!si);
     text(DST[j][1], 800, dy + 3, 7, C.ink, si > 0);
     hit({ x: JD_X - 8, y: dy - 7, w: 60, h: 14, kind: "jack_dst", name: dn, dst: j });
     var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt", density: "dn_amt" }[DST[j][0]];
