@@ -1,21 +1,31 @@
-// FLØCK engine — gen~ codebox (GenExpr). v0.1: Pristine quality (16-bit stereo buffer), granular mode.
+// FLØCK engine — gen~ codebox (GenExpr): granular mode with the four recording qualities.
 //
 // Port of the Beads DSP by Emilie Gillet (Mutable Instruments), MIT licence:
 //   Copyright 2017 Emilie Gillet. Permission is hereby granted, free of charge, to any person
 //   obtaining a copy of this software ... (full text: flock/LICENSE-BEADS.txt).
-// Files ported here: beads/dsp/processor.cc, granular_processor.h, granular_player.h,
+// Files ported here: beads/dsp/processor.cc/.h, granular_processor.h, granular_player.h,
 // delay_granular_player.h, delay_grain.h, grain_envelope.h, voice_stealing_envelope.h,
-// delay_line.h (16-bit, Hermite read, freeze tail), trigger_generator.cc (latched / gated),
+// delay_line.h (16 / 12-bit / 8-bit µ-law items, Hermite read, freeze tail), mu_law.cc,
+// fx/wow_and_flutter.h, sample_rate_conversion_filters.h (48-tap, ratio 2), trigger_generator.cc,
 // randomized_parameter.h, limiter.h, fx/reverb.h + fx_engine.h, cv_reader.h (pot laws),
-// stmlib SoftClip / Svf / CosineOscillator / Random.
-// Deviations (documented in docs/PORTING_NOTES.md): runs at the host sample rate with the
-// buffer length of the 48 kHz module (192000 frames); block-rate interpolation → per-sample
-// one-pole; no hysteresis on the pots; noise() instead of the module's LCG.
+// gain_control.cc, stmlib SoftClip / Svf / CosineOscillator / SampleRateConverter / Random.
+// Deviations: docs/PORTING_NOTES.md.
+//
+// Structure of one host sample:
+//   host stage  — the quality's codec rate (Processor::sample_rate: 48 k / 32 k / 48 k / 24 k):
+//                 Pristine and Sunny tape run at the host rate; Cold digital (32 kHz) and Scorched
+//                 cassette (24 kHz) run the whole engine at that rate between two FLØCK converters
+//                 (Kaiser-windowed sinc), standing in for the module's codec.
+//   codec stage — everything the module runs per codec sample (gain, controls, triggers, mix,
+//                 wow & flutter, limiters, reverb); runs on "ticks" of the codec rate.
+//   core stage  — GranularProcessor::ProcessInternal (feedback, buffer write, grains); for Sunny tape
+//                 it runs at half the codec rate between the module's own 48-tap converters.
 //
 // Inlets : in1 L, in2 R, in3..in6 CV for TIME, SIZE, SHAPE, PITCH (MOD matrix; used if *_cv = 1)
 // Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,
 //          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed),
-//          out8 sequencer step, out9 Live transport running (bar phase moving)
+//          out8 sequencer step, out9 Live transport running (bar phase moving), out10 input gain,
+//          out11 auto gain learning
 //          in7 bar phase from Live (phasor~ 1n @lock 1); in8..in11 external SEED / FREEZE / DENSITY / assign
 //          (destination index 7, used by the tests)
 //
@@ -88,6 +98,57 @@ wrapi(x, n) {
 	return x - floor(x / n) * n;
 }
 
+// 12-bit buffer item (delay_line.h Item<RESOLUTION_12_BIT>): Clip16(x · 32768) >> 4, read back / 2048
+q12(x) {
+	return floor(clamp(trunc(x * 32768), -32768, 32767) / 16) / 2048;
+}
+// 8-bit item: Lin2MuLaw(Clip16(x · 32768)) then MuLaw2Lin (lut_ulaw_f: the G.711 decoder / 32768,
+// printed with 5 decimals in mu_law.cc — reproduced here, all 256 values checked)
+mulaw(x) {
+	c = clamp(trunc(x * 32768), -32768, 32767);
+	p = floor(c / 4);
+	ng = p < 0;
+	m = min(ng ? -p : p, 8159) + 33;
+	seg = m <= 63 ? 0 : m <= 127 ? 1 : m <= 255 ? 2 : m <= 511 ? 3 : m <= 1023 ? 4 : m <= 2047 ? 5 : m <= 4095 ? 6 : m <= 8191 ? 7 : 8;
+	man = seg > 7.5 ? 15 : wrapi(floor(m / pow(2, seg + 1)), 16);
+	t = (man * 8 + 132) * pow(2, min(seg, 7)) - 132;
+	return floor((ng ? -t : t) / 32768 * 100000 + 0.5) / 100000;
+}
+// stmlib SoftLimit / SoftClip
+soft_limit(x) {
+	return x * (27 + x * x) / (27 + 9 * x * x);
+}
+sclip(x) {
+	return x < -3 ? -1 : x > 3 ? 1 : soft_limit(x);
+}
+// beads SineOscillator: lut_sine (1024 points) with linear interpolation, 0.5 + 0.5 · value
+lsin(p) {
+	x = p * 1024;
+	i = trunc(x);
+	return sin(twopi * i / 1024) + (sin(twopi * (i + 1) / 1024) - sin(twopi * i / 1024)) * (x - i);
+}
+// FLØCK codec converters: modified Bessel I0 (Abramowitz & Stegun 9.8.1 / 9.8.2) for the Kaiser window
+bessel_i0(x) {
+	ax = abs(x);
+	res = 0;
+	if (ax < 3.75) {
+		y = (x / 3.75) * (x / 3.75);
+		res = 1 + y * (3.5156229 + y * (3.0899424 + y * (1.2067492 + y * (0.2659732 + y * (0.0360768 + y * 0.0045813)))));
+	} else {
+		y = 3.75 / ax;
+		res = (exp(ax) / sqrt(ax)) * (0.39894228 + y * (0.01328592 + y * (0.00225319 + y * (-0.00157565 + y * (0.00916281 + y * (-0.02057706 + y * (0.02635537 + y * (-0.01647633 + y * 0.00392377))))))));
+	}
+	return res;
+}
+// low-pass kernel in samples of the slower rate: cutoff 0.47 · rate, Kaiser β 7.5, ±16 samples
+csinc(x) {
+	a = abs(x);
+	r = a / 16;
+	wv = r < 1 ? bessel_i0(7.5 * sqrt(1 - r * r)) / bessel_i0(7.5) : 0;
+	s = a < 0.000001 ? 1 : sin(pi * 0.94 * a) / (pi * 0.94 * a);
+	return 0.94 * s * wv;
+}
+
 Param time(0.15, min=0, max=1);
 Param size(0.6, min=0, max=1);
 Param shape(0.6, min=0, max=1);
@@ -115,6 +176,9 @@ Param agc(1, min=0, max=1);
 Param agc_restart(0, min=0, max=1000000);
 // DENSITY CV depth (FLØCK; Beads has none = 1)
 Param dn_amt(0.5, min=0, max=1);
+// recording quality (Beads MEDIA button): 0 Pristine (MEDIA_DIGITAL, the module's default),
+// 1 Cold digital (MEDIA_VINTAGE_DIGITAL), 2 Sunny tape (MEDIA_CLEAN_TAPE), 3 Scorched cassette (MEDIA_DIRTY_TAPE)
+Param quality(0, min=0, max=3);
 // ---- modulation (MOD tab). Destinations take a source index: 0 none, 1 LFO1, 2 LFO2, 3 RANDOM,
 // 4 ENV, 5 CLOCK, 6 SEQ, 7 external inlet (in8..in11, tests / future)
 Param dst_freeze(0, min=0, max=7);
@@ -167,12 +231,22 @@ Param sq13(-1, min=-1, max=1);
 Param sq14(-1, min=-1, max=1);
 Param sq15(-1, min=-1, max=1);
 
-Data buf(192004, 2);
+// recording buffer: the longest quality (Scorched cassette, 384000 frames) + interpolation tail
+Data buf(384004, 2);
 Data gr(32, 16);
 Data prio(32, 1);
 Data ftail(256, 2);
 Data rv(32768, 1);
 Data sum(8, 1);
+Data ck(4100, 1);    // codec converter kernel, 256 points per sample of the slower rate
+Data hin(512, 2);    // host input ring (codec down-converter)
+Data eo(64, 2);      // codec-rate output ring (codec up-converter)
+Data srcf(48, 2);    // Sunny tape SRC_FIR<ratio 2, 48 taps>: channel 0 down, 1 up (full, mirrored)
+Data gdn(64, 2);     // Sunny tape: codec-rate input history (down-converter)
+Data gup(32, 2);     // Sunny tape: core-rate output history (up-converter)
+Data wfl(128, 2);    // wow & flutter delay lines (stmlib DelayLine<float, 128>)
+Data acs(8, 1);      // converter accumulators: 0 L, 1 R, 2 weight
+Data cx(16, 1);      // values passed out of the codec / core stages (see the end of the codec stage)
 Data sdl(1024, 1);   // SEED input delay line (beads.cc event_delay: 10 blocks = 2.5 ms)   // per-sample accumulators: 0 L, 1 R, 2 playing grains, 3 active count, 4 best, 5 best remaining
 
 History init(0);
@@ -273,28 +347,151 @@ History g_time(0);
 History g_rst(0);
 History lastpos(0);
 History lastspd(1);
+History hinit(0);
+History qc(-1);
+History cacc(0);
+History hw(0);
+History ew(0);
+History c_rc(48000);
+History crst(0);
+History gdw(0);
+History guw(0);
+History pt(0);
+History pf(0);
+History preg(1);
+History pfz(0);
+History s_sca(0);
+History i_sca(0);
+History wf_rph(0);
+History wf_rf(0);
+History wf_wph(0);
+History wf_fph(0);
+History wf_del(0);
+History wf_inc(0);
+History wf_lpl(0);
+History wf_lpr(0);
+History wf_w(0);
+History wf_pend(0);
 
 // ---------------------------------------------------------------- per sample
-FS = samplerate;
-MAXD = 192000;
+FSH = samplerate;
 k = 0;
 j = 0;
-// one-time init of the grain priority list
-if (init < 0.5) {
+// ================================================================ host stage
+qi = clamp(floor(quality + 0.5), 0, 3);
+// the manual: the quality cannot change while the buffer is frozen (it would be cleared) — held until unfrozen
+qi = (hinit > 0.5 && (freeze > 0.5 || was_frozen > 0.5)) ? qc : qi;
+qchg = hinit > 0.5 && qi != qc;
+// codec rate (Processor::sample_rate with ENABLE_HARDWARE_24K): Cold digital 32 kHz, Scorched cassette
+// 24 kHz; Pristine and Sunny tape: the host rate (like the rest of FLØCK)
+RC = min(qi > 0.5 && qi < 1.5 ? 32000 : qi > 2.5 ? 24000 : FSH, FSH);
+rsm = RC < FSH;
+rr = RC / FSH;
+if (hinit < 0.5) {
+	for (k = 0; k < 4097; k += 1) {
+		poke(ck, csinc(k / 256), k, 0);
+	}
+	// sample_rate_conversion_filters.h SRC_FIR<SRC_DOWN, 2, 48> / <SRC_UP, 2, 48> (24 + mirror)
+	poke(srcf, -0.0002143728787, 0, 0); poke(srcf, -0.0004113243578, 1, 0); poke(srcf, 0.0003550026182, 2, 0); poke(srcf, 0.001123588805, 3, 0);
+	poke(srcf, 0.0002013790146, 4, 0); poke(srcf, -0.002135889966, 5, 0); poke(srcf, -0.001946536068, 6, 0); poke(srcf, 0.002421957824, 7, 0);
+	poke(srcf, 0.005099674271, 8, 0); poke(srcf, -0.0004847193956, 9, 0); poke(srcf, -0.008638296788, 10, 0); poke(srcf, -0.005137744633, 11, 0);
+	poke(srcf, 0.01000597441, 12, 0); poke(srcf, 0.01464501735, 13, 0); poke(srcf, -0.005419339385, 14, 0); poke(srcf, -0.02582247866, 15, 0);
+	poke(srcf, -0.009106955536, 16, 0); poke(srcf, 0.03335521514, 17, 0); poke(srcf, 0.03702172341, 18, 0); poke(srcf, -0.02802414194, 19, 0);
+	poke(srcf, -0.08416883646, 20, 0); poke(srcf, -0.01192656678, 21, 0); poke(srcf, 0.1955030744, 22, 0); poke(srcf, 0.3837045956, 23, 0);
+	poke(srcf, -0.0004287457573, 0, 1); poke(srcf, -0.0008226487157, 1, 1); poke(srcf, 0.0007100052364, 2, 1); poke(srcf, 0.00224717761, 3, 1);
+	poke(srcf, 0.0004027580292, 4, 1); poke(srcf, -0.004271779932, 5, 1); poke(srcf, -0.003893072135, 6, 1); poke(srcf, 0.004843915649, 7, 1);
+	poke(srcf, 0.01019934854, 8, 1); poke(srcf, -0.0009694387912, 9, 1); poke(srcf, -0.01727659358, 10, 1); poke(srcf, -0.01027548927, 11, 1);
+	poke(srcf, 0.02001194882, 12, 1); poke(srcf, 0.02929003471, 13, 1); poke(srcf, -0.01083867877, 14, 1); poke(srcf, -0.05164495731, 15, 1);
+	poke(srcf, -0.01821391107, 16, 1); poke(srcf, 0.06671043028, 17, 1); poke(srcf, 0.07404344683, 18, 1); poke(srcf, -0.05604828388, 19, 1);
+	poke(srcf, -0.1683376729, 20, 1); poke(srcf, -0.02385313356, 21, 1); poke(srcf, 0.3910061488, 22, 1); poke(srcf, 0.7674091912, 23, 1);
+	for (k = 0; k < 24; k += 1) {
+		poke(srcf, peek(srcf, k, 0), 47 - k, 0);
+		poke(srcf, peek(srcf, k, 1), 47 - k, 1);
+	}
+}
+poke(hin, in1, hw, 0);
+poke(hin, in2, hw, 1);
+// codec clock: integer accumulator (RC per host sample), a tick when it passes the host rate
+nacc = (qchg || !rsm) ? 0 : cacc + RC;
+tick = qchg || !rsm || nacc >= FSH;
+nacc = nacc >= FSH ? nacc - FSH : nacc;
+dlt = nacc / RC;   // time since this codec sample, in codec samples
+ein1 = in1;
+ein2 = in2;
+if (rsm && tick) {
+	// down-converter: kernel centred 16 codec samples back (latency), weights normalised
+	poke(acs, 0, 0, 0);
+	poke(acs, 0, 1, 0);
+	poke(acs, 0, 2, 0);
+	nj = floor(33 / rr);
+	for (k = 0; k < nj; k += 1) {
+		ka = abs(rr * k - dlt - 16) * 256;
+		ki = floor(ka);
+		if (ki < 4096) {
+			wk = peek(ck, ki, 0) + (peek(ck, ki + 1, 0) - peek(ck, ki, 0)) * (ka - ki);
+			hi = wrapi(hw - k, 512);
+			poke(acs, peek(acs, 0, 0) + peek(hin, hi, 0) * wk, 0, 0);
+			poke(acs, peek(acs, 1, 0) + peek(hin, hi, 1) * wk, 1, 0);
+			poke(acs, peek(acs, 2, 0) + wk, 2, 0);
+		}
+	}
+	ein1 = peek(acs, 0, 0) / peek(acs, 2, 0);
+	ein2 = peek(acs, 1, 0) / peek(acs, 2, 0);
+}
+nhw = wrapi(hw + 1, 512);
+
+// ================================================================ codec stage (one codec sample)
+if (tick) {
+FS = RC;
+MAXD = qi < 0.5 ? 192000 : qi > 2.5 ? 384000 : 256000;
+// Processor::Configure on a quality change: buffer cleared, grains / trigger generator / limiters /
+// reverb LFOs re-initialised, codec blocks restart (FLØCK also restarts the core's filters)
+fresh = init < 0.5 || qchg;
+rat = qi > 1.5 && qi < 2.5 ? 2 : 1;
+RG = FS / rat;
+if (fresh) {
 	for (k = 0; k < 32; k += 1) {
 		poke(prio, k, k, 0);
 		poke(gr, 3, k, 0);
 		poke(gr, 1, k, 6);
+		poke(gr, 0, k, 7);
+		poke(gr, 0, k, 14);
+	}
+}
+if (qchg) {
+	for (k = 0; k < MAXD + 4; k += 1) {
+		poke(buf, 0, k, 0);
+		poke(buf, 0, k, 1);
+	}
+	for (k = 0; k < 256; k += 1) {
+		poke(ftail, 0, k, 0);
+		poke(ftail, 0, k, 1);
+	}
+	for (k = 0; k < 1024; k += 1) {
+		poke(sdl, 0, k, 0);
+	}
+	for (k = 0; k < 64; k += 1) {
+		poke(gdn, 0, k, 0);
+		poke(gdn, 0, k, 1);
+		poke(eo, 0, k, 0);
+		poke(eo, 0, k, 1);
+	}
+	for (k = 0; k < 32; k += 1) {
+		poke(gup, 0, k, 0);
+		poke(gup, 0, k, 1);
 	}
 }
 
 // ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)
 // Like the module: pots are read once per block of sr/4000 samples (cv_reader.Read in the audio
 // callback): law → one-pole 0.05 → hysteresis (TIME 0.001). On load: no glide from zero.
-newblk = blk < 0.5;
+blkc = qchg ? 0 : blk;
+newblk = blkc < 0.5;
 // the module's audio block: kBlockRate = 4000 → sr / 4000 samples (12 at 48 kHz)
 BLK = floor(FS / 4000 + 0.5);
-nblk = blk > BLK - 1.5 ? 0 : blk + 1;
+// Sunny tape: the block must hold whole pairs for the ratio-2 converters (even; 12 at 44.1 / 48 kHz)
+BLK = rat > 1.5 ? 2 * floor(FS / 8000 + 0.5) : BLK;
+nblk = blkc > BLK - 1.5 ? 0 : blkc + 1;
 kp = init < 0.5 ? 1 : newblk ? 0.05 : 0;
 st_time = s_time + (time - s_time) * kp;
 th_err = st_time - s_timeh;
@@ -325,9 +522,12 @@ pos = nbars + bp + dph * floor(FS / 4000 + 0.5) * 10 + 0.000000001;   // + 1e-9 
 g_ign = trunc(FS * 1);
 g_act = trunc(FS * 6);
 gtime = init < 0.5 ? 0 : (agc_restart != g_rst ? g_ign : g_time);
+// GainControl::Init(new rate, reset = false) on a quality change: a finished learning stays finished
+gtime = qchg ? (g_time >= trunc(c_rc * 6) ? g_act : 0) : gtime;
 gagc = g_agc;
 gstb = g_stable;
 ginc = g_inc;
+isca = i_sca;
 if (newblk) {
 	ghz = BLK / FS;
 	gerr = g_peak - gagc;
@@ -340,15 +540,24 @@ if (newblk) {
 		gagc = gagc + (gerr > 0 ? 5 * ghz : (g_peak > gstb ? 0.5 : 0.01) * ghz) * gerr;
 	}
 	gtime = (gtime > g_ign || g_peak > 0.001) ? min(gtime + BLK, g_act) : gtime;
+	gopt = min(0.9 / min(gagc, 0.9), 40);
 	gtarget = agc > 0.5 ? min(0.9 / min(gagc, 0.9), 40) : ingain;
 	ginc = (gtarget - g_gain) / BLK;
+	// soft clipping of the manual gain: Scorched cassette ON, Sunny tape DYNAMIC, digital OFF
+	isca = ((qi > 2.5 ? 1 : qi > 1.5 ? clamp(2 * (ingain / gopt - 0.75), 0, 1) : 0) - s_sca) / BLK;
 }
 ggain = g_gain + ginc;
-gpk = max(abs(in1), abs(in2));
+gpk = max(abs(ein1), abs(ein2));
 gpe = gpk - g_peak;
 npeak = g_peak + (gpe > 0 ? 0.1 : 2 / FS) * gpe;
-inl = agc > 0.5 ? in1 * ggain : clamp(in1 * ggain, -1, 1);
-inr = agc > 0.5 ? in2 * ggain : clamp(in2 * ggain, -1, 1);
+// (the amount only moves while it is used: ParameterInterpolator::Next is not called otherwise)
+sca = (agc < 0.5 && qi > 1.5) ? s_sca + isca : s_sca;
+xl = ein1 * ggain;
+xr = ein2 * ggain;
+cll = clamp(xl, -1, 1);
+clr = clamp(xr, -1, 1);
+inl = agc > 0.5 ? xl : (qi > 1.5 ? cll + ((1 - 0.05) * sclip(xl + 0.05) - 0.05 - cll) * sca : cll);
+inr = agc > 0.5 ? xr : (qi > 1.5 ? clr + ((1 - 0.05) * sclip(xr + 0.05) - 0.05 - clr) * sca : clr);
 learning = agc > 0.5 && gtime < g_act;
 
 // ---- sources (MOD tab)
@@ -433,25 +642,25 @@ fmr = divmode ? 1 : pow(2, exp_fm * 60 / 12);
 // the merged gate keeps TriggerGenerator::previous_flags_ (updated outside the divider)
 erising = egate && prev_ext < 0.5;
 sgate = divmode ? egate : (seedstate > 0.5 || egate);
-rising = divmode ? erising : (sgate && prev_gate < 0.5);
+rising = divmode ? erising : (sgate && (fresh ? 0 : prev_gate) < 0.5);
 npg = divmode ? prev_gate : sgate;
-ph = tg_phase;
-ratio = tg_ratio;
+ph = fresh ? 0 : tg_phase;
+ratio = fresh ? 1 : tg_ratio;
 tapf = tg_freq;
-tg_el = tg_elapsed;
+tg_el = fresh ? trunc(FS / 2) : tg_elapsed;
 trig = 0;
 frac = 0;
 regularity = 1;
 maxf = 130.81278 / FS;
-tgt = init < 0.5 ? 2 / FS : tg_target;
-tapf = init < 0.5 ? 2 / FS : tapf;
-ndiv = tg_div;
-lpc = tg_lpc;
-aud = tg_audio;
-acc_p = tg_accept;
-pcount = tg_count;
-rint = init < 0.5 ? trunc(FS * 4) : tg_resetint;
-quant = tg_quant;
+tgt = fresh ? 2 / FS : tg_target;
+tapf = fresh ? 2 / FS : tapf;
+ndiv = fresh ? 1 : tg_div;
+lpc = fresh ? 1 : tg_lpc;
+aud = fresh ? 0 : tg_audio;
+acc_p = fresh ? 1 : tg_accept;
+pcount = fresh ? 0 : tg_count;
+rint = fresh ? trunc(FS * 4) : tg_resetint;
+quant = fresh ? 0 : tg_quant;
 if (divmode) {
 	// ---- RenderDivider: clocked SEED (division CCW / probability CW of the incoming pulses)
 	qv = dens * 2.15 * 8 - 0.5;
@@ -539,26 +748,91 @@ if (divmode) {
 	regularity = 1 - (dens - 0.48) * 25;
 }
 
-// ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)
-inc_fb = newblk ? (clamp(st_fbk * 1.005 + (dst_feedback > 0.5 ? cv_a1 * fb_amt : 0), 0, 1) - s_fb) / BLK : i_fb;
-fbk = s_fb + inc_fb;
-sl = inl + prev_l * fbk * fbk * 3;
-sr = inr + prev_r * fbk * fbk * 3;
+// ---- Sunny tape: GranularProcessor<ratio 2> — the core runs on every second codec sample between
+// the module's SampleRateConverter<SRC_DOWN / SRC_UP, 2, 48>. Streaming (FLØCK): a pair is processed
+// on its second sample, so the up-converted wet signal comes 2 codec samples later than in the
+// module's block processing (42 µs at 48 kHz).
+gtick = rat < 1.5 || wrapi(blkc, 2) > 0.5;
+cnew = rat < 1.5 ? newblk : blkc < 1.5;
+CBLK = BLK / rat;
+ncrst = qchg ? 1 : crst;
+cfresh = ncrst > 0.5 && gtick;
+cin_l = inl;
+cin_r = inr;
+ctrig = trig;
+cfrac = frac;
+creg = regularity;
+cfrz = frozen;
+upl = 0;
+upr = 0;
+ngdw = gdw;
+nguw = guw;
+if (rat > 1.5) {
+	ngdw = wrapi(gdw + 1, 64);
+	poke(gdn, inl, ngdw, 0);
+	poke(gdn, inr, ngdw, 1);
+	// up-converter output for this codec sample (phase 1 on the pair's second sample), before the push
+	poke(acs, 0, 0, 0);
+	poke(acs, 0, 1, 0);
+	for (k = 0; k < 24; k += 1) {
+		hk = peek(srcf, 2 * k + (gtick ? 1 : 0), 1);
+		poke(acs, peek(acs, 0, 0) + peek(gup, wrapi(guw - k, 32), 0) * hk, 0, 0);
+		poke(acs, peek(acs, 1, 0) + peek(gup, wrapi(guw - k, 32), 1) * hk, 1, 0);
+	}
+	upl = peek(acs, 0, 0);
+	upr = peek(acs, 1, 0);
+	if (gtick) {
+		poke(acs, 0, 0, 0);
+		poke(acs, 0, 1, 0);
+		for (k = 0; k < 48; k += 1) {
+			hk = peek(srcf, k, 0);
+			poke(acs, peek(acs, 0, 0) + peek(gdn, wrapi(ngdw - k, 64), 0) * hk, 0, 0);
+			poke(acs, peek(acs, 1, 0) + peek(gdn, wrapi(ngdw - k, 64), 1) * hk, 1, 0);
+		}
+		cin_l = peek(acs, 0, 0);
+		cin_r = peek(acs, 1, 0);
+		// DownsampleTriggers / DownsampleGate: first trigger of the pair, fractional (f + j) / 2
+		ctrig = pt > 0.5 || trig;
+		cfrac = pt > 0.5 ? pf / 2 : (frac + 1) / 2;
+		creg = preg;
+		cfrz = pfz > 0.5 || frozen;
+	}
+}
+// ================================================================ core stage
+if (gtick) {
+// ---- feedback into the recording (GranularProcessor::ProcessInternal)
+// 16-bit: feedback² · 3 then the brickwall limiter; 12 / 8-bit: feedback · 3 / g, limiter, then
+// SoftClip(s · g) crossfaded with the input by the feedback amount (g = 1.3 / 1.75)
+slg = qi < 0.5 ? 0 : qi > 2.5 ? 1.75 : 1.3;
+s_fb0 = cfresh ? 0 : s_fb;
+inc_fb = cnew ? (clamp(st_fbk * 1.005 + (dst_feedback > 0.5 ? cv_a1 * fb_amt : 0), 0, 1) - s_fb0) / CBLK : i_fb;
+fbk = s_fb0 + inc_fb;
+pvl = cfresh ? 0 : prev_l;
+pvr = cfresh ? 0 : prev_r;
+sl = slg > 0 ? cin_l + pvl * fbk * (3 / slg) : cin_l + pvl * fbk * fbk * 3;
+sr = slg > 0 ? cin_r + pvr * fbk * (3 / slg) : cin_r + pvr * fbk * fbk * 3;
 pk = min(max(abs(sl), abs(sr)), 40);
-e1 = pk - lim_in_p;
-li_p = lim_in_p + (e1 > 0 ? 0.1 : 1 / FS) * e1;
-e2 = li_p - lim_in_lp;
-li_lp = lim_in_lp + (e2 > 0 ? 0.5 : 1 / FS) * e2;
+lip0 = cfresh ? 0.5 : lim_in_p;
+lilp0 = cfresh ? 0.5 : lim_in_lp;
+e1 = pk - lip0;
+li_p = lip0 + (e1 > 0 ? 0.1 : 1 / RG) * e1;
+e2 = li_p - lilp0;
+li_lp = lilp0 + (e2 > 0 ? 0.5 : 1 / RG) * e2;
 lg = li_lp <= 0.95 ? 1 : 0.95 / li_lp;
 sl = sl * lg;
 sr = sr * lg;
+if (slg > 0) {
+	sl = cin_l + fbk * (sclip(sl * slg) - cin_l);
+	sr = cin_r + fbk * (sclip(sr * slg) - cin_r);
+}
 
 // ---- recording buffer with freeze tail (DelayLine::Write(in, frozen))
-w = wp;
-twp = tail_wp;
-txf = tail_xf;
-if (frozen) {
-	if (was_frozen < 0.5) {
+w = cfresh ? 0 : wp;
+twp = cfresh ? 0 : tail_wp;
+txf = cfresh ? 0 : tail_xf;
+wfz = cfresh ? 0 : was_frozen;
+if (cfrz) {
+	if (wfz < 0.5) {
 		twp = 0;
 	}
 	if (twp < 256) {
@@ -567,7 +841,7 @@ if (frozen) {
 		twp = twp + 1;
 	}
 } else {
-	if (was_frozen > 0.5 && twp > 0) {
+	if (wfz > 0.5 && twp > 0) {
 		txf = twp;
 	}
 	if (twp > 0) {
@@ -577,8 +851,8 @@ if (frozen) {
 		sr = sr + (peek(ftail, tpos, 1) - sr) * g;
 		twp = twp - 1;
 	}
-	ql = q16(sl);
-	qr = q16(sr);
+	ql = qi < 0.5 ? q16(sl) : qi < 2.5 ? q12(sl) : mulaw(sl);
+	qr = qi < 0.5 ? q16(sr) : qi < 2.5 ? q12(sr) : mulaw(sr);
 	poke(buf, ql, w, 0);
 	poke(buf, qr, w, 1);
 	if (w < 4) {
@@ -592,7 +866,7 @@ if (frozen) {
 gint = interval;
 lpos = lastpos;
 lspd = lastspd;
-if (trig) {
+if (ctrig) {
 	poke(sum, 1, 3, 0);
 	for (k = 0; k < 32; k += 1) {
 		if (peek(gr, k, 0) < 2.5 && peek(gr, k, 6) > 0) {
@@ -607,7 +881,7 @@ if (trig) {
 	dur_k = rparam(st_size, samt, cv_s, has_s, 1, 1);
 	rev = dur_k < 0.3333333;
 	amp = 1 / sqrt(nact);
-	spread = min(1, ramount(tamt, has_t) + ramount(samt, has_s) + ramount(hamt, has_h) + ramount(pamt, has_p) + 1 - regularity);
+	spread = min(1, ramount(tamt, has_t) + ramount(samt, has_s) + ramount(hamt, has_h) + ramount(pamt, has_p) + 1 - creg);
 	u = rnd();
 	v = rnd();
 	pan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);
@@ -616,11 +890,11 @@ if (trig) {
 	semis = rparam(st_pitch, pamt, cv_p, has_p, 24, 0);
 	speed = (rev ? -1 : 1) * pow(2, semis / 12);
 	csh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);
-	duration = pow(2, min(1, 1.025 * csh) * -9) * FS * 4;
+	duration = pow(2, min(1, 1.025 * csh) * -9) * RG * 4;
 	shp = rparam(st_shape, hamt, cv_h, has_h, 1, 1);
 	g0 = peek(prio, 0, 0);
-	cons = speed - (frozen ? 0 : 1);
-	gdelay = gdelay - frac * cons;
+	cons = speed - (cfrz ? 0 : 1);
+	gdelay = gdelay - cfrac * cons;
 	if (cons != 0) {
 		duration = min(duration, MAXD / abs(cons));
 	}
@@ -656,14 +930,14 @@ if (trig) {
 		at = at * at * at * 4;
 	}
 	re = (1 - at) * (1 - sus);
-	ia = 1 / max(duration * at, 0.0005 * FS * (1 + 3 * sus));
+	ia = 1 / max(duration * at, 0.0005 * RG * (1 + 3 * sus));
 	is = 1 / max(duration * sus, 2);
-	ir = 1 / max(duration * re, 0.010 * FS);
+	ir = 1 / max(duration * re, 0.010 * RG);
 	poke(gr, ia, g0, 2);
 	poke(gr, is, g0, 3);
 	poke(gr, ir, g0, 4);
 	poke(gr, at < 0.5 ? 2 * at : 2 - 2 * at, g0, 5);
-	gph = ia * frac;
+	gph = ia * cfrac;
 	gst = 0;
 	if (gph >= 1) {
 		gph = (gph - 1) / ia * is;
@@ -675,13 +949,13 @@ if (trig) {
 	poke(gr, 1, g0, 6);
 	poke(gr, 0, g0, 7);
 	// SortGrainList (polyphonic)
-	inst = trunc(FS * 0.005);
-	pre = trunc(FS * 0.1);
+	inst = trunc(RG * 0.005);
+	pre = trunc(RG * 0.1);
 	f0 = 1;
 	f1 = 1;
 	f2 = 1;
 	f3 = 1;
-	if (gint < trunc(FS * 0.025)) {
+	if (gint < trunc(RG * 0.025)) {
 		first = peek(prio, 0, 0);
 		for (k = 0; k < 31; k += 1) {
 			poke(prio, peek(prio, k + 1, 0), k, 0);
@@ -746,7 +1020,7 @@ for (k = 0; k < 32; k += 1) {
 	if (stg < 2.5 && vs > 0) {
 		poke(sum, peek(sum, 2, 0) + 1, 2, 0);
 		dl = peek(gr, k, 8) - peek(gr, k, 9);
-		if (!frozen) {
+		if (!cfrz) {
 			dl = dl + 1;
 		}
 		if (dl < 0 || dl >= MAXD) {
@@ -816,22 +1090,62 @@ outl = peek(sum, 0, 0);
 outr = peek(sum, 1, 0);
 nplay = peek(sum, 2, 0);
 
-// ---- feedback path: DC blocker (Svf HP 40 Hz, q 0.5) → one-pole 0.999
-fhp = 40 / FS;
+// ---- feedback path: DC blocker (Svf HP 40 Hz, q 0.5) → one-pole
+fhp = 40 / RG;
 gg = fhp * (pi + fhp * fhp * (0.326 * pi * pi * pi + 0.1823 * pi * pi * pi * pi * pi * fhp * fhp));
 hh = 1 / (1 + 2 * gg + gg * gg);
-hpl = (outl - 2 * hp1 - gg * hp1 - hp2) * hh;
-bpl = gg * hpl + hp1;
+h1 = cfresh ? 0 : hp1;
+h2 = cfresh ? 0 : hp2;
+q1 = cfresh ? 0 : hq1;
+q2 = cfresh ? 0 : hq2;
+hpl = (outl - 2 * h1 - gg * h1 - h2) * hh;
+bpl = gg * hpl + h1;
 n_hp1 = gg * hpl + bpl;
-lpl = gg * bpl + hp2;
+lpl = gg * bpl + h2;
 n_hp2 = gg * bpl + lpl;
-hpr = (outr - 2 * hq1 - gg * hq1 - hq2) * hh;
-bpr = gg * hpr + hq1;
+hpr = (outr - 2 * q1 - gg * q1 - q2) * hh;
+bpr = gg * hpr + q1;
 n_hq1 = gg * hpr + bpr;
-lpr = gg * bpr + hq2;
+lpr = gg * bpr + q2;
 n_hq2 = gg * bpr + lpr;
-n_prev_l = prev_l + 0.999 * (hpl - prev_l);
-n_prev_r = prev_r + 0.999 * (hpr - prev_r);
+// one-pole into previous_sample_: 0.999 (16-bit), 0.9 (12-bit), 0.75 (8-bit)
+fblp = qi < 0.5 ? 0.999 : qi < 2.5 ? 0.9 : 0.75;
+n_prev_l = pvl + fblp * (hpl - pvl);
+n_prev_r = pvr + fblp * (hpr - pvr);
+// results out of the core
+poke(cx, outl, 12, 0);
+poke(cx, outr, 13, 0);
+poke(cx, nplay, 3, 0);
+poke(cx, w / MAXD, 4, 0);
+poke(cx, lpos, 5, 0);
+poke(cx, lspd, 6, 0);
+// core state write-back
+wp = w;
+interval = gint;
+lastpos = lpos;
+lastspd = lspd;
+prev_l = n_prev_l;
+prev_r = n_prev_r;
+hp1 = n_hp1;
+hp2 = n_hp2;
+hq1 = n_hq1;
+hq2 = n_hq2;
+lim_in_p = li_p;
+lim_in_lp = li_lp;
+was_frozen = cfrz;
+tail_wp = twp;
+tail_xf = txf;
+s_fb = fbk;
+i_fb = inc_fb;
+}
+
+if (rat > 1.5 && gtick) {
+	nguw = wrapi(guw + 1, 32);
+	poke(gup, peek(cx, 12, 0), nguw, 0);
+	poke(gup, peek(cx, 13, 0), nguw, 1);
+}
+wetl = rat > 1.5 ? upl : peek(cx, 12, 0);
+wetr = rat > 1.5 ? upr : peek(cx, 13, 0);
 
 // ---- dry / wet (Processor::Process)
 dw = clamp(st_dwk * 1.005 + (dst_drywet > 0.5 ? cv_a2 * dw_amt : 0), 0, 1);
@@ -841,15 +1155,66 @@ inc_dry = newblk ? (dry_t - s_dry) / BLK : i_dry;
 inc_wet = newblk ? (wet_t - s_wet) / BLK : i_wet;
 dry = s_dry + inc_dry;
 wet = s_wet + inc_wet;
-ml = dry * inl + wet * outl;
-mr = dry * inr + wet * outr;
+// the dry signal through the quality's converter: 12-bit truncation (Cold digital), µ-law (Scorched cassette)
+dryl = qi > 0.5 && qi < 1.5 ? trunc(inl * 4096) / 4096 : qi > 2.5 ? mulaw(inl) : inl;
+dryr = qi > 0.5 && qi < 1.5 ? trunc(inr * 4096) / 4096 : qi > 2.5 ? mulaw(inr) : inr;
+ml = dry * dryl + wet * wetl;
+mr = dry * dryr + wet * wetr;
+
+// ---- wow & flutter (Scorched cassette only; WowAndFlutter::Init(24000), set_lp(0.95), amount 1)
+wrph = wf_rph;
+wrf = init < 0.5 ? 0.125 / 24000 : wf_rf;
+wwph = wf_wph;
+wfph = wf_fph;
+wdel = wf_del;
+winc = wf_inc;
+wpend = wf_pend;
+wlpl = wf_lpl;
+wlpr = wf_lpr;
+wwp = wf_w;
+if (qi > 2.5) {
+	if (newblk) {
+		pph = wrph;
+		wrph = wrph + wrf * BLK;
+		wrph = wrph >= 1 ? wrph - 1 : wrph;
+		rmod = 0.5 + 0.5 * lsin(wrph);
+		// the new random rate is drawn after the grains of this block (see the end of the codec stage)
+		wpend = wrph >= 0.25 && pph < 0.25;
+		fm = 0.5 + 1.5 * rmod * rmod;
+		wam = 1 - 0.4 * rmod;
+		wwph = wwph + (1 / 24000) * 0.23 * BLK * fm;
+		wwph = wwph >= 1 ? wwph - 1 : wwph;
+		wfph = wfph + (1 / 24000) * 1.99 * BLK;
+		wfph = wfph >= 1 ? wfph - 1 : wfph;
+		wdt = 1 + (105 * (0.5 + 0.5 * lsin(wwph)) + 17 * (0.5 + 0.5 * lsin(wfph))) * wam;
+		winc = (wdt - wdel) / BLK;
+	}
+	wdel = wdel + winc;
+	poke(wfl, ml, wwp, 0);
+	poke(wfl, mr, wwp, 1);
+	wwp = wrapi(wwp - 1, 128);
+	wdi = trunc(wdel);
+	wdf = wdel - wdi;
+	wa = peek(wfl, wrapi(wwp + wdi, 128), 0);
+	wlpl = wlpl + 0.95 * (wa + (peek(wfl, wrapi(wwp + wdi + 1, 128), 0) - wa) * wdf - wlpl);
+	wa = peek(wfl, wrapi(wwp + wdi, 128), 1);
+	wlpr = wlpr + 0.95 * (wa + (peek(wfl, wrapi(wwp + wdi + 1, 128), 1) - wa) * wdf - wlpr);
+	ml = wlpl;
+	mr = wlpr;
+	if (blkc > BLK - 1.5 && wpend) {
+		wrf = (1 / 24000) * (0.05 + rnd() * 0.2);
+		wpend = 0;
+	}
+}
 
 // ---- pre-reverb limiter (decay 1/(4 sr), 0.9)
 pk = min(max(abs(ml), abs(mr)), 40);
-e1 = pk - lim_pre_p;
-lp_p = lim_pre_p + (e1 > 0 ? 0.1 : 1 / (FS * 4)) * e1;
-e2 = lp_p - lim_pre_lp;
-lp_lp = lim_pre_lp + (e2 > 0 ? 0.5 : 1 / (FS * 4)) * e2;
+lpp0 = fresh ? 0.5 : lim_pre_p;
+lplp0 = fresh ? 0.5 : lim_pre_lp;
+e1 = pk - lpp0;
+lp_p = lpp0 + (e1 > 0 ? 0.1 : 1 / (FS * 4)) * e1;
+e2 = lp_p - lplp0;
+lp_lp = lplp0 + (e2 > 0 ? 0.5 : 1 / (FS * 4)) * e2;
 lg = lp_lp <= 0.9 ? 1 : 0.9 / lp_lp;
 ml = ml * lg;
 mr = mr * lg;
@@ -857,8 +1222,10 @@ mr = mr * lg;
 // ---- reverb (Griesinger / Dattorro topology, FxEngine 16-bit, 32768 words)
 rva = clamp(st_rvk * 1.005 + (dst_reverb > 0.5 ? cv_a3 * rv_amt : 0), 0, 1);
 rmix = rva * rva * 0.9;
-rtime = 0.3 + 0.6 * rva * rva * rva;
-rlp = 0.6;
+// processor.cc: "caveman" reverb for every quality but Pristine: time 0.45 + 0.5 r³, lp 0.4
+// (its 0.75 branch for MEDIA_VINTAGE_DIGITAL is unreachable: caveman already includes it)
+rtime = qi > 0.5 ? 0.45 + 0.5 * rva * rva * rva : 0.3 + 0.6 * rva * rva * rva;
+rlp = qi > 0.5 ? 0.4 : 0.6;
 ig = 0.2 * (1 - 0.333 * rtime);
 ssq = rmix * (2 - rmix);
 inc_rd = newblk ? ((1 - rmix) * (1 + rmix) - rv_dry) / BLK : i_rd;
@@ -875,12 +1242,12 @@ if (rw < 0) {
 // Start(): y1 = c·0.25, y0 = 0.5 → value() = y1 + 0.5 until the first update.
 c1 = 16 * (0.25 - 0.5 / FS * 32) * (1 - 2 * (0.25 - 0.5 / FS * 32));
 c2 = 16 * (0.25 - 0.3 / FS * 32) * (1 - 2 * (0.25 - 0.3 / FS * 32));
-y10 = init < 0.5 ? 0.5 : l1y0;
-y11 = init < 0.5 ? c1 * 0.25 : l1y1;
-y20 = init < 0.5 ? 0.5 : l2y0;
-y21 = init < 0.5 ? c2 * 0.25 : l2y1;
-lv1 = init < 0.5 ? c1 * 0.25 + 0.5 : l1v;
-lv2 = init < 0.5 ? c2 * 0.25 + 0.5 : l2v;
+y10 = fresh ? 0.5 : l1y0;
+y11 = fresh ? c1 * 0.25 : l1y1;
+y20 = fresh ? 0.5 : l2y0;
+y21 = fresh ? c2 * 0.25 : l2y1;
+lv1 = fresh ? c1 * 0.25 + 0.5 : l1v;
+lv2 = fresh ? c2 * 0.25 + 0.5 : l2v;
 if (wrapi(rw, 32) < 0.5) {
 	tmp = y10;
 	y10 = c1 * y10 - y11;
@@ -962,26 +1329,23 @@ mr = mr * r_dry + wr_ * r_wet;
 
 // ---- output limiter (decay 1/(6 sr), 0.9) and output gain
 pk = min(max(abs(ml), abs(mr)), 40);
-e1 = pk - lim_out_p;
-lo_p = lim_out_p + (e1 > 0 ? 0.1 : 1 / (FS * 6)) * e1;
-e2 = lo_p - lim_out_lp;
-lo_lp = lim_out_lp + (e2 > 0 ? 0.5 : 1 / (FS * 6)) * e2;
+lop0 = fresh ? 0.5 : lim_out_p;
+lolp0 = fresh ? 0.5 : lim_out_lp;
+e1 = pk - lop0;
+lo_p = lop0 + (e1 > 0 ? 0.1 : 1 / (FS * 6)) * e1;
+e2 = lo_p - lolp0;
+lo_lp = lolp0 + (e2 > 0 ? 0.5 : 1 / (FS * 6)) * e2;
 lg = lo_lp <= 0.9 ? 1 : 0.9 / lo_lp;
-out1 = ml * lg * outgain;
-out2 = mr * lg * outgain;
-out3 = trig;
-out4 = nplay;
-out5 = w / MAXD;
-out6 = lpos;
-out7 = lspd;
-out8 = sstp;
-out9 = running;
-out10 = ggain;
-out11 = learning;
+poke(cx, ml * lg * outgain, 0, 0);
+poke(cx, mr * lg * outgain, 1, 0);
+poke(cx, trig, 2, 0);
+poke(cx, sstp, 7, 0);
+poke(cx, running, 8, 0);
+poke(cx, ggain, 9, 0);
+poke(cx, learning, 10, 0);
 
 // ---- state write-back (all History writes at the end of the pass)
 init = 1;
-wp = w;
 s_time = st_time;
 s_size = st_size;
 s_shape = st_shape;
@@ -995,7 +1359,6 @@ s_timeh = st_timeh;
 s_fbk = st_fbk;
 s_dwk = st_dwk;
 s_rvk = st_rvk;
-s_fb = fbk;
 s_dry = dry;
 s_wet = wet;
 tg_phase = ph;
@@ -1012,24 +1375,10 @@ g_inc = ginc;
 g_time = gtime;
 g_rst = agc_restart;
 sdw = nsdw;
-interval = gint;
-lastpos = lpos;
-lastspd = lspd;
-prev_l = n_prev_l;
-prev_r = n_prev_r;
-hp1 = n_hp1;
-hp2 = n_hp2;
-hq1 = n_hq1;
-hq2 = n_hq2;
-lim_in_p = li_p;
-lim_in_lp = li_lp;
 lim_pre_p = lp_p;
 lim_pre_lp = lp_lp;
 lim_out_p = lo_p;
 lim_out_lp = lo_lp;
-was_frozen = frozen;
-tail_wp = twp;
-tail_xf = txf;
 rv_wp = rw;
 rv_lp1 = lp1;
 rv_lp2 = lp2;
@@ -1037,7 +1386,6 @@ rv_dry = r_dry;
 rv_wet = r_wet;
 rv_send = r_send;
 blk = nblk;
-i_fb = inc_fb;
 i_dry = inc_dry;
 i_wet = inc_wet;
 i_rd = inc_rd;
@@ -1077,3 +1425,67 @@ tg_resetint = rint;
 tg_quant = quant;
 tg_div = ndiv;
 l2v = lv2;
+c_rc = FS;
+crst = gtick ? 0 : ncrst;
+gdw = ngdw;
+guw = nguw;
+pt = (rat > 1.5 && !gtick) ? trig : 0;
+pf = frac;
+preg = regularity;
+pfz = (rat > 1.5 && !gtick) ? frozen : 0;
+s_sca = sca;
+i_sca = isca;
+wf_rph = wrph;
+wf_rf = wrf;
+wf_wph = wwph;
+wf_fph = wfph;
+wf_del = wdel;
+wf_inc = winc;
+wf_lpl = wlpl;
+wf_lpr = wlpr;
+wf_w = wwp;
+wf_pend = wpend;
+}
+// ================================================================ host output
+new_ = ew;
+o1 = peek(cx, 0, 0);
+o2 = peek(cx, 1, 0);
+if (rsm) {
+	if (tick) {
+		new_ = wrapi(ew + 1, 64);
+		poke(eo, peek(cx, 0, 0), new_, 0);
+		poke(eo, peek(cx, 1, 0), new_, 1);
+	}
+	// up-converter: the same kernel, read 16 codec samples back (latency), weights normalised
+	poke(acs, 0, 0, 0);
+	poke(acs, 0, 1, 0);
+	poke(acs, 0, 2, 0);
+	for (k = 0; k < 33; k += 1) {
+		ka = abs(16 - dlt - k) * 256;
+		ki = floor(ka);
+		if (ki < 4096) {
+			wk = peek(ck, ki, 0) + (peek(ck, ki + 1, 0) - peek(ck, ki, 0)) * (ka - ki);
+			poke(acs, peek(acs, 0, 0) + peek(eo, wrapi(new_ - k, 64), 0) * wk, 0, 0);
+			poke(acs, peek(acs, 1, 0) + peek(eo, wrapi(new_ - k, 64), 1) * wk, 1, 0);
+			poke(acs, peek(acs, 2, 0) + wk, 2, 0);
+		}
+	}
+	o1 = peek(acs, 0, 0) / peek(acs, 2, 0);
+	o2 = peek(acs, 1, 0) / peek(acs, 2, 0);
+}
+out1 = o1;
+out2 = o2;
+out3 = tick ? peek(cx, 2, 0) : 0;
+out4 = peek(cx, 3, 0);
+out5 = peek(cx, 4, 0);
+out6 = peek(cx, 5, 0);
+out7 = peek(cx, 6, 0);
+out8 = peek(cx, 7, 0);
+out9 = peek(cx, 8, 0);
+out10 = peek(cx, 9, 0);
+out11 = peek(cx, 10, 0);
+hinit = 1;
+qc = qi;
+cacc = nacc;
+hw = nhw;
+ew = new_;
