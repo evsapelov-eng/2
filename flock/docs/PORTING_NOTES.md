@@ -97,3 +97,9 @@ Tests: `tests/quality.test.js` — 21 differential scenarios (3 qualities × 7) 
 flutter and bandwidth of Scorched cassette, 12-bit dry truncation, clear + freeze hold, caveman reverb.
 My wrong expectation, corrected against the formulas: "the caveman reverb is longer" — its time is
 longer (0.45 + 0.5 r³) but the stronger damping (lp 0.4) leaves less energy after 1 s.
+
+Test control (`npm run verify`, 37 mutations, 15 of them for the qualities): 35 caught on the first run. Two survived, and both were real blind spots:
+- **AGC ceiling ×40 → ×35**: the optimal-gain expression had been duplicated for the tape soft clip, and the mutation hit the copy that only matters there. Now there is one `gopt`, used by both.
+- **DYNAMIC soft clip 0.75 → 0.7**: the ×4 manual-gain case clamps the amount to 1. A ×2 case (amount ≈ 0.72) was added.
+
+Both were re-checked one at a time (caught). All 37 are now caught.
