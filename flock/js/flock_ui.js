@@ -200,7 +200,17 @@ function style(name) {
   for (var i = 0; i < sc.length; i++) SRC_COL[i] = sc[i].slice();
   dirty = true;
 }
-function nextStyle() { style(STYLE === "ableton" ? "live" : STYLE === "live" ? "toon" : "ableton"); }
+// NATIVE mode (the "native" device): the SOUND controls are Live's own live.dial / live.text /
+// live.tab objects placed over this panel; the panel draws only the rest and hides them on MOD
+var NATIVE = false;
+var NATIVE_OBJECTS = ["time", "density", "pitch", "size", "shape", "time_amt", "pitch_amt", "size_amt", "shape_amt",
+  "feedback", "drywet", "reverb", "input", "output", "agc", "quality"];   // FREEZE / LATCH: left column, always shown
+function showNative() {
+  if (!NATIVE) return;
+  for (var i = 0; i < NATIVE_OBJECTS.length; i++) outlet(0, "script", "sendbox", NATIVE_OBJECTS[i], "hidden", tab === "MOD" ? 1 : 0);
+}
+function native(v) { NATIVE = +v > 0.5; if (NATIVE) style("ableton"); showNative(); dirty = true; }
+function nextStyle() { if (!NATIVE) style(STYLE === "ableton" ? "live" : STYLE === "live" ? "toon" : "ableton"); }
 // cel shading: base colour with a hard shadow crescent (bottom-right) and a bold outline
 function celCircle(cx, cy, r, base, shade, ow) {
   circle(cx, cy, r, shade, true);
@@ -414,6 +424,7 @@ function paint() {
     textC(tn, tx0 + 30, 59, 7, on ? (STYLE === "ableton" ? C.ink : C.panel) : C.ink, true);
     hit({ x: tx0, y: 49, w: 60, h: 13, kind: "tab", name: "tab_" + tn, tab: tn });
   }
+  if (NATIVE) { paintNativeLeft(); line(152, 12, 152, H0 - 12, C.line); if (tab === "MOD") paintMod(); else paintNativeSound(); return; }
   roundButton(42, 82, 15, "FREEZE", P.freeze.v > 0.5, "freeze", false);
   roundButton(110, 82, 15, "SEED", P.seed.v > 0.5 || (P.seedlatch.v > 0.5 && pulseOn()), "seed", true);
   var lx = 14, ly = 120;
@@ -468,6 +479,48 @@ function paint() {
   }
   // ---- tape: record head + where the grains start
   drawTape(598, 102, 290, 46);
+  text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
+}
+// ================= NATIVE device: what the panel still draws =================
+// (positions of Live's objects: tools/build_device.py NATIVE_LAYOUT — keep in step)
+function paintNativeLeft() {
+  // FREEZE [14,68,60,24] and LATCH [14,98,126,16] are live.text; SEED stays here (hold / latch gestures)
+  var sOn = P.seed.v > 0.5 || (P.seedlatch.v > 0.5 && pulseOn());
+  rect(80, 68, 60, 24, sOn ? C.accent : C.panel, true);
+  rect(80, 68, 60, 24, sOn ? C.accent : C.line, false, 1);
+  textC("SEED", 110, 84, 8, sOn ? C.bg : C.ink, true);
+  hit({ x: 80, y: 68, w: 60, h: 24, kind: "momentary", name: "seed" });
+  textC("hold SEED for 4 s = LATCH", 77, 128, 6, C.mid);
+  rect(14, 141, 84, 17, C.accent, true);
+  textC("DICE  new sound", 56, 153, 7.5, C.bg, true);
+  hit({ x: 14, y: 141, w: 84, h: 17, kind: "dice", name: "dice" });
+  rect(102, 141, 38, 17, C.line, false, 1, history.length ? 1 : 0.3);
+  textC("BACK", 121, 153, 7, history.length ? C.ink : C.line, true);
+  if (history.length) hit({ x: 102, y: 141, w: 38, h: 17, kind: "back", name: "back" });
+}
+function paintNativeSound() {
+  // big dials [KX-28,10,56,64] and RND dials [KX-22,100,44,44] are live.dial: here only the values in
+  // musical units (seconds, grains/s, semitones, ms) and what they mean
+  for (var i = 0; i < BIG.length; i++) {
+    var b = BIG[i], cx = KX[i];
+    textC(valueText(b[0]), cx, 84, 8.5, C.accent, true);
+    textC(b[2], cx, 95, 6, C.mid);
+    if (b[0] === "density") {
+      textC("even  <  12h  >  random", cx, 118, 6, C.mid);
+      textC("12h = off (latched)", cx, 128, 6, C.mid);
+    } else {
+      var an = b[0] + "_amt", cv = P["dst_" + b[0]].v > 0.5;
+      textC(valueText(an), cx, 152, 6, cv ? C.accent : C.ink);
+    }
+  }
+  line(586, 12, 586, H0 - 12, C.line);
+  // mix dials [cx-26,10,52,56]: values
+  for (var m = 0; m < MIX.length; m++) textC(valueText(MIX[m][0]), 626 + m * 66, 76, 8, C.accent, true);
+  // IN / OUT dials [808,10,42,52] [852,10,42,52]; AUTO live.text [808,66,42,13]; LEARN here
+  pill(852, 66, 40, agcLearning ? "..." : "LEARN", agcLearning > 0, "cmd", "learn");
+  if (P.agc.v > 0.5) { var gdb = 20 * Math.log(Math.max(agcGain, 1e-6)) / Math.LN10; textC("auto gain " + (gdb > 0 ? "+" : "") + Math.round(gdb) + " dB", 850, 85, 6, C.mid); }
+  // quality: live.tab [598,88,290,13]; tape below
+  drawTape(598, 106, 290, 42);
   text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
 }
 // ================= MOD tab =================
@@ -788,7 +841,7 @@ function onclick(x, y, but, cmd, shift) {
     }
     drag = { kind: "knob", name: h.name, y0: y, n0: norm(h.name, P[h.name].v) };
   }
-  else if (h.kind === "tab") { tab = h.tab; dirty = true; }
+  else if (h.kind === "tab") { tab = h.tab; showNative(); dirty = true; }
   else if (h.kind === "cycle") send(h.name, (Math.round(P[h.name].v) + 1) % h.n);
   else if (h.kind === "cmd") {
     if (h.name === "random") randomPatch();

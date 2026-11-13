@@ -156,6 +156,24 @@ for i, v in enumerate([1, -1, -1, -1, 0.25, -1, -1, -1, 0.5, -1, 0.75, -1, 0.625
     PARAMS.append(("sq%d" % i, "Seq Step %d" % (i + 1), "Step %d" % (i + 1), -1, 1, v, 1, "dial"))
 ENGINE_NAME = {"input": "ingain", "output": "outgain"}
 
+# NATIVE device: Live's own controls on the SOUND page (they follow Live's theme and show their info
+# in Live's info view). Positions in the 900×169 device; js/flock_ui.js paintNative* draws around them.
+KX = [204, 288, 372, 456, 540]
+NATIVE_LAYOUT = {}
+for _n, _x in zip(["time", "density", "pitch", "size", "shape"], KX):
+    NATIVE_LAYOUT[_n] = ("dial", [_x - 28, 10, 56, 64], {"shownumber": 0})
+for _n, _x in zip(["time", "pitch", "size", "shape"], [KX[0], KX[2], KX[3], KX[4]]):
+    NATIVE_LAYOUT[_n + "_amt"] = ("dial", [_x - 22, 100, 44, 44], {"shownumber": 0})
+for _n, _x in zip(["feedback", "drywet", "reverb"], [626, 692, 758]):
+    NATIVE_LAYOUT[_n] = ("dial", [_x - 26, 10, 52, 56], {"shownumber": 0})
+NATIVE_LAYOUT["input"] = ("dial", [808, 10, 42, 52], {"shownumber": 1})
+NATIVE_LAYOUT["output"] = ("dial", [852, 10, 42, 52], {"shownumber": 1})
+NATIVE_LAYOUT["freeze"] = ("text", [14, 68, 60, 24], {"text": "FREEZE", "texton": "FREEZE"})
+NATIVE_LAYOUT["seedlatch"] = ("text", [14, 98, 126, 16], {"text": "LATCH OFF  (hold SEED)", "texton": "LATCH ON  (continuous)"})
+NATIVE_LAYOUT["agc"] = ("text", [808, 66, 42, 13], {"text": "AUTO", "texton": "AUTO"})
+NATIVE_LAYOUT["quality"] = ("tab", [598, 88, 290, 13], {})
+NATIVE = False   # set by --native
+
 
 class Patcher:
     def __init__(self):
@@ -214,6 +232,17 @@ def param_box(P, spec, x, y):
         b = {"maxclass": "live.dial", "numinlets": 1, "numoutlets": 2, "outlettype": ["", "float"]}
     b.update({"varname": name, "parameter_enable": 1, "patching_rect": [x, y, 44, 48],
               "saved_attribute_attributes": {"valueof": va}})
+    if NATIVE and name in NATIVE_LAYOUT:
+        kind_n, rect, extra = NATIVE_LAYOUT[name]
+        if kind_n == "text":
+            b.update({"maxclass": "live.text", "numinlets": 1, "numoutlets": 2, "outlettype": ["", ""], "mode": 1})
+        elif kind_n == "tab":
+            b.update({"maxclass": "live.tab", "numinlets": 1, "numoutlets": 3, "outlettype": ["", "", "float"],
+                      "num_lines_patching": 1, "num_lines_presentation": 1})
+        else:
+            b.update({"showname": 1})
+        b.update(extra)
+        b.update({"presentation": 1, "presentation_rect": rect, "patching_rect": [x, y, rect[2], rect[3]]})
     return P.add(b)
 
 
@@ -233,6 +262,11 @@ def build():
                 "parameter_enable": 0, "border": 0, "patching_rect": [400, 600, W, H],
                 "presentation": 1, "presentation_rect": [0, 0, W, H], "varname": "flock_ui"})
     lb = P.obj("loadbang", 1, 1, ["bang"], x=900, y=40)
+    if NATIVE:
+        # tell the panel it is the native device; it hides / shows Live's objects through thispatcher
+        nmsg = P.add({"maxclass": "message", "text": "native 1", "numinlets": 2, "numoutlets": 1, "outlettype": [""],
+                      "patching_rect": [1000, 40, 60, 22]})
+        P.connect(lb, 0, nmsg, 0); P.connect(nmsg, 0, ui, 0)
     names = [p[0] for p in PARAMS]
     rt = P.obj("route " + " ".join(names), 2, len(names) + 1, x=400, y=80, w=700)
     P.connect(ui, 0, rt, 0)
@@ -241,6 +275,9 @@ def build():
     P.connect(rt, len(names), rt2, 0)
     plearn = P.obj("prepend agc_restart", 1, 1, x=1200, y=140, w=140)
     P.connect(rt2, 0, plearn, 0); P.connect(plearn, 0, gen, 0)
+    if NATIVE:
+        tp = P.obj("thispatcher", 1, 2, ["", ""], x=1200, y=170, w=90)
+        P.connect(rt2, 1, tp, 0)   # "script sendbox <name> hidden 0/1" from the panel
     for i, spec in enumerate(PARAMS):
         name = spec[0]
         x = 20 + (i % 13) * 100
@@ -312,6 +349,17 @@ def amxd_bytes(patcher_json, device_type=b"aaaa"):
             b"ptch" + struct.pack("<I", len(payload)) + payload)
 
 
+def _param_table(p):
+    params = {}
+    for b in p["boxes"]:
+        box = b["box"]
+        if box.get("parameter_enable"):
+            va = box["saved_attribute_attributes"]["valueof"]
+            params[box["id"]] = [va["parameter_longname"], va["parameter_shortname"], 0]
+    params["inherited_shortname"] = 1
+    return params
+
+
 def package(path):
     pj = json.load(open(path, encoding="utf-8"))
     p = pj["patcher"]
@@ -330,6 +378,22 @@ def package(path):
     os.makedirs(PKG)
     with open(os.path.join(PKG, AMXDNAME), "wb") as f:
         f.write(amxd_bytes(pj))
+    # the native variant (Live's own controls on the SOUND page), built the same way
+    global NATIVE
+    NATIVE = True
+    try:
+        npath, npatch = build()
+        if validate(npatch):
+            raise SystemExit("native: " + "; ".join(validate(npatch)))
+        nj = json.load(open(npath, encoding="utf-8"))
+        nj["patcher"]["parameters"] = _param_table(nj["patcher"])
+        nj["patcher"]["dependency_cache"] = p["dependency_cache"]
+        nj["patcher"]["autosave"] = 0
+        with open(os.path.join(PKG, AMXDNAME.replace(".amxd", "_native.amxd")), "wb") as f:
+            f.write(amxd_bytes(nj))
+    finally:
+        NATIVE = False
+        build()   # restore max/flock_main.maxpat (drawn panel)
     shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(PKG, JSNAME))
     shutil.copy(os.path.join(ROOT, "dist_README.txt"), os.path.join(PKG, "README_FIRST.txt"))
     shutil.copy(os.path.join(ROOT, "LICENSE-BEADS.txt"), os.path.join(PKG, "LICENSE-BEADS.txt"))

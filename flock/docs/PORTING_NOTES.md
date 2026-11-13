@@ -170,3 +170,18 @@ Fix:
 
 The linter now rejects loops > 128 steps and loop bounds that look large (it rejects v0.3.5 with
 four errors).
+
+## v0.4.0 — native device (Live's own controls)
+`FLOCK_<v>_native.amxd`: the hidden parameter objects of the SOUND page are placed in presentation
+(`NATIVE_LAYOUT` in tools/build_device.py):
+- live.dial for the five big knobs, the four RND, the mix and IN / OUT;
+- live.text for FREEZE / LATCH / AUTO;
+- live.tab for the quality.
+The jsui draws everything else (logo, tabs, SEED with its gestures, DICE / BACK, the values in
+musical units, tape, MOD page). On the MOD tab it hides the page's native objects with
+`thispatcher` ("script sendbox <name> hidden 1").
+
+Limitations:
+- Live's objects follow Live's theme, but the panel's own background is dark. With a light Live
+  theme the native labels may be hard to read.
+- The look cannot be checked here (only a mock-up, renders/panel_native_mockup.png).
