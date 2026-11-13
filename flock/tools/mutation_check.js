@@ -16,11 +16,11 @@ const MUTATIONS = [
   ["grain pan law", "poke(gr, (1 - pn) * (1 + pn) * amp, g0, 11);", "poke(gr, (1 - pn) * (1.01 + pn) * amp, g0, 11);"],
   ["envelope smoothness", "at < 0.5 ? 2 * at : 2 - 2 * at", "at < 0.5 ? 2.1 * at : 2 - 2 * at"],
   ["fixed point speed", "trunc(speed * 1024) / 1024", "speed"],
-  ["feedback gain 3 → 2.9", "prev_l * fbk * fbk * 3", "prev_l * fbk * fbk * 2.9"],
+  ["feedback gain 3 → 2.9", "pvl * fbk * fbk * 3", "pvl * fbk * fbk * 2.9"],
   ["reverb diffuser coefficient", "kap = 0.625;", "kap = 0.62;"],
   ["random pan spread", "min(0.5 * nact * spread * v, 1)", "min(0.45 * nact * spread * v, 1)"],
   ["trigger max frequency (C3)", "maxf = 130.81278 / FS;", "maxf = 131 / FS;"],
-  ["voice stealing fade", "inst = trunc(FS * 0.005);", "inst = trunc(FS * 0.006);"],
+  ["voice stealing fade", "inst = trunc(RG * 0.005);", "inst = trunc(RG * 0.006);"],
   ["freeze tail crossfade", "g = sstep(twp / txf);", "g = twp / txf;"],
   ["pitch notch table", "n < 4.5 ? 7 : n < 5.5 ? 12", "n < 4.5 ? 7 : n < 5.5 ? 11"],
   ["TIME hysteresis 0.001 → 0.002", "th_err > 0.001 ? st_time - 0.001", "th_err > 0.002 ? st_time - 0.002"],
@@ -31,6 +31,22 @@ const MUTATIONS = [
   ["auto gain ceiling ×40 → ×35", "min(0.9 / min(gagc, 0.9), 40)", "min(0.9 / min(gagc, 0.9), 35)"],
   ["auto gain learning speed 10 → 8", "(gerr > 0 ? 10 * ghz : 2 * ghz)", "(gerr > 0 ? 8 * ghz : 2 * ghz)"],
   ["LFO free rate law", "l1f = fract(l1_ph + 0.02 * pow(1000, l1_rate) / FS);", "l1f = fract(l1_ph + 0.021 * pow(1000, l1_rate) / FS);"],
+  // ---- R6 qualities
+  ["12-bit item: / 2048 → / 2047", "/ 16) / 2048;", "/ 16) / 2047;"],
+  ["µ-law bias 132 → 128", "t = (man * 8 + 132)", "t = (man * 8 + 128)"],
+  ["feedback soft limit gain 1.3 → 1.35", "qi > 2.5 ? 1.75 : 1.3;", "qi > 2.5 ? 1.75 : 1.35;"],
+  ["feedback low-pass 0.9 → 0.92", "fblp = qi < 0.5 ? 0.999 : qi < 2.5 ? 0.9 : 0.75;", "fblp = qi < 0.5 ? 0.999 : qi < 2.5 ? 0.92 : 0.75;"],
+  ["Scorched cassette rate 24 → 23 kHz", "qi > 2.5 ? 24000 : FSH", "qi > 2.5 ? 23000 : FSH"],
+  ["Scorched cassette buffer 384000 → 383000", "qi > 2.5 ? 384000 : 256000", "qi > 2.5 ? 383000 : 256000"],
+  ["wow depth 105 → 100", "1 + (105 * (0.5", "1 + (100 * (0.5"],
+  ["wow & flutter low-pass 0.95 → 0.9", "wlpl = wlpl + 0.95 *", "wlpl = wlpl + 0.9 *"],
+  ["caveman reverb lp 0.4 → 0.45", "rlp = qi > 0.5 ? 0.4 : 0.6;", "rlp = qi > 0.5 ? 0.45 : 0.6;"],
+  ["Sunny tape down filter centre tap", "poke(srcf, 0.3837045956, 23, 0)", "poke(srcf, 0.38, 23, 0)"],
+  ["Sunny tape trigger fraction (f + 1) / 2 → f / 2", "(frac + 1) / 2", "frac / 2"],
+  ["gain soft clip DYNAMIC 0.75 → 0.7", "ingain / gopt - 0.75", "ingain / gopt - 0.7"],
+  ["Cold digital dry 12-bit 4096 → 4095", "dryl = qi > 0.5 && qi < 1.5 ? trunc(inl * 4096) / 4096", "dryl = qi > 0.5 && qi < 1.5 ? trunc(inl * 4095) / 4095"],
+  ["quality not held while frozen", "(freeze > 0.5 || was_frozen > 0.5)", "(0 > 1)"],
+  ["codec converter Kaiser β 7.5 → 7", "bessel_i0(7.5 * sqrt(1 - r * r)) / bessel_i0(7.5)", "bessel_i0(7 * sqrt(1 - r * r)) / bessel_i0(7)"],
 ];
 const good = fs.readFileSync(FILE, "utf8");
 let survived = 0;
@@ -39,7 +55,7 @@ try {
     if (!good.includes(a)) { console.log("NOT FOUND (update the list): " + name); survived++; continue; }
     fs.writeFileSync(FILE, good.replace(a, b));
     let failed = false;
-    try { execSync("node --test tests/engine.test.js tests/reference.test.js", { cwd: ROOT, stdio: "pipe" }); } catch (e) { failed = true; }
+    try { execSync("node --test tests/engine.test.js tests/reference.test.js tests/quality.test.js", { cwd: ROOT, stdio: "pipe" }); } catch (e) { failed = true; }
     console.log((failed ? "caught    " : "SURVIVED  ") + name);
     if (!failed) survived++;
   }

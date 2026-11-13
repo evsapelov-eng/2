@@ -48,6 +48,7 @@ PARAMS = [
     ("input", "Input Gain", "Input", -12, 32, 0, 4, "dial"),
     ("output", "Output Gain", "Output", -24, 12, 0, 4, "dial"),
     ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 1, 0, "toggle"),
+    ("quality", "Quality", "Quality", 0, 3, 0, 0, ("enum", ["Pristine", "Cold digital", "Sunny tape", "Scorched cassette"])),
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]
 DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"]

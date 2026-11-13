@@ -14,7 +14,7 @@ const decl = parse(fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf
 
 test("every Live parameter reaches an existing gen~ Param and the panel; panel outputs route to the parameters", () => {
   const params = boxes.filter((b) => b.parameter_enable);
-  assert.strictEqual(params.length, 67);
+  assert.strictEqual(params.length, 68);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const outsOf = (id) => patch.lines.filter((l) => l.patchline.source[0] === id).map((l) => byId[l.patchline.destination[0]]);
   for (const p of params) {

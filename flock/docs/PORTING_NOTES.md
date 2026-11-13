@@ -19,10 +19,10 @@ Source: `pichenettes/eurorack` @ f4cfa76 (`beads/`), `pichenettes/stmlib` (MIT, 
 | Runs at a fixed 48 kHz | runs at the host rate; buffer keeps 192000 frames (4 s @48k, 4.35 s @44.1k); reverb delay lengths in samples unchanged | gen~ cannot change the host rate |
 | Block interpolation (blocks of sr/4000 = 12 samples), pot ADC low-pass + hysteresis | ported (block 12 at 48 kHz, LP per block, TIME hysteresis); only the load glide differs | |
 | Global LCG random | gen~ `noise()` | same distribution, different sequence |
-| Auto input gain (+0…+32 dB) | manual IN gain parameter (auto gain: later) | a DAW signal is already at line level |
+| Auto input gain (+0…+32 dB) | ported in v0.2.x (GainControl 1:1, incl. the soft clipping modes per quality) | |
 | Mono buffer when only L is patched (twice as long) | always stereo (mono option: v0.2) | Live always feeds stereo |
 | SEED / FREEZE gate inputs, clocked divider | not yet (v0.3 brings Live-tempo clock) | |
-| SIZE ∞ → delay mode, quality modes, WAVES, CV/assign | v0.2–v0.5 | staged port |
+| SIZE ∞ → delay mode, WAVES | later | staged port |
 
 ## Audit 2026-11-11 against `FEATURE_MATRIX.md`
 - **SEED gestures (G2)** were missing: Beads turns LATCH off with a short SEED press and on with a 4 s hold. Done in the panel. FREEZE+SEED (two buttons at once) is impossible with one mouse → the LATCH toggle.
@@ -55,3 +55,45 @@ Result: relative error < 1e-9 over 10 scenarios. **Remaining deliberate differen
 ## Validation
 - `tests/engine.test.js` runs the very same codebox text through `tools/genexpr.js` (a translator + linter for the GenExpr subset used): pitch notches inside one grain, TIME position, reverse below 1/3, duration law, constant vs random rate and the C3 maximum, gated SEED (one grain per press), FREEZE, 10 s of 100 % feedback bounded, envelope shapes, 32-voice stealing without clicks, pan spread, dry/wet law, reverb tail.
 - Not done: comparison against the original C++ (building/running the downloaded code needs the owner's permission in this environment), and gen~ compilation in Max (no Max here).
+
+## v0.3 — the four recording qualities (R6, R7, X3)
+Ported from `processor.h/.cc` (ENABLE_HARDWARE_24K is defined in the firmware), `granular_processor.h`,
+`delay_line.h`, `mu_law.cc`, `fx/wow_and_flutter.h`, `sample_rate_conversion_filters.h`, `gain_control.cc`:
+
+| Quality (MEDIA_*) | codec rate | core rate | buffer | item | feedback | dry | extras |
+|---|---|---|---|---|---|---|---|
+| Pristine (DIGITAL) | 48 k | 48 k | 192000 | 16-bit | fb² · 3, brickwall, LP 0.999 | as is | reverb 0.3 + 0.6 r³, lp 0.6 |
+| Cold digital (VINTAGE_DIGITAL) | 32 k | 32 k | 256000 | 12-bit | fb · 3/1.3, limiter, SoftClip(·1.3) crossfaded by fb, LP 0.9 | trunc ·4096 | caveman reverb |
+| Sunny tape (CLEAN_TAPE) | 48 k | 24 k (SRC ratio 2, 48 taps) | 256000 | 12-bit | as Cold digital | as is | caveman reverb; gain soft clip DYNAMIC |
+| Scorched cassette (DIRTY_TAPE) | 24 k | 24 k | 384000 | 8-bit µ-law | fb · 3/1.75, SoftClip(·1.75), LP 0.75 | µ-law | wow & flutter (lp 0.95); gain soft clip ON; caveman reverb |
+
+Everything the module runs per codec sample (gain control, trigger generator, CV/pots per block of
+rate/4000 samples, mix, wow & flutter, limiters, reverb with delays in samples) runs at the codec rate:
+at 24 kHz the reverb is twice as long in time, like on the module.
+
+Checked against the source itself (not only the reference):
+- **processor.cc reverb**: `caveman = media_ != MEDIA_DIGITAL`, so the `0.75` low-pass meant for
+  MEDIA_VINTAGE_DIGITAL is unreachable — Cold digital uses 0.4 like the tapes. Ported as written.
+- **µ-law**: `lut_ulaw_f` = the G.711 decoder / 32768 printed with 5 decimals; the formula reproduces
+  all 256 entries of `mu_law.cc` (checked once against the file, spot values in a test).
+- **Configure on a quality change**: DelayLine::Reset clears the buffer; grains, trigger generator,
+  limiters and reverb LFOs re-initialised; GainControl::Init(reset = false) keeps a finished learning.
+- **Random draw order**: WowAndFlutter draws its next random rate after the grains of the block; gen~
+  does the draw on the last sample of the block, after the grains → the same stream as the module.
+
+Deviations (FLØCK):
+| Module | FLØCK | Why |
+|---|---|---|
+| The codec itself runs at 32 / 24 kHz | the engine runs on ticks of the codec rate inside the host rate, between two FLØCK converters: Kaiser-windowed sinc (β 7.5, cutoff 0.47 · codec rate, ±16 codec samples; −77 dB at 0.55); latency 32 codec samples (1 ms at 32 k, 1.3 ms at 24 k), not reported to Live | gen~ cannot change the host rate; the codec's own filters are not documented |
+| Sunny tape: ratio-2 converters in block processing | the same 48-tap filters, streamed: a pair is processed on its second sample → wet path 2 codec samples later (42 µs) | per-sample gen~ |
+| Pristine / Sunny tape at 48 kHz | at the host rate (as before) | |
+| Each quality has its own GranularProcessor object (its feedback / DC filter / limiter state survive while another quality is used) | these states restart at a change | inaudible; one engine |
+| Codec stopped during Configure (silence) | no gap; the clear of the buffer happens within one sample (a CPU spike on the change) | |
+| lut_sine read with float32 | double sin() at the same table points | rounding only |
+| Quality held while FREEZE is on (R7, manual) | held, applied after unfreeze | |
+
+Tests: `tests/quality.test.js` — 21 differential scenarios (3 qualities × 7) against `beads_ref.js runHost`
+(error < 1e-9), buffer lengths from `kDelayBufferSizeBits`, µ-law points, converter response, wow &
+flutter and bandwidth of Scorched cassette, 12-bit dry truncation, clear + freeze hold, caveman reverb.
+My wrong expectation, corrected against the formulas: "the caveman reverb is longer" — its time is
+longer (0.45 + 0.5 r³) but the stronger damping (lp 0.4) leaves less energy after 1 s.

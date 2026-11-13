@@ -1,4 +1,4 @@
-// Independent REFERENCE of the Beads DSP (Pristine / 48 kHz path, granular mode), transcribed
+// Independent REFERENCE of the Beads DSP (granular mode, the four qualities), transcribed
 // class by class from the C++ (pichenettes/eurorack beads @ f4cfa76 + stmlib, MIT), WITHOUT
 // looking at gen/flock.genexpr. Used only by tests to check the gen~ port sample by sample.
 // Kept like the module: blocks of sr/4000 samples (kBlockRate = 4000 → 12 at 48 kHz) with ParameterInterpolator, fixed-point (×1024)
@@ -13,6 +13,43 @@ function SmoothStep(x) { return x * x * (3 - 2 * x); }
 function SemitonesToRatio(s) { return Math.pow(2, s / 12); }   // stmlib uses a LUT (≈ exact)
 function Clip16(x) { return x < -32768 ? -32768 : x > 32767 ? 32767 : x; }
 function ONE_POLE(out, inp, c) { return out + c * (inp - out); }
+function SoftLimit(x) { return x * (27 + x * x) / (27 + 9 * x * x); }
+function SoftClip(x) { return x < -3 ? -1 : x > 3 ? 1 : SoftLimit(x); }
+// mu_law.h Lin2MuLaw (int16 in) and lut_ulaw_f (G.711 decoder / 32768, 5 decimals as printed in mu_law.cc)
+function Lin2MuLaw(pcm) {
+  pcm = pcm >> 2;
+  let mask;
+  if (pcm < 0) { pcm = -pcm; mask = 0x7f; } else mask = 0xff;
+  if (pcm > 8159) pcm = 8159;
+  pcm += 0x84 >> 2;
+  const seg = pcm <= 0x3f ? 0 : pcm <= 0x7f ? 1 : pcm <= 0xff ? 2 : pcm <= 0x1ff ? 3 : pcm <= 0x3ff ? 4 : pcm <= 0x7ff ? 5 : pcm <= 0xfff ? 6 : pcm <= 0x1fff ? 7 : 8;
+  if (seg >= 8) return 0x7f ^ mask;
+  return ((seg << 4) | ((pcm >> (seg + 1)) & 0x0f)) ^ mask;
+}
+const LUT_ULAW = Array.from({ length: 256 }, (_, u) => {
+  const uv = (~u) & 0xff; let t = ((uv & 0xf) << 3) + 0x84; t <<= (uv & 0x70) >> 4;
+  const lin = (uv & 0x80) ? (0x84 - t) : (t - 0x84);
+  return Math.floor(lin / 32768 * 100000 + 0.5) / 100000;
+});
+function MuLaw2Lin(u) { return LUT_ULAW[u]; }
+// lut_sine (1025+ points of sin 2πi/1024) read by stmlib::Interpolate
+function lutSine(phase) { const x = phase * 1024, i = Math.trunc(x); return Math.sin(2 * Math.PI * i / 1024) + (Math.sin(2 * Math.PI * (i + 1) / 1024) - Math.sin(2 * Math.PI * i / 1024)) * (x - i); }
+// sample_rate_conversion_filters.h: SRC_FIR<SRC_DOWN / SRC_UP, 2, 48> (first half; symmetric)
+const SRC_DOWN_2 = [-2.143728787e-04, -4.113243578e-04, 3.550026182e-04, 1.123588805e-03, 2.013790146e-04, -2.135889966e-03, -1.946536068e-03, 2.421957824e-03,
+  5.099674271e-03, -4.847193956e-04, -8.638296788e-03, -5.137744633e-03, 1.000597441e-02, 1.464501735e-02, -5.419339385e-03, -2.582247866e-02,
+  -9.106955536e-03, 3.335521514e-02, 3.702172341e-02, -2.802414194e-02, -8.416883646e-02, -1.192656678e-02, 1.955030744e-01, 3.837045956e-01];
+const SRC_UP_2 = [-4.287457573e-04, -8.226487157e-04, 7.100052364e-04, 2.247177610e-03, 4.027580292e-04, -4.271779932e-03, -3.893072135e-03, 4.843915649e-03,
+  1.019934854e-02, -9.694387912e-04, -1.727659358e-02, -1.027548927e-02, 2.001194882e-02, 2.929003471e-02, -1.083867877e-02, -5.164495731e-02,
+  -1.821391107e-02, 6.671043028e-02, 7.404344683e-02, -5.604828388e-02, -1.683376729e-01, -2.385313356e-02, 3.910061488e-01, 7.674091912e-01];
+const mirror48 = (h, i) => (i >= 24 ? h[47 - i] : h[i]);   // Accumulator<…, mirror = 48>
+// Processor: codec rate per quality (ENABLE_HARDWARE_24K) and granular ratio
+// 0 MEDIA_DIGITAL, 1 MEDIA_VINTAGE_DIGITAL, 2 MEDIA_CLEAN_TAPE, 3 MEDIA_DIRTY_TAPE (FLØCK order)
+const QUALITY = [
+  { rate: 48000, ratio: 1, bits: 16, max: 192000 },   // kDelayBufferSizeBits / (16 · 2)
+  { rate: 32000, ratio: 1, bits: 12, max: 256000 },   // / (12 · 2)
+  { rate: 48000, ratio: 2, bits: 12, max: 256000 },
+  { rate: 24000, ratio: 1, bits: 8, max: 384000 },    // / (8 · 2)
+];
 
 // ---------------- cv_reader.h pot laws
 function attenuverterLaw(k) { let v = k - 0.5; return (2 / 0.47) * v * Math.max(Math.abs(v) - 0.03, 0); }
@@ -29,10 +66,17 @@ function detuneLaw(k) {
 }
 
 class Ref {
-  constructor(sr, random) {
-    this.sr = sr;
+  // sr = the codec rate this processor runs at (FLØCK: host rate for Pristine / Sunny tape)
+  constructor(sr, random, quality = 0) {
+    const Q = QUALITY[quality];
+    this.q = quality; this.bits = Q.bits; this.ratio = Q.ratio;
+    this.codec_sr = sr;
     this.R = random;   // () => [0,1)
-    this.MAX = 192000; // kDelayBufferSizeBits / (16 * 2)
+    this.MAX = Q.max;
+    // beads.cc: codec.Start(sr, sr / kBlockRate); FLØCK keeps the ratio-2 block even
+    this.BLK = this.ratio === 2 ? 2 * Math.floor(sr / 8000 + 0.5) : Math.floor(sr / 4000 + 0.5);
+    sr = sr / this.ratio;   // GranularProcessor::Init(sample_rate of the core)
+    this.sr = sr;
     // ---- DelayLine<16 bit, 192000, 2>
     this.l = new Float64Array(this.MAX + 4); this.r = new Float64Array(this.MAX + 4);
     this.write_ptr = 0; this.frozen = false; this.tail = new Float64Array(512); this.tail_write_ptr = 0; this.tail_xfade_duration = 0;
@@ -43,24 +87,32 @@ class Ref {
     this.instant = Math.trunc(sr * 0.005); this.preempt = Math.trunc(sr * 0.1); this.simpleThr = Math.trunc(sr * 0.025);
     this.grain_interval = 1; this.max_grain_duration = sr * 4;
     // ---- trigger generator
-    this.tg = { phase: 0, ratio: 1, elapsed: Math.trunc(sr / 2), frequency: 0, prev: false, prevExt: false,
+    const cs = this.codec_sr;   // TriggerGenerator::Init(codec rate)
+    this.tg = { phase: 0, ratio: 1, elapsed: Math.trunc(cs / 2), frequency: 0, prev: false, prevExt: false,
       target: 0, lp: 1, audio: false, accept: true, count: 0, division: 1, quant: 0,
-      defaultReset: Math.trunc(sr * 4), resetInt: Math.trunc(sr * 4), audioInt: Math.trunc(sr / 48), one_hertz: 1 / sr };
+      defaultReset: Math.trunc(cs * 4), resetInt: Math.trunc(cs * 4), audioInt: Math.trunc(cs / 48), one_hertz: 1 / cs };
     this.tg.frequency = this.tg.target = 1 / this.tg.elapsed;
     this.cv = null;
     // GainControl::Init(reset = true)
-    this.gc = { peak: 0.5, agc: 0.5, stable: 0.5, gain: 1, time: 0, ignore: Math.trunc(sr * 1), active: Math.trunc(sr * 6) };
+    this.gc = { peak: 0.5, agc: 0.5, stable: 0.5, gain: 1, time: 0, ignore: Math.trunc(cs * 1), active: Math.trunc(cs * 6), sca: 0,
+      mode: quality === 3 ? "on" : quality === 2 ? "dynamic" : "off" };
     // ---- granular processor
     this.feedback = 0; this.prev = [0, 0];
     this.dc = [this.svf(40 / sr, 0.5), this.svf(40 / sr, 0.5)];
     this.lim_in = { peak: 0.5, lp: 0.5, decay: 1 / sr, max: 0.95 };
     // ---- processor
     this.dry = 0; this.wet = 0;
-    this.lim_pre = { peak: 0.5, lp: 0.5, decay: 1 / (sr * 4), max: 0.9 };
-    this.lim_out = { peak: 0.5, lp: 0.5, decay: 1 / (sr * 6), max: 0.9 };
-    // ---- reverb (FxEngine 32768, 16 bit)
+    this.lim_pre = { peak: 0.5, lp: 0.5, decay: 1 / (cs * 4), max: 0.9 };
+    this.lim_out = { peak: 0.5, lp: 0.5, decay: 1 / (cs * 6), max: 0.9 };
+    // ---- reverb (FxEngine 32768, 16 bit), Reset(codec rate)
     this.rb = new Float64Array(32768); this.rwp = 0;
-    this.lfo = [this.cosOsc(0.5 / sr * 32), this.cosOsc(0.3 / sr * 32)];
+    this.lfo = [this.cosOsc(0.5 / cs * 32), this.cosOsc(0.3 / cs * 32)];
+    // ---- SampleRateConverter<…, 2, 48> states (Sunny tape) — streamed, see processBlock
+    this.srcDown = [new Float64Array(48), new Float64Array(48)]; this.srcUp = [new Float64Array(24), new Float64Array(24)];
+    this.pend = null;
+    // ---- WowAndFlutter::Init(24000), set_lp(0.95)
+    this.wf = { one_hertz: 1 / 24000, rf: 0.125 / 24000, rph: 0, wph: 0, fph: 0, delay: 0, lp: 0.95, lps: [0, 0],
+      line: [new Float64Array(128), new Float64Array(128)], wp: 0 };
     this.rv = { lp1: 0, lp2: 0, dry: 0, wet: 0, send: 0 };
   }
   newGrain() {
@@ -105,7 +157,12 @@ class Ref {
   }
   randomness(p) { return p.has_cv ? Math.max(-p.attenuverter, 0) : Math.abs(p.attenuverter); }
   // ---------------- delay_line.h
-  store(i, fr) { this.l[i] = Clip16(Math.trunc(fr[0] * 32768)) / 32768; this.r[i] = Clip16(Math.trunc(fr[1] * 32768)) / 32768; }
+  // Item<resolution, 2>::Store + value()
+  item(x) {
+    const c = Clip16(Math.trunc(x * 32768));
+    return this.bits === 16 ? c / 32768 : this.bits === 12 ? (c >> 4) / 2048 : MuLaw2Lin(Lin2MuLaw(c));
+  }
+  store(i, fr) { this.l[i] = this.item(fr[0]); this.r[i] = this.item(fr[1]); }
   writeFrame(fr, frozen) {
     if (frozen) {
       if (!this.frozen) this.tail_write_ptr = 0;
@@ -281,7 +338,7 @@ class Ref {
   }
   // TriggerGenerator::Render(seed_button_state, external_input (null = unpatched), density, linear_fm, exponential_fm)
   triggers(seedState, density, n, ext, linear_fm = 0, exponential_fm = 0) {
-    const out = [], tg = this.tg, maxf = kMaxGrainFrequency / this.sr;
+    const out = [], tg = this.tg, maxf = kMaxGrainFrequency / this.codec_sr;
     // beads.cc: the SEED input's own gate flags (previous_seed), updated whenever it is patched
     const extFlags = [];
     if (ext) for (let i = 0; i < n; i++) { const g = !!ext[i]; extFlags.push({ high: g, rising: g && !tg.prevExt }); tg.prevExt = g; }
@@ -325,7 +382,9 @@ class Ref {
   rdl(i) { return this.rb[((i % 32768) + 32768) % 32768]; }
   rwr(i, v) { this.rb[((i % 32768) + 32768) % 32768] = Clip16(Math.trunc(v * 32768)) / 32768; }
   reverb(block, amount) {
-    const mix = amount * amount * 0.9, time = 0.3 + 0.6 * amount * amount * amount, lp = 0.6, kap = 0.625;
+    const caveman = this.q !== 0;
+    const mix = amount * amount * 0.9, time = caveman ? 0.45 + 0.5 * amount * amount * amount : 0.3 + 0.6 * amount * amount * amount;
+    const lp = caveman ? 0.4 : (this.q === 1 ? 0.75 : 0.6), kap = 0.625;
     const input_gain = 0.2 * (1 - 0.333 * time), output_gain = 0.4 / input_gain;
     const ssq = mix * (2 - mix), send = ssq * (2 - ssq);
     const n = block.length, rv = this.rv;
@@ -381,7 +440,7 @@ class Ref {
   }
   // GainControl::Process (auto gain: learning 1 s + 5 s; manual: hard clip at ±1)
   gainBlock(inL, inR, at, n, auto, manual) {
-    const gc = this.gc, hz = n / this.sr, L = new Float64Array(n), R = new Float64Array(n);
+    const gc = this.gc, hz = n / this.codec_sr, L = new Float64Array(n), R = new Float64Array(n);
     const slope = (out, inp, pos, neg) => { const e = inp - out; return out + (e > 0 ? pos : neg) * e; };
     if (gc.time < gc.ignore) gc.agc = 0.5;
     else if (gc.time < gc.active) { gc.agc = slope(gc.agc, gc.peak, 10 * hz, 2 * hz); gc.stable = gc.agc; }
@@ -390,12 +449,24 @@ class Ref {
     if (gc.time >= gc.active) gc.time = gc.active;
     const optimal = Math.min(0.9 / Math.min(gc.agc, 0.9), 40), target = auto ? optimal : manual;
     const inc = (target - gc.gain) / n;
+    // soft clipping amount (manual gain only): ON 1, DYNAMIC 2·(manual / optimal − 0.75), OFF none
+    const scTarget = gc.mode === "on" ? 1 : gc.mode === "dynamic" ? Math.min(1, Math.max(0, 2 * (manual / optimal - 0.75))) : 0;
+    const scInc = (scTarget - gc.sca) / n;
+    const C = (x) => Math.min(1, Math.max(-1, x)), bias = 0.05;
     for (let i = 0; i < n; i++) {
       let l = inL[at + i], r = inR[at + i];
-      gc.peak = slope(gc.peak, Math.max(Math.abs(l), Math.abs(r)), 0.1, 2 / this.sr);
+      gc.peak = slope(gc.peak, Math.max(Math.abs(l), Math.abs(r)), 0.1, 2 / this.codec_sr);
       gc.gain += inc;
       l *= gc.gain; r *= gc.gain;
-      if (!auto) { l = Math.min(1, Math.max(-1, l)); r = Math.min(1, Math.max(-1, r)); }
+      if (!auto) {
+        if (gc.mode === "off") { l = C(l); r = C(r); }
+        else {
+          gc.sca += scInc; const amount = gc.sca;
+          const sl = (1 - bias) * SoftClip(l + bias) - bias, sr = (1 - bias) * SoftClip(r + bias) - bias;
+          l = C(l); r = C(r);
+          l = l + (sl - l) * amount; r = r + (sr - r) * amount;
+        }
+      }
       L[i] = l; R[i] = r;
     }
     return [L, R];
@@ -422,40 +493,189 @@ class Ref {
     const expo = Math.min(1, Math.max(0, 20 * (Math.abs(P.density - 0.5) - 0.225)));
     const dcv = X.density ? this.cv.density : 0;
     // beads.cc: the SEED input is delayed by 10 blocks (event_delay.Read(size * 10), 2.5 ms)
-    const ext = X.seed ? Array.from({ length: n }, (_, i) => { const j = Xat + i - 10 * BLOCK; return j >= 0 && X.seed[j] > 0.5; }) : null;
+    const ext = X.seed ? Array.from({ length: n }, (_, i) => { const j = Xat + i - 10 * this.BLK; return j >= 0 && X.seed[j] > 0.5; }) : null;
     const trig = this.triggers(P.seedState, P.density, n, ext, (1 - expo) * dcv, expo * dcv);
-    const fbInc = (P.feedback - this.feedback) / n;
+    const freezeAt = (i) => P.freeze || (X.freeze ? X.freeze[Xat + i] > 0.5 : false);
     const wet_out = [];
-    for (let i = 0; i < n; i++) {
-      this.feedback += fbInc;
-      const fb = this.feedback;
-      const input = [inL[at + i], inR[at + i]];
-      const s = [input[0] + this.prev[0] * fb * fb * 3, input[1] + this.prev[1] * fb * fb * 3];
-      this.limiter(this.lim_in, s);
-      const out = [0, 0];
-      this.writeFrame(s, P.freeze || (X.freeze ? X.freeze[Xat + i] > 0.5 : false));
-      this.playerRender(trig[i], P, out);
-      this.prev[0] = ONE_POLE(this.prev[0], this.svfHP(this.dc[0], out[0]), 0.999);
-      this.prev[1] = ONE_POLE(this.prev[1], this.svfHP(this.dc[1], out[1]), 0.999);
-      wet_out.push(out);
+    if (this.ratio === 1) {
+      this.coreBlock(P, trig, [...Array(n).keys()].map((i) => [inL[at + i], inR[at + i]]), [...Array(n).keys()].map(freezeAt), wet_out);
+    } else {
+      // GranularProcessor<…, ratio 2>: DownsampleTriggers / DownsampleGate / SRC_DOWN → core → SRC_UP.
+      // FLØCK streams it: each pair is processed on its second sample and the up-converted samples of
+      // that pair come out on the next two codec samples (2 samples later than block processing).
+      const d_trig = [], d_in = [], d_fr = [];
+      for (let i = 0; i < n; i += 2) {
+        const t0 = trig[i], t1 = trig[i + 1];
+        let has = false, fs = 0;
+        for (const [j, t] of [[0, t0], [1, t1]]) if (t.trigger && !has) { has = true; fs = (t.fractional_sample + j) * 0.5; }
+        d_trig.push({ trigger: has, fractional_sample: fs, regularity: t0.regularity });
+        d_fr.push(freezeAt(i) || freezeAt(i + 1));
+        const x = [0, 0];
+        for (let ch = 0; ch < 2; ch++) {
+          const h = this.srcDown[ch], src = ch ? inR : inL;
+          for (const v of [src[at + i], src[at + i + 1]]) { h.copyWithin(1, 0, 47); h[0] = v; }
+          let acc = 0; for (let k = 0; k < 48; k++) acc += h[k] * mirror48(SRC_DOWN_2, k);
+          x[ch] = acc;
+        }
+        d_in.push(x);
+      }
+      const d_out = [];
+      this.coreBlock(P, d_trig, d_in, d_fr, d_out);
+      for (let m = 0; m < n / 2; m++) {
+        for (let j = 0; j < 2; j++) {
+          const fr = [0, 0];
+          for (let ch = 0; ch < 2; ch++) { let acc = 0; for (let k = 0; k < 24; k++) acc += this.srcUp[ch][k] * mirror48(SRC_UP_2, 2 * k + j); fr[ch] = acc; }
+          wet_out.push(fr);
+        }
+        for (let ch = 0; ch < 2; ch++) { this.srcUp[ch].copyWithin(1, 0, 23); this.srcUp[ch][0] = d_out[m][ch]; }
+      }
     }
+    // Processor: the dry signal through the quality's format
+    const dryOf = (x) => this.q === 1 ? Math.trunc(x * 4096) / 4096 : this.q === 3 ? MuLaw2Lin(Lin2MuLaw(Clip16(Math.trunc(x * 32768)))) : x;
     const dw = P.dry_wet, dry = (1 - dw) * (1 + dw) * 0.75, wet = dw * (2 - dw) * 1.5;
     const dInc = (dry - this.dry) / n, wInc = (wet - this.wet) / n;
     const block = [];
     for (let i = 0; i < n; i++) {
       this.dry += dInc; this.wet += wInc;
-      const fr = [this.dry * inL[at + i] + this.wet * wet_out[i][0], this.dry * inR[at + i] + this.wet * wet_out[i][1]];
-      this.limiter(this.lim_pre, fr);
-      block.push(fr);
+      block.push([this.dry * dryOf(inL[at + i]) + this.wet * wet_out[i][0], this.dry * dryOf(inR[at + i]) + this.wet * wet_out[i][1]]);
     }
+    if (this.q === 3) this.wowAndFlutter(block);
+    for (const fr of block) this.limiter(this.lim_pre, fr);
     this.reverb(block, P.reverb);
     for (let i = 0; i < n; i++) { this.limiter(this.lim_out, block[i]); outL[at0 + i] = block[i][0]; outR[at0 + i] = block[i][1]; }
   }
+  // GranularProcessor::ProcessInternal (granular mode) for one block of core samples
+  coreBlock(P, trig, input, freeze, wet_out) {
+    const n = input.length;
+    const fbInc = (P.feedback - this.feedback) / n;
+    const max_feedback_gain = 3;
+    const lp_coefficient = { 8: 0.75, 12: 0.9, 16: 0.999 }[this.bits];
+    const soft_limit_gain = { 8: 1.75, 12: 1.3, 16: 0 }[this.bits];
+    for (let i = 0; i < n; i++) {
+      this.feedback += fbInc;
+      const fb = this.feedback;
+      const inp = input[i];
+      let s;
+      if (soft_limit_gain) { const gain = max_feedback_gain / soft_limit_gain; s = [inp[0] + this.prev[0] * fb * gain, inp[1] + this.prev[1] * fb * gain]; }
+      else s = [inp[0] + this.prev[0] * fb * fb * max_feedback_gain, inp[1] + this.prev[1] * fb * fb * max_feedback_gain];
+      this.limiter(this.lim_in, s);
+      if (soft_limit_gain) {
+        s = [SoftClip(s[0] * soft_limit_gain), SoftClip(s[1] * soft_limit_gain)];
+        s = [inp[0] + fb * (s[0] - inp[0]), inp[1] + fb * (s[1] - inp[1])];
+      }
+      const out = [0, 0];
+      this.writeFrame(s, freeze[i]);
+      this.playerRender(trig[i], P, out);
+      this.prev[0] = ONE_POLE(this.prev[0], this.svfHP(this.dc[0], out[0]), lp_coefficient);
+      this.prev[1] = ONE_POLE(this.prev[1], this.svfHP(this.dc[1], out[1]), lp_coefficient);
+      wet_out.push(out);
+    }
+  }
+  // fx/wow_and_flutter.h Process(block)
+  wowAndFlutter(block) {
+    const w = this.wf, size = block.length;
+    const sine = (o, f) => { o[0] += f; if (o[0] >= 1) o[0] -= 1; return 0.5 + 0.5 * lutSine(o[0]); };
+    const rp = [w.rph], previous_phase = w.rph;
+    const random_modulation = sine(rp, w.rf * size); w.rph = rp[0];
+    if (w.rph >= 0.25 && previous_phase < 0.25) w.rf = w.one_hertz * (0.05 + this.R() * 0.2);
+    const fm = 0.5 + 1.5 * random_modulation * random_modulation;
+    const amount = (1 - 0.4 * random_modulation) * 1;
+    const wp_ = [w.wph]; const wow = sine(wp_, w.one_hertz * 0.23 * size * fm); w.wph = wp_[0];
+    const fp_ = [w.fph]; const flutter = sine(fp_, w.one_hertz * 1.99 * size); w.fph = fp_[0];
+    const delay = 1 + (105 * wow + 17 * flutter) * amount;
+    const inc = (delay - w.delay) / size;
+    for (const fr of block) {
+      w.delay += inc;
+      const di = Math.trunc(w.delay), df = w.delay - di;
+      for (let ch = 0; ch < 2; ch++) {
+        const line = w.line[ch];
+        line[w.wp] = fr[ch];
+        const p = (w.wp - 1 + 128) % 128;
+        const a = line[(p + di) % 128], b = line[(p + di + 1) % 128];
+        w.lps[ch] = ONE_POLE(w.lps[ch], a + (b - a) * df, w.lp);
+      }
+      w.wp = (w.wp - 1 + 128) % 128;
+      fr[0] = w.lps[0]; fr[1] = w.lps[1];
+    }
+  }
   run(P, inL, inR) {
     const n = inL.length, outL = new Float64Array(n), outR = new Float64Array(n);
-    for (let at = 0; at < n; at += BLOCK) this.processBlock(P, inL, inR, outL, outR, at, Math.min(BLOCK, n - at));
+    for (let at = 0; at < n; at += this.BLK) this.processBlock(P, inL, inR, outL, outR, at, Math.min(this.BLK, n - at));
     return [outL, outR];
   }
+}
+
+// ---------------- FLØCK codec converters (not Beads: they stand in for the module's codec when the
+// quality's rate is below the host rate). Kaiser-windowed sinc, cutoff 0.47 · codec rate, β 7.5,
+// ±16 codec samples, table of 256 points per codec sample with linear interpolation, weights
+// normalised. Written from the spec in docs/PORTING_NOTES.md.
+function besselI0(x) {
+  const ax = Math.abs(x);
+  if (ax < 3.75) {
+    const y = (x / 3.75) * (x / 3.75);
+    return 1 + y * (3.5156229 + y * (3.0899424 + y * (1.2067492 + y * (0.2659732 + y * (0.0360768 + y * 0.0045813)))));
+  }
+  const y = 3.75 / ax;
+  return (Math.exp(ax) / Math.sqrt(ax)) * (0.39894228 + y * (0.01328592 + y * (0.00225319 + y * (-0.00157565 + y * (0.00916281 + y * (-0.02057706 + y * (0.02635537 + y * (-0.01647633 + y * 0.00392377))))))));
+}
+function kaiserSinc(x) {
+  const a = Math.abs(x), r = a / 16;
+  const wv = r < 1 ? besselI0(7.5 * Math.sqrt(1 - r * r)) / besselI0(7.5) : 0;
+  const s = a < 0.000001 ? 1 : Math.sin(Math.PI * 0.94 * a) / (Math.PI * 0.94 * a);
+  return 0.94 * s * wv;
+}
+const KTAB = Float64Array.from({ length: 4098 }, (_, k) => (k < 4097 ? kaiserSinc(k / 256) : 0));
+function kern(x) { const ka = Math.abs(x) * 256, ki = Math.floor(ka); return ki < 4096 ? { w: KTAB[ki] + (KTAB[ki + 1] - KTAB[ki]) * (ka - ki) } : null; }
+// The whole device at the host rate: codec clock, down-converter, the processor in codec blocks,
+// up-converter. phases: [{ hostSamples, P }] (param changes on host samples, like gen~).
+function runHost(hostSr, quality, random, phases, inL, inR) {
+  const Q = QUALITY[quality];
+  const RC = Math.min(Q.rate === 48000 ? hostSr : Q.rate, hostSr), rsm = RC < hostSr, rr = RC / hostSr;
+  const ref = new Ref(RC, random, quality);
+  const N = inL.length;
+  // codec clock
+  const ticks = [], dlts = new Float64Array(N);
+  let acc = 0;
+  for (let n = 0; n < N; n++) {
+    let a = rsm ? acc + RC : 0; const tick = !rsm || a >= hostSr; if (a >= hostSr) a -= hostSr; acc = a;
+    dlts[n] = a / RC; if (tick) ticks.push(n);
+  }
+  const M = ticks.length, cL = new Float64Array(M), cR = new Float64Array(M);
+  for (let m = 0; m < M; m++) {
+    const n = ticks[m];
+    if (!rsm) { cL[m] = inL[n]; cR[m] = inR[n]; continue; }
+    let L = 0, R = 0, W = 0; const nj = Math.floor(33 / rr);
+    for (let k = 0; k < nj; k++) {
+      const kk = kern(rr * k - dlts[n] - 16); if (!kk) continue;
+      const x = n - k >= 0 ? [inL[n - k], inR[n - k]] : [0, 0];
+      L += x[0] * kk.w; R += x[1] * kk.w; W += kk.w;
+    }
+    cL[m] = L / W; cR[m] = R / W;
+  }
+  // processor in codec blocks; each phase starts at the first tick on / after its host sample
+  const oL = new Float64Array(M), oR = new Float64Array(M);
+  let h0 = 0, m0 = 0;
+  for (const ph of phases) {
+    const h1 = h0 + ph.hostSamples;
+    let m1 = m0; while (m1 < M && ticks[m1] < h1) m1++;
+    if ((m1 - m0) % ref.BLK !== 0 && m1 < M) throw new Error("phase not aligned to codec blocks");
+    for (let b = m0; b < m1; b += ref.BLK) ref.processBlock(ph.P, cL, cR, oL, oR, b, Math.min(ref.BLK, m1 - b));
+    h0 = h1; m0 = m1;
+  }
+  if (!rsm) return [oL, oR, ref];
+  const L = new Float64Array(N), R = new Float64Array(N);
+  let last = -1, mi = 0;
+  for (let n = 0; n < N; n++) {
+    if (mi < M && ticks[mi] === n) { last = mi; mi++; }
+    let a = 0, b = 0, W = 0;
+    for (let k = 0; k < 33; k++) {
+      const kk = kern(16 - dlts[n] - k); if (!kk) continue;
+      const j = last - k;
+      a += (j >= 0 ? oL[j] : 0) * kk.w; b += (j >= 0 ? oR[j] : 0) * kk.w; W += kk.w;
+    }
+    L[n] = a / W; R[n] = b / W;
+  }
+  return [L, R, ref];
 }
 
 // knob values (0..1, as the device sends them) → module parameters (C++ units)
@@ -469,4 +689,4 @@ function fromKnobs(k) {
   };
 }
 
-module.exports = { Ref, fromKnobs, attenuverterLaw, detuneLaw, BLOCK };
+module.exports = { Ref, fromKnobs, attenuverterLaw, detuneLaw, BLOCK, runHost, QUALITY, Lin2MuLaw, MuLaw2Lin, kaiserSinc };

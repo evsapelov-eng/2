@@ -117,3 +117,15 @@ test("a cable into TIME / PITCH / SIZE / SHAPE has an audible effect at once (CV
   const spread = Math.max(...starts) - Math.min(...starts);
   assert.ok(spread > 0.1, "grain positions follow the LFO: spread " + spread.toFixed(3));
 });
+
+test("R6 every recording quality is audible on the quiet foley within seconds of switching to it (from the panel)", () => {
+  const r = rig(13); r.play(7);
+  const bad = [];
+  for (const q of [1, 2, 3, 0]) {
+    r.ui.onclick(0, 0, 0, 0, 0);   // no-op click (nothing there) — the panel must not throw
+    r.ui.outlet(0, "quality", q);
+    const m = measure(r.play(4));
+    if (m.db < -40 || m.grains < 3) bad.push(`quality ${q}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
+  }
+  assert.deepStrictEqual(bad, []);
+});

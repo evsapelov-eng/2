@@ -27,8 +27,14 @@ var P = {
   time_amt: { v: 0.75, d: 0.75 }, pitch_amt: { v: 0.5, d: 0.5 }, size_amt: { v: 0.5, d: 0.5 }, shape_amt: { v: 0.5, d: 0.5 },
   feedback: { v: 0.1, d: 0.1 }, drywet: { v: 0.7, d: 0.7 }, reverb: { v: 0.35, d: 0.35 }, agc: { v: 1, d: 1 },
   freeze: { v: 0, d: 0 }, seed: { v: 0, d: 0 }, seedlatch: { v: 1, d: 1 },
-  input: { v: 0, d: 0, lo: -12, hi: 32 }, output: { v: 0, d: 0, lo: -24, hi: 12 }
+  input: { v: 0, d: 0, lo: -12, hi: 32 }, output: { v: 0, d: 0, lo: -24, hi: 12 },
+  quality: { v: 0, d: 0, lo: 0, hi: 3, int: true }
 };
+// recording qualities (Beads MEDIA): name, help
+var QUAL = [["PRISTINE", "PRISTINE: 48 kHz 16-bit, 4 s buffer, clean feedback, bright reverb"],
+  ["COLD DIGITAL", "COLD DIGITAL: 32 kHz 12-bit, 8 s buffer, soft-clipped feedback, dark reverb"],
+  ["SUNNY TAPE", "SUNNY TAPE: grains at half rate (24 kHz) 12-bit, 10.7 s buffer, warm saturated feedback"],
+  ["SCORCHED", "SCORCHED CASSETTE: 24 kHz 8-bit mu-law, 16 s buffer, wow & flutter, hiss, crushed feedback"]];
 // ---- MOD tab: sources, destinations (a destination takes one source, like a jack), modulators
 var SRC = ["LFO 1", "LFO 2", "RANDOM", "ENV", "CLOCK", "SEQ"];
 var SRC_COL = [[0.17, 0.30, 0.61, 1], [0.13, 0.52, 0.50, 1], [0.76, 0.22, 0.38, 1], [0.84, 0.55, 0.13, 1], [0.35, 0.35, 0.33, 1], [0.45, 0.30, 0.62, 1]];
@@ -63,9 +69,15 @@ var MIX = [["feedback", "FEEDBACK"], ["drywet", "DRY/WET"], ["reverb", "REVERB"]
 var KX = [204, 288, 372, 456, 540], KY = 58, KR = 23;
 var hits = [], drag = null, dirty = true, scaleF = 1, hover = null;
 var tapeSt = { w: 0, active: 0 }, grains = [];
-var BUF_S = 192000 / 48000;
+var BUF_S = 192000 / 48000, HOST_SR = 48000;
+// buffer length in seconds for the current quality (processor.h buffer sizes at the quality's rate)
+function bufSeconds() {
+  var q = Math.round(P.quality.v);
+  var s = q === 1 ? 256000 / Math.min(32000, HOST_SR) : q === 2 ? 256000 / (HOST_SR / 2) : q === 3 ? 384000 / Math.min(24000, HOST_SR) : 192000 / HOST_SR;
+  return Math.round(s * 10) / 10;
+}
 var now = function () { return new Date().getTime(); };
-function sr(v) { if (v > 0) { BUF_S = Math.round(192000 / v * 100) / 100; dirty = true; } }   // from [dspstate~]
+function sr(v) { if (v > 0) { HOST_SR = +v; BUF_S = Math.round(192000 / v * 100) / 100; dirty = true; } }   // from [dspstate~]
 
 function p(name, v) { if (P[name]) { P[name].v = +v; dirty = true; } }
 var engineMoved = -1;   // time the record head last moved (-1 = never)
@@ -114,7 +126,7 @@ function fmtMs(ms) { return ms >= 1000 ? (Math.round(ms / 100) / 10) + " s" : Ma
 function pct(v) { return Math.round(v * 100) + "%"; }
 function valueText(name) {
   var v = P[name].v;
-  if (name === "time") return "-" + (Math.round(v * BUF_S * 10) / 10) + " s";
+  if (name === "time") return "-" + (Math.round(v * bufSeconds() * 10) / 10) + " s";
   if (name === "density") {
     if (v < 0.48) return (Math.round(130.81278 * Math.pow(2, -v * 16) * 10) / 10) + " /s even";
     if (v > 0.52) return "~" + (Math.round(0.5 * 130.81278 * Math.pow(2, -(1 - v) * 16) * 10) / 10) + " /s random";
@@ -245,8 +257,17 @@ function paint() {
   pill(836, 37, 26, "AUTO", P.agc.v > 0.5, "toggle", "agc");
   pill(864, 37, 30, agcLearning ? "..." : "LEARN", agcLearning > 0, "cmd", "learn");
   gainBox(812, 58, "output", "OUT");
+  // ---- recording quality (MEDIA): held while FREEZE is on, like the module
+  var qx = 598, qw = [56, 72, 66, 84], qz = P.freeze.v > 0.5;
+  for (var qq = 0; qq < 4; qq++) {
+    var qon = Math.round(P.quality.v) === qq;
+    rect(qx, 86, qw[qq], 12, qon ? C.accent : C.ink, qon, 1, qz && !qon ? 0.35 : 1);
+    textC(QUAL[qq][0], qx + qw[qq] / 2, 95, 6.5, qon ? C.panel : (qz ? C.line : C.ink), true);
+    hit({ x: qx, y: 86, w: qw[qq], h: 12, kind: "quality", name: "quality_" + qq, val: qq });
+    qx += qw[qq] + 4;
+  }
   // ---- tape: record head + where the grains start
-  drawTape(598, 90, 290, 58);
+  drawTape(598, 102, 290, 46);
   text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
 }
 // ================= MOD tab =================
@@ -378,7 +399,8 @@ var SAFE_KEYS = null;
 function soundKeys() {   // everything DICE may set (not IN / OUT / AUTO)
   if (SAFE_KEYS) return SAFE_KEYS;
   SAFE_KEYS = [];
-  for (var k in P) if (k !== "input" && k !== "output" && k !== "agc" && k !== "seed") SAFE_KEYS.push(k);
+  // not IN / OUT / AUTO / SEED, and not the quality (a change clears the buffer, like the module)
+  for (var k in P) if (k !== "input" && k !== "output" && k !== "agc" && k !== "seed" && k !== "quality") SAFE_KEYS.push(k);
   return SAFE_KEYS;
 }
 function snapshot() { var o = {}, keys = soundKeys(); for (var i = 0; i < keys.length; i++) o[keys[i]] = P[keys[i]].v; return o; }
@@ -468,7 +490,7 @@ function gainBox(x, y, name, label) {
 function drawTape(x, y, w, h) {
   rect(x, y, w, h, C.panel, true);
   rect(x, y, w, h, C.line, false, 1);
-  text("TAPE  (now  >  " + BUF_S + " s ago)   grains " + tapeSt.active + " / 32", x + 4, y + 10, 6, C.mid, true);
+  text("TAPE  (now  >  " + bufSeconds() + " s ago)   grains " + tapeSt.active + " / 32", x + 4, y + 10, 6, C.mid, true);
   // record head at the left edge: "now"; older material to the right
   line(x + 2, y + 14, x + 2, y + h - 3, C.accent, 2);
   if (P.freeze.v > 0.5) textC("FROZEN", x + w / 2, y + h - 6, 7, C.accent, true);
@@ -530,6 +552,7 @@ function hoverHelp() {
   var k = hover;
   if (k && /^sq\d+$/.test(k)) k = "step";
   if (k && /^src\d$/.test(k)) k = "jack_src";
+  if (k && /^quality_\d$/.test(k)) return QUAL[+k.charAt(8)][1] + (P.freeze.v > 0.5 ? "  (unfreeze to change)" : "  - changing it clears the buffer");
   return k && HELP[k] ? HELP[k] : "drag knobs up/down · shift = fine · double-click = default · hover = help";
 }
 
@@ -565,6 +588,7 @@ function onclick(x, y, but, cmd, shift) {
     else if (h.name === "learn") { learnCount++; outlet(0, "agc_restart", learnCount); if (P.agc.v < 0.5) send("agc", 1); }
     else { for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); ensureGrains(0); }
   }
+  else if (h.kind === "quality") { if (P.freeze.v < 0.5) send("quality", h.val); }
   else if (h.kind === "dice") dice();
   else if (h.kind === "back") back();
   else if (h.kind === "max") drag = { kind: "max", y0: y, m0: maxCables };

@@ -167,7 +167,7 @@ test("dry/wet law: 0 = dry ×0.75, 1 = no dry; reverb adds a tail and stays stab
   assert.ok(rms(r1, 2.5 * SR, 3 * SR) < rms(r1, SR / 2, SR), "decays");
 });
 
-test("buffer: 192000 frames, 16-bit truncation like Clip16, record head moves backwards and wraps", () => {
+test("buffer (Pristine): 192000 frames, 16-bit truncation like Clip16, record head moves backwards and wraps", () => {
   const g = engine({ density: 0.5 });
   const n = 192000 + 10, x = Float64Array.from({ length: n }, (_, i) => 0.3 + 0.1 * Math.sin(i * 0.001));
   g.run(n, [x, x]);
@@ -175,7 +175,8 @@ test("buffer: 192000 frames, 16-bit truncation like Clip16, record head moves ba
   const i = 1000, w = (((-(n - 1 - 0)) % 192000) + 192000) % 192000; // the sample written last sits at wp+1
   const last = g.D.buf.a[(g.H.wp + 1) % 192000];
   assert.strictEqual(last, Math.trunc(x[n - 1] * 32768) / 32768);
-  assert.ok(g.D.buf.a.length === 192004 * 2 && i < w + 192000);
+  // the Data holds the longest quality (Scorched cassette: 384000 frames + 4)
+  assert.ok(g.D.buf.a.length === 384004 * 2 && i < w + 192000);
 });
 
 test("IN gain scales what is recorded; OUT gain scales the output", () => {

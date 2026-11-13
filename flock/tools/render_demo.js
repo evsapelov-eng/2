@@ -47,6 +47,10 @@ const scenes = [
   ["MOD: SEQ -> SEED + SEQ -> TIME on a FROZEN buffer = slicer", 8, { drywet: 1, seedlatch: 0, density: 0.5, dst_seed: 6, dst_time: 6, time: 0, time_amt: 1, size: 0.45, shape: 0.15, freeze: 1, reverb: 0.15,
     sq0: 0.05, sq1: -1, sq2: 0.3, sq3: 0.12, sq4: 0.5, sq5: -1, sq6: 0.3, sq7: -1, sq8: 0.7, sq9: 0.05, sq10: -1, sq11: 0.85, sq12: 0.3, sq13: -1, sq14: 0.12, sq15: 0.6 }],
   ["MOD: LFO 1 (synced 1 bar) -> PITCH, RANDOM -> REVERB", 7, { drywet: 0.85, seedlatch: 1, density: 0.12, size: 0.6, shape: 0.6, time: 0.08, pitch_amt: 0.95, dst_pitch: 1, l1_sync: 1, l1_rate: 3 / 14, dst_reverb: 3, rn_rate: 0.45, reverb: 0.3, freeze: 0 }],
+  // ---- v0.3 recording qualities (each change clears the buffer, like the module)
+  ["QUALITY Cold digital: 32 kHz 12-bit, feedback", 6, { quality: 1, drywet: 0.8, density: 0.1, size: 0.62, shape: 0.6, time: 0.04, feedback: 0.6, reverb: 0.45 }],
+  ["QUALITY Sunny tape: grains at 24 kHz, warm feedback, +12", 6, { quality: 2, drywet: 0.85, density: 0.08, size: 0.65, shape: 0.6, time: 0.03, pitch: (5.15 / 6 + 1) / 2, feedback: 0.5, reverb: 0.5 }],
+  ["QUALITY Scorched cassette: mu-law, wow & flutter", 8, { quality: 3, drywet: 0.6, density: 0.1, size: 0.7, shape: 0.6, time: 0.02, feedback: 0.4, reverb: 0.4 }],
 ];
 const g = new GenPatch(src, { sr: SR, seed: 3 });
 const total = scenes.reduce((a, s) => a + s[1], 0) * SR;
@@ -56,7 +60,7 @@ let at = 0;
 const BAR = Math.round(SR * 2);   // 120 BPM
 const phase = Float64Array.from({ length: total }, (_, i) => (i / BAR) % 1);
 const z = new Float64Array(total);
-const base = { dst_seed: 0, dst_time: 0, dst_pitch: 0, dst_reverb: 0, seedlatch: 1, time: 0.5, density: 0.3, pitch: 0.5, size: 0.45, shape: 0.5, time_amt: 0.5, pitch_amt: 0.5, size_amt: 0.5, shape_amt: 0.5, feedback: 0, drywet: 0.5, reverb: 0.2, freeze: 0 };
+const base = { quality: 0, dst_seed: 0, dst_time: 0, dst_pitch: 0, dst_reverb: 0, seedlatch: 1, time: 0.5, density: 0.3, pitch: 0.5, size: 0.45, shape: 0.5, time_amt: 0.5, pitch_amt: 0.5, size_amt: 0.5, shape_amt: 0.5, feedback: 0, drywet: 0.5, reverb: 0.2, freeze: 0 };
 for (const [label, sec, prm] of scenes) {
   for (const [k, v] of Object.entries(Object.assign({}, base, prm))) g.set(k, v);
   const n = sec * SR, o = g.run(n, [inL.subarray(at, at + n), inR.subarray(at, at + n), z, z, z, z, phase.subarray(at, at + n)]);
