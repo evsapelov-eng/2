@@ -95,8 +95,57 @@ def k5_functions(code):  # the new sample-format helpers, used in the buffer wri
     return code
 
 
-VARIANTS = [("C_engine_v02x", C), ("K1_new_data", k1_data(C)), ("K2_outputs_via_data", k2_outputs(C)),
-            ("K3_one_big_block", k3_block(C)), ("K4_host_stage", k4_host(C)), ("K5_new_functions", k5_functions(C))]
+def k4a_input_ring(code):   # only: the inputs written into a Data ring every sample (index = History)
+    code = code.replace("Data sdl(1024, 1);", "Data hin(512, 2);\nData sdl(1024, 1);")
+    code = code.replace("History lastspd(1);", "History lastspd(1);\nHistory hw(0);")
+    a = code.index("j = 0;\n") + len("j = 0;\n")
+    code = code[:a] + "poke(hin, in1, hw, 0);\npoke(hin, in2, hw, 1);\nnhw = wrapi(hw + 1, 512);\n" + code[a:]
+    return code.rstrip("\n") + "\nhw = nhw;\n"
+
+
+def k4b_loop(code):         # only: the converter loop (never runs: qtest = 0), Data reads with a History index
+    code = code.replace("Data sdl(1024, 1);", "Data hin(512, 2);\nData ck(4100, 1);\nData acs(8, 1);\nData sdl(1024, 1);")
+    code = code.replace("Param agc(1, min=0, max=1);", "Param agc(1, min=0, max=1);\nParam qtest(0, min=0, max=1);")
+    code = code.replace("History lastspd(1);", "History lastspd(1);\nHistory hw(0);")
+    a = code.index("j = 0;\n") + len("j = 0;\n")
+    loop = """ein1 = in1;
+if (qtest > 0.5) {
+	poke(acs, 0, 0, 0);
+	poke(acs, 0, 2, 0);
+	for (k = 0; k < 66; k += 1) {
+		ka = abs(0.5 * k - 16) * 256;
+		ki = floor(ka);
+		if (ki < 4096) {
+			wk = peek(ck, ki, 0) + (peek(ck, ki + 1, 0) - peek(ck, ki, 0)) * (ka - ki);
+			poke(acs, peek(acs, 0, 0) + peek(hin, wrapi(hw - k, 512), 0) * wk, 0, 0);
+			poke(acs, peek(acs, 2, 0) + wk, 2, 0);
+		}
+	}
+	ein1 = peek(acs, 0, 0) / peek(acs, 2, 0);
+}
+"""
+    code = code[:a] + loop + code[a:]
+    return code.replace("gpk = max(abs(in1), abs(in2));", "gpk = max(abs(ein1), abs(in2));")
+
+
+def k4c_init(code):         # only: the kernel table filled on the first sample (functions called in a loop)
+    code = code.replace("Data sdl(1024, 1);", "Data ck(4100, 1);\nData sdl(1024, 1);")
+    code = code.replace("History lastspd(1);", "History lastspd(1);\nHistory hinit(0);")
+    for f in ["bessel_i0", "csinc"]:
+        code = code.replace("\nParam time(", "\n" + func_text(f) + "Param time(", 1)
+    a = code.index("j = 0;\n") + len("j = 0;\n")
+    code = code[:a] + "if (hinit < 0.5) {\n\tfor (k = 0; k < 4097; k += 1) {\n\t\tpoke(ck, csinc(k / 256), k, 0);\n\t}\n}\n" + code[a:]
+    return code.rstrip("\n") + "\nhinit = 1;\n"
+
+
+def k4d_functions_only(code):   # only: the two functions defined and called once per sample (no loop)
+    for f in ["bessel_i0", "csinc"]:
+        code = code.replace("\nParam time(", "\n" + func_text(f) + "Param time(", 1)
+    return code.replace("gpk = max(abs(in1), abs(in2));", "gpk = max(abs(in1), abs(in2)) + csinc(16);")
+
+
+VARIANTS = [("C_engine_v02x", C), ("K4_host_stage", k4_host(C)), ("K4a_input_ring", k4a_input_ring(C)),
+            ("K4b_converter_loop", k4b_loop(C)), ("K4c_table_init", k4c_init(C)), ("K4d_functions_only", k4d_functions_only(C))]
 
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
@@ -126,7 +175,7 @@ bd.EMBED = bd.compact_code
 bd.build()
 shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(OUT, bd.JSNAME))
 open(os.path.join(OUT, "README_DIAG.txt"), "w", encoding="utf-8").write(
-    "Положите на дорожки со звуком C, K1, K2, K3, K4, K5 и напишите, какие звучат.\n")
+    "Положите на дорожки со звуком C, K4, K4a, K4b, K4c, K4d и напишите, какие звучат.\n")
 zp = os.path.join(ROOT, "dist", "FLOCK_DIAG.zip")
 with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
     for f in sorted(os.listdir(OUT)):
