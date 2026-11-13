@@ -174,6 +174,22 @@ function hit(o) { hits.push(o); }
 // ---------- "live" look: soft gradients, shadows, knurled knobs, engraved lace, brushed panel ----------
 // mgraphics radial gradients if available (Max jsui); a flat colour otherwise — never throws
 var HAS_GRAD = typeof mgraphics.pattern_create_radial === "function";
+// panel style: "live" (soft light, like real hardware) or "toon" (cel-shaded cartoon / anime look)
+var STYLE = "live";
+var OUTLINE = [0.08, 0.07, 0.1, 1];
+function style(name) { STYLE = name === "toon" ? "toon" : "live"; dirty = true; }
+// cel shading: base colour with a hard shadow crescent (bottom-right) and a bold outline
+function celCircle(cx, cy, r, base, shade, ow) {
+  circle(cx, cy, r, shade, true);
+  circle(cx - r * 0.1, cy - r * 0.12, r * 0.86, base, true);
+  circle(cx, cy, r, OUTLINE, false, ow || 2);
+}
+function sparkle(x, y, s) {   // anime highlight: white blob + small four-point star
+  circle(x, y, s, [1, 1, 1, 1], true, 1, 0.95);
+  var x2 = x + s * 2.2, y2 = y + s * 0.4;
+  line(x2 - s * 0.9, y2, x2 + s * 0.9, y2, [1, 1, 1, 1], 1, 0.9);
+  line(x2, y2 - s * 0.9, x2, y2 + s * 0.9, [1, 1, 1, 1], 1, 0.9);
+}
 function radialFill(cx, cy, r, hx, hy, c0, c1) {   // circle lit from (hx, hy): c0 at the highlight, c1 at the rim
   if (HAS_GRAD) {
     try {
@@ -199,6 +215,15 @@ var TEX = (function () {
   return o;
 })();
 function panelTexture() {
+  if (STYLE === "toon") {   // manga screentone in two corners, dots growing towards the edge
+    for (var gx = 0; gx < 22; gx++) for (var gy = 0; gy < 21; gy++) {
+      var x = 8 + gx * 7 + (gy % 2) * 3.5, y = 8 + gy * 7.6, k = 1 - (gx / 22 + gy / 21) / 1.2;
+      if (k > 0.15) circle(x, y, 1.6 * k, OUTLINE, true, 1, 0.07);
+      var x2 = W0 - x, y2 = H0 - y;
+      if (k > 0.15) circle(x2, y2, 1.6 * k, OUTLINE, true, 1, 0.07);
+    }
+    return;
+  }
   for (var i = 0; i < TEX.lines.length; i++) {
     var L = TEX.lines[i];
     line(L[0], L[1], Math.min(W0 - 6, L[0] + L[2]), L[1], L[3] ? [1, 1, 1, 1] : [0.45, 0.43, 0.38, 1], 0.6, L[4]);
@@ -210,6 +235,10 @@ function panelTexture() {
 }
 // engraved lace around a big knob: dots and dashes on two rings (own pattern)
 function lace(cx, cy, r) {
+  if (STYLE === "toon") {
+    for (var q = 0; q < 24; q++) { var tq = q / 24 * Math.PI * 2; circle(cx + Math.cos(tq) * r, cy + Math.sin(tq) * r, q % 3 ? 0.9 : 1.6, OUTLINE, true, 1, q % 3 ? 0.25 : 0.45); }
+    return;
+  }
   var n = 40;
   for (var i = 0; i < n; i++) {
     var t = i / n * Math.PI * 2, c = Math.cos(t), sn = Math.sin(t);
@@ -221,6 +250,14 @@ function lace(cx, cy, r) {
 }
 // a jack: metal nut, dark hole, coloured ring (source colour / patched cable)
 function jack(x, y, c, patched) {
+  if (STYLE === "toon") {
+    circle(x + 1.5, y + 2, 6.5, OUTLINE, true, 1, 0.18);
+    celCircle(x, y, 6.2, [0.9, 0.9, 0.94, 1], [0.62, 0.63, 0.72, 1], 1.6);
+    circle(x, y, 3.4, c || OUTLINE, true);
+    circle(x, y, 2.2, OUTLINE, true);
+    if (patched) circle(x - 0.6, y - 0.6, 0.8, [1, 1, 1, 1], true);
+    return;
+  }
   shadow(x, y, 5.5);
   radialFill(x, y, 6, x - 2.2, y - 2.6, [0.95, 0.95, 0.93, 1], [0.55, 0.55, 0.53, 1]);
   circle(x, y, 6, [0, 0, 0, 1], false, 0.6, 0.35);
@@ -231,6 +268,20 @@ function jack(x, y, c, patched) {
 var SKIRT0 = [0.30, 0.30, 0.29, 1], SKIRT1 = [0.04, 0.04, 0.04, 1], CAP0 = [1, 1, 0.99, 1], CAP1 = [0.86, 0.85, 0.81, 1];
 // a real-looking knob body: shadow, black skirt with knurling that turns with the value, cream cap
 function knobBody(cx, cy, r, a, capR) {
+  if (STYLE === "toon") {
+    circle(cx + 2, cy + 2.5, r + 1, OUTLINE, true, 1, 0.18);                 // hard drop shadow
+    celCircle(cx, cy, r, [0.20, 0.20, 0.27, 1], [0.07, 0.07, 0.1, 1], r > 8 ? 2.2 : 1.4);
+    var n = Math.max(10, Math.round(r * 0.9));
+    for (var i = 0; i < n; i++) {   // chunky grip notches turning with the value
+      var t = a + i / n * Math.PI * 2;
+      line(cx + Math.cos(t) * r * 0.82, cy + Math.sin(t) * r * 0.82, cx + Math.cos(t) * r * 0.97, cy + Math.sin(t) * r * 0.97, OUTLINE, r > 8 ? 1.6 : 1, 0.8);
+    }
+    if (capR > 0) {
+      celCircle(cx, cy, capR, [1, 0.97, 0.88, 1], [0.93, 0.80, 0.62, 1], 2);
+      sparkle(cx - capR * 0.42, cy - capR * 0.45, capR * 0.14);
+    } else sparkle(cx - r * 0.35, cy - r * 0.4, Math.max(0.8, r * 0.13));
+    return;
+  }
   shadow(cx, cy, r);
   radialFill(cx, cy, r, cx - r * 0.35, cy - r * 0.45, SKIRT0, SKIRT1);
   var n = Math.max(16, Math.round(r * 1.6));
@@ -266,6 +317,19 @@ function drawLogo(x, y, s) {
   text("CK", ox + ow + 1, y, s, C.ink, true);
 }
 function roundButton(cx, cy, r, label, on, name, momentary) {
+  if (STYLE === "toon") {
+    if (on) for (var q = 0; q < 7; q++) {   // "pop" burst lines when on (upper half only: the label is below)
+      var tq = Math.PI * (1.08 + q * 0.14);
+      line(cx + Math.cos(tq) * (r + 5), cy + Math.sin(tq) * (r + 5), cx + Math.cos(tq) * (r + 8.5), cy + Math.sin(tq) * (r + 8.5), C.accent, 2);
+    }
+    circle(cx + 2, cy + 2.5, r + 2.5, OUTLINE, true, 1, 0.18);
+    celCircle(cx, cy, r + 2.5, [0.85, 0.86, 0.9, 1], [0.6, 0.62, 0.7, 1], 2);
+    celCircle(cx, cy, r - 0.5, on ? [0.55, 0.75, 1, 1] : [1, 0.97, 0.9, 1], on ? [0.25, 0.42, 0.8, 1] : [0.92, 0.8, 0.66, 1], 1.8);
+    sparkle(cx - r * 0.4, cy - r * 0.42, r * 0.16);
+    textC(label, cx, cy + r + 12, 8, C.ink, true);
+    hit({ x: cx - r - 2, y: cy - r - 2, w: 2 * r + 4, h: 2 * r + 4, kind: momentary ? "momentary" : "toggle", name: name });
+    return;
+  }
   if (on) { circle(cx, cy, r + 6, C.accent, true, 1, 0.08); circle(cx, cy, r + 3.5, C.accent, true, 1, 0.16); }
   shadow(cx, cy, r + 1.5);
   radialFill(cx, cy, r + 2.5, cx - r * 0.5, cy - r * 0.6, [0.80, 0.80, 0.78, 1], [0.38, 0.38, 0.36, 1]);   // metal bezel
@@ -287,6 +351,7 @@ function paint() {
   rect(4, 4, W0 - 8, H0 - 8, [1, 1, 1, 1], false, 1, 0.55);   // engraved edge: dark line + light line
   // ---- left: logo, FREEZE / SEED, LATCH
   drawLogo(14, 30, 22);
+  hit({ x: 10, y: 8, w: 130, h: 26, kind: "style", name: "style" });
   text("granular texture", 15, 42, 7, C.mid);
   for (var ti = 0; ti < 2; ti++) {
     var tn = ti ? "MOD" : "SOUND", tx0 = 14 + ti * 64, on = tab === tn;
@@ -619,6 +684,7 @@ var HELP = {
   ck_rate: "CLOCK: pulses at a tempo division (SYNC) or in Hz - into SEED for rhythmic grains",
   sq_div: "SEQ RATE: step length (drag) - 1/16 = sixteenth notes", sq_len: "SEQ LENGTH: 1 ... 16 steps (drag)",
   step: "STEP: click = on/off, drag up/down = value (into TIME = which slice, into PITCH = transposition)",
+  style: "click the logo: switch the panel look (live hardware / cartoon)",
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK CV amount (Beads assignable CV)", dw_amt: "DRY/WET CV amount (Beads assignable CV)", rv_amt: "REVERB CV amount (Beads assignable CV)",
@@ -668,6 +734,7 @@ function onclick(x, y, but, cmd, shift) {
     else { for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); ensureGrains(0); }
   }
   else if (h.kind === "quality") { if (P.freeze.v < 0.5) send("quality", h.val); }
+  else if (h.kind === "style") style(STYLE === "toon" ? "live" : "toon");
   else if (h.kind === "dice") dice();
   else if (h.kind === "back") back();
   else if (h.kind === "max") drag = { kind: "max", y0: y, m0: maxCables };
