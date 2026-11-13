@@ -57,8 +57,10 @@
      "maxclass": "newobj",
      "text": "gen~",
      "numinlets": 11,
-     "numoutlets": 9,
+     "numoutlets": 11,
      "outlettype": [
+      "signal",
+      "signal",
       "signal",
       "signal",
       "signal",
@@ -293,10 +295,12 @@
        {
         "box": {
          "maxclass": "codebox",
-         "code": "// FLØCK engine — gen~ codebox (GenExpr). v0.1: Pristine quality (16-bit stereo buffer), granular mode.\n//\n// Port of the Beads DSP by Emilie Gillet (Mutable Instruments), MIT licence:\n//   Copyright 2017 Emilie Gillet. Permission is hereby granted, free of charge, to any person\n//   obtaining a copy of this software ... (full text: flock/LICENSE-BEADS.txt).\n// Files ported here: beads/dsp/processor.cc, granular_processor.h, granular_player.h,\n// delay_granular_player.h, delay_grain.h, grain_envelope.h, voice_stealing_envelope.h,\n// delay_line.h (16-bit, Hermite read, freeze tail), trigger_generator.cc (latched / gated),\n// randomized_parameter.h, limiter.h, fx/reverb.h + fx_engine.h, cv_reader.h (pot laws),\n// stmlib SoftClip / Svf / CosineOscillator / Random.\n// Deviations (documented in docs/PORTING_NOTES.md): runs at the host sample rate with the\n// buffer length of the 48 kHz module (192000 frames); block-rate interpolation → per-sample\n// one-pole; no hysteresis on the pots; noise() instead of the module's LCG.\n//\n// Inlets : in1 L, in2 R, in3..in6 CV for TIME, SIZE, SHAPE, PITCH (MOD matrix; used if *_cv = 1)\n// Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,\n//          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed),\n//          out8 sequencer step, out9 Live transport running (bar phase moving)\n//          in7 bar phase from Live (phasor~ 1n @lock 1); in8..in11 external SEED / FREEZE / DENSITY / assign\n//          (destination index 7, used by the tests)\n//\n// Written in the subset that tools/genexpr.js can run and lint (see that file).\n\n// gen~ rule (Max 9.1): function definitions come before any Param / Data / History.\nsstep(x) {\n\treturn x * x * (3 - 2 * x);\n}\ninterval_st(n) {\n\treturn n < 0.5 ? 0 : n < 1.5 ? 1 : n < 2.5 ? 3 : n < 3.5 ? 4 : n < 4.5 ? 7 : n < 5.5 ? 12 : 24;\n}\nattenu_law(k) {\n\tv = k - 0.5;\n\treturn (2 / 0.47) * v * max(abs(v) - 0.03, 0);\n}\ndetune_law(k) {\n\td = 2 * k - 1;\n\tsg = d < 0 ? -1 : 1;\n\td = d * sg * 6;\n\tdi = floor(d);\n\tdf = d - di;\n\tdf = max((df - 0.33333333) * 1.5, 0);\n\ta = interval_st(di);\n\tb = interval_st(di + 1);\n\treturn (a + (b - a) * sstep(df)) * sg;\n}\nq16(x) {\n\treturn clamp(trunc(x * 32768), -32768, 32767) / 32768;\n}\nrnd() {\n\treturn (noise() + 1) * 0.5;\n}\n// RandomizedParameter::value(NULL, 0, range, clamp)\nrparam(base, att, cv, hascv, range, clampit) {\n\tres = base;\n\tif (hascv < 0.5) {\n\t\tblend = att > 0 ? att : min(1, att * rnd() * -3);\n\t\trval = clampit > 0.5 ? rnd() * range - res : (2 * rnd() - 1) * range;\n\t\tres = res + rval * blend;\n\t} else {\n\t\tif (att < 0) {\n\t\t\tu = rnd();\n\t\t\tres = res + max(cv, 0) * -att * (u * (u * (4 * u - 6) + 4) - 1);\n\t\t} else {\n\t\t\tres = res + att * cv;\n\t\t}\n\t}\n\treturn clampit > 0.5 ? clamp(res, 0, 1) : res;\n}\nramount(att, hascv) {\n\treturn hascv > 0.5 ? max(-att, 0) : abs(att);\n}\n// tempo divisions per bar: 8 bars, 4 bars, 2 bars, 1 bar, 1/2, 1/4D, 1/2T, 1/4, 1/8D, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32\ndivper(i) {\n\treturn i < 0.5 ? 0.125 : i < 1.5 ? 0.25 : i < 2.5 ? 0.5 : i < 3.5 ? 1 : i < 4.5 ? 2 : i < 5.5 ? 2.6666667 : i < 6.5 ? 3 : i < 7.5 ? 4 : i < 8.5 ? 5.3333333 : i < 9.5 ? 6 : i < 10.5 ? 8 : i < 11.5 ? 12 : i < 12.5 ? 16 : i < 13.5 ? 24 : 32;\n}\nlfo_shape(ph, shp) {\n\treturn shp < 0.5 ? sin(twopi * ph) : shp < 1.5 ? (ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph) : shp < 2.5 ? 1 - 2 * ph : (ph < 0.5 ? 1 : -1);\n}\n// source 1..6: LFO 1, LFO 2, RANDOM, ENV, CLOCK, SEQ ; 7 = external inlet (tests / future)\npick(i, a, b, c, d, v5, v6, x) {\n\treturn i < 0.5 ? 0 : i < 1.5 ? a : i < 2.5 ? b : i < 3.5 ? c : i < 4.5 ? d : i < 5.5 ? v5 : i < 6.5 ? v6 : x;\n}\n// the module's division table for the clocked SEED (kDivisionRatios)\ndivratio(q) {\n\treturn q < 0.5 ? 1 : q < 1.5 ? 2 : q < 2.5 ? 3 : q < 3.5 ? 4 : q < 4.5 ? 6 : q < 5.5 ? 8 : q < 6.5 ? 12 : 16;\n}\nwrapi(x, n) {\n\treturn x - floor(x / n) * n;\n}\n\nParam time(0.5, min=0, max=1);\nParam size(0.45, min=0, max=1);\nParam shape(0.5, min=0, max=1);\nParam pitch(0.5, min=0, max=1);\nParam time_amt(0.5, min=0, max=1);\nParam size_amt(0.5, min=0, max=1);\nParam shape_amt(0.5, min=0, max=1);\nParam pitch_amt(0.5, min=0, max=1);\nParam time_cv(0, min=0, max=1);\nParam size_cv(0, min=0, max=1);\nParam shape_cv(0, min=0, max=1);\nParam pitch_cv(0, min=0, max=1);\nParam density(0.3, min=0, max=1);\nParam feedback(0, min=0, max=1);\nParam drywet(0.5, min=0, max=1);\nParam reverb(0.2, min=0, max=1);\nParam freeze(0, min=0, max=1);\nParam seed(0, min=0, max=1);\nParam seedlatch(1, min=0, max=1);\nParam ingain(1, min=0, max=40);\nParam outgain(1, min=0, max=4);\n// ---- modulation (MOD tab). Destinations take a source index: 0 none, 1 LFO1, 2 LFO2, 3 RANDOM,\n// 4 ENV, 5 CLOCK, 6 SEQ, 7 external inlet (in8..in11, tests / future)\nParam dst_freeze(0, min=0, max=7);\nParam dst_seed(0, min=0, max=7);\nParam dst_time(0, min=0, max=7);\nParam dst_pitch(0, min=0, max=7);\nParam dst_size(0, min=0, max=7);\nParam dst_shape(0, min=0, max=7);\nParam dst_density(0, min=0, max=7);\nParam dst_feedback(0, min=0, max=7);\nParam dst_reverb(0, min=0, max=7);\nParam dst_drywet(0, min=0, max=7);\nParam fb_amt(1, min=0, max=1);\nParam dw_amt(1, min=0, max=1);\nParam rv_amt(1, min=0, max=1);\nParam l1_rate(0.4, min=0, max=1);\nParam l1_sync(0, min=0, max=1);\nParam l1_shape(0, min=0, max=3);\nParam l1_reset(0, min=0, max=1);\nParam l1_amt(1, min=0, max=1);\nParam l2_rate(0.25, min=0, max=1);\nParam l2_sync(0, min=0, max=1);\nParam l2_shape(1, min=0, max=3);\nParam l2_reset(0, min=0, max=1);\nParam l2_amt(1, min=0, max=1);\nParam rn_rate(0.4, min=0, max=1);\nParam rn_sync(0, min=0, max=1);\nParam rn_smooth(1, min=0, max=1);\nParam rn_amt(1, min=0, max=1);\nParam env_gain(0.5, min=0, max=1);\nParam ck_rate(0.857, min=0, max=1);\nParam ck_sync(1, min=0, max=1);\nParam sq_div(12, min=0, max=14);\nParam sq_len(16, min=1, max=16);\n// sequencer steps: value 0..1, negative = step off\nParam sq0(1, min=-1, max=1);\nParam sq1(-1, min=-1, max=1);\nParam sq2(-1, min=-1, max=1);\nParam sq3(-1, min=-1, max=1);\nParam sq4(0.25, min=-1, max=1);\nParam sq5(-1, min=-1, max=1);\nParam sq6(-1, min=-1, max=1);\nParam sq7(-1, min=-1, max=1);\nParam sq8(0.5, min=-1, max=1);\nParam sq9(-1, min=-1, max=1);\nParam sq10(0.75, min=-1, max=1);\nParam sq11(-1, min=-1, max=1);\nParam sq12(0.625, min=-1, max=1);\nParam sq13(-1, min=-1, max=1);\nParam sq14(-1, min=-1, max=1);\nParam sq15(-1, min=-1, max=1);\n\nData buf(192004, 2);\nData gr(32, 16);\nData prio(32, 1);\nData ftail(256, 2);\nData rv(32768, 1);\nData sum(8, 1);\nData sdl(1024, 1);   // SEED input delay line (beads.cc event_delay: 10 blocks = 2.5 ms)   // per-sample accumulators: 0 L, 1 R, 2 playing grains, 3 active count, 4 best, 5 best remaining\n\nHistory init(0);\nHistory wp(0);\nHistory s_time(0.5);\nHistory s_size(0.45);\nHistory s_shape(0.5);\nHistory s_pitch(0);\nHistory s_tamt(0);\nHistory s_samt(0);\nHistory s_hamt(0);\nHistory s_pamt(0);\nHistory s_dens(0.3);\nHistory s_timeh(0.5);\nHistory s_fbk(0);\nHistory s_dwk(0.5);\nHistory s_rvk(0.2);\nHistory s_fb(0);\nHistory s_dry(0);\nHistory s_wet(0);\nHistory tg_phase(0);\nHistory tg_ratio(1);\nHistory tg_freq(0.0001);\nHistory tg_elapsed(24000);\nHistory prev_gate(0);\nHistory interval(1);\nHistory prev_l(0);\nHistory prev_r(0);\nHistory hp1(0);\nHistory hp2(0);\nHistory hq1(0);\nHistory hq2(0);\nHistory lim_in_p(0.5);\nHistory lim_in_lp(0.5);\nHistory lim_pre_p(0.5);\nHistory lim_pre_lp(0.5);\nHistory lim_out_p(0.5);\nHistory lim_out_lp(0.5);\nHistory was_frozen(0);\nHistory tail_wp(0);\nHistory tail_xf(0);\nHistory rv_wp(0);\nHistory rv_lp1(0);\nHistory rv_lp2(0);\nHistory rv_dry(0);\nHistory rv_wet(0);\nHistory rv_send(0);\n// stmlib ParameterInterpolator: mix parameters move linearly over blocks of sr/4000 samples (12 at 48 kHz, like the module)\nHistory blk(0);\nHistory i_fb(0);\nHistory i_dry(0);\nHistory i_wet(0);\nHistory i_rd(0);\nHistory i_rw(0);\nHistory i_rs(0);\nHistory l1y0(0.5);\nHistory l1y1(0.5);\nHistory l2y0(0.5);\nHistory l2y1(0.5);\nHistory l1v(0.5);\nHistory l2v(0.5);\nHistory prev_bp(0);\nHistory bar_cnt(0);\nHistory was_run(0);\nHistory l1_ph(0);\nHistory l2_ph(0);\nHistory rn_ph(0);\nHistory rn_from(0);\nHistory rn_to(0);\nHistory rn_seed(22222);\nHistory rn_pph(0);\nHistory env_st(0);\nHistory ck_ph(0);\nHistory c_t(0);\nHistory c_s(0);\nHistory c_h(0);\nHistory c_p(0);\nHistory c_d(0);\nHistory c_a1(0);\nHistory c_a2(0);\nHistory c_a3(0);\nHistory tg_target(0.0001);\nHistory tg_lpc(1);\nHistory tg_audio(0);\nHistory tg_accept(1);\nHistory tg_count(0);\nHistory tg_resetint(192000);\nHistory tg_quant(0);\nHistory tg_div(1);\nHistory prev_ext(0);\nHistory sdw(0);\nHistory lastpos(0);\nHistory lastspd(1);\n\n// ---------------------------------------------------------------- per sample\nFS = samplerate;\nMAXD = 192000;\nk = 0;\nj = 0;\n// one-time init of the grain priority list\nif (init < 0.5) {\n\tfor (k = 0; k < 32; k += 1) {\n\t\tpoke(prio, k, k, 0);\n\t\tpoke(gr, 3, k, 0);\n\t\tpoke(gr, 1, k, 6);\n\t}\n}\n\n// ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)\n// Like the module: pots are read once per block of sr/4000 samples (cv_reader.Read in the audio\n// callback): law → one-pole 0.05 → hysteresis (TIME 0.001). On load: no glide from zero.\nnewblk = blk < 0.5;\n// the module's audio block: kBlockRate = 4000 → sr / 4000 samples (12 at 48 kHz)\nBLK = floor(FS / 4000 + 0.5);\nnblk = blk > BLK - 1.5 ? 0 : blk + 1;\nkp = init < 0.5 ? 1 : newblk ? 0.05 : 0;\nst_time = s_time + (time - s_time) * kp;\nth_err = st_time - s_timeh;\nst_timeh = init < 0.5 ? st_time : th_err > 0.001 ? st_time - 0.001 : th_err < -0.001 ? st_time + 0.001 : s_timeh;\nst_fbk = s_fbk + (feedback - s_fbk) * kp;\nst_dwk = s_dwk + (drywet - s_dwk) * kp;\nst_rvk = s_rvk + (reverb - s_rvk) * kp;\nst_size = s_size + (size - s_size) * kp;\nst_shape = s_shape + (shape - s_shape) * kp;\nst_pitch = s_pitch + (detune_law(pitch) - s_pitch) * kp;\nst_tamt = s_tamt + (attenu_law(time_amt) - s_tamt) * kp;\nst_samt = s_samt + (attenu_law(size_amt) - s_samt) * kp;\nst_hamt = s_hamt + (attenu_law(shape_amt) - s_hamt) * kp;\nst_pamt = s_pamt + (attenu_law(pitch_amt) - s_pamt) * kp;\nst_dens = s_dens + (density - s_dens) * kp;\nseedstate = seedlatch > 0.5 ? 2 : seed > 0.5 ? 1 : 0;\n\n// ---- tempo from Live: bar phase (phasor~ 1n @lock 1) on in7; bars counted modulo 24\nbp = in7;\nrunning = abs(bp - prev_bp) > 0;\nnbars = bp < prev_bp - 0.5 ? (bar_cnt > 22.5 ? 0 : bar_cnt + 1) : bar_cnt;\nstarted = running && was_run < 0.5;\n// synced sources run 10 blocks ahead: the SEED input delay of the module (2.5 ms, kept for the\n// CV-settling it gives) then lands their gates exactly on Live's grid\ndph = running ? bp - prev_bp + (bp < prev_bp - 0.5 ? 1 : 0) : 0;\npos = nbars + bp + dph * floor(FS / 4000 + 0.5) * 10 + 0.000000001;   // + 1e-9 bar: exact grid points round up, not down\n// ---- sources (MOD tab)\nl1d = divper(floor(l1_rate * 14 + 0.5));\nl1f = fract(l1_ph + 0.02 * pow(1000, l1_rate) / FS);\nl1f = (l1_reset > 0.5 && started) ? 0 : l1f;\ns1 = lfo_shape(l1_sync > 0.5 ? fract(pos * l1d) : l1f, l1_shape) * l1_amt;\nl2d = divper(floor(l2_rate * 14 + 0.5));\nl2f = fract(l2_ph + 0.02 * pow(1000, l2_rate) / FS);\nl2f = (l2_reset > 0.5 && started) ? 0 : l2f;\ns2 = lfo_shape(l2_sync > 0.5 ? fract(pos * l2d) : l2f, l2_shape) * l2_amt;\n// RANDOM: random walk like RandomWalkModulation (own generator, not the grains' random stream)\nrnf = rn_sync > 0.5 ? fract(pos * divper(floor(rn_rate * 14 + 0.5))) : fract(rn_ph + 0.02 * pow(1000, rn_rate) / FS);\nrnwrap = rnf < rn_pph || init < 0.5;   // also on load: start from a random value, not from 0\nnseed = rnwrap ? wrapi(rn_seed * 1664525 + 1013904223, 4294967296) : rn_seed;\nnfrom = rnwrap ? rn_to : rn_from;\nnto = rnwrap ? nseed / 4294967296 * 2 - 1 : rn_to;\ns3 = (rn_smooth > 0.5 ? nfrom + (nto - nfrom) * sstep(rnf) : nto) * rn_amt;\n// ENV: follower of the input, gain ×0.25 … ×16\nein = max(abs(in1 * ingain), abs(in2 * ingain));\nnenv = env_st + (ein - env_st) * (ein > env_st ? 1 - exp(-1 / (0.003 * FS)) : 1 - exp(-1 / (0.15 * FS)));\ns4 = clamp(nenv * 0.25 * pow(64, env_gain), 0, 1);\n// CLOCK: tempo division (sync) or 0.1 … 40 Hz\nckf = fract(ck_ph + 0.1 * pow(400, ck_rate) / FS);\nckp = ck_sync > 0.5 ? fract(pos * divper(floor(ck_rate * 14 + 0.5))) : ckf;\ns5 = (ckp < 0.5 && (ck_sync < 0.5 || running)) ? 1 : 0;\n// SEQ: steps at the tempo division, length 1..16; value 0..1, gate in the first half of an \"on\" step\nspos = pos * divper(sq_div);\nsstp = wrapi(floor(spos), floor(sq_len));\nsval = sstp < 0.5 ? sq0 : sstp < 1.5 ? sq1 : sstp < 2.5 ? sq2 : sstp < 3.5 ? sq3 : sstp < 4.5 ? sq4 : sstp < 5.5 ? sq5 : sstp < 6.5 ? sq6 : sstp < 7.5 ? sq7 : sstp < 8.5 ? sq8 : sstp < 9.5 ? sq9 : sstp < 10.5 ? sq10 : sstp < 11.5 ? sq11 : sstp < 12.5 ? sq12 : sstp < 13.5 ? sq13 : sstp < 14.5 ? sq14 : sq15;\ns6 = max(sval, 0);\ng6 = (sval >= 0 && fract(spos) < 0.5 && running) ? 1 : 0;\n// gates: LFO / RANDOM positive half, ENV above 0.25, CLOCK and SEQ their pulses\ng1 = s1 > 0;\ng2 = s2 > 0;\ng3 = s3 > 0;\ng4 = s4 > 0.25;\n// ---- destinations, read like the module's CV inputs (once per block, CvReader low-pass)\nhas_t = time_cv > 0.5 || dst_time > 0.5;\nhas_s = size_cv > 0.5 || dst_size > 0.5;\nhas_h = shape_cv > 0.5 || dst_shape > 0.5;\nhas_p = pitch_cv > 0.5 || dst_pitch > 0.5;\nrt_ = dst_time > 0.5 ? pick(dst_time, s1, s2, s3, s4, s5, s6, in3) : in3;\nrs_ = dst_size > 0.5 ? pick(dst_size, s1, s2, s3, s4, s5, s6, in4) : in4;\nrh_ = dst_shape > 0.5 ? pick(dst_shape, s1, s2, s3, s4, s5, s6, in5) : in5;\nrp_ = dst_pitch > 0.5 ? pick(dst_pitch, s1, s2, s3, s4, s5, s6, in6 / 12) * 12 : in6;\nrd_ = pick(dst_density, s1, s2, s3, s4, s5, s6, in10);\nra1 = pick(dst_feedback, s1, s2, s3, s4, s5, s6, in11);\nra2 = pick(dst_drywet, s1, s2, s3, s4, s5, s6, in11);\nra3 = pick(dst_reverb, s1, s2, s3, s4, s5, s6, in11);\n// CvChannel low-pass per block: TIME/SIZE/SHAPE 0.5, PITCH/DENSITY 1.0, ASSIGN 0.1 (first sample: direct)\nk5 = init < 0.5 ? 1 : newblk ? 0.5 : 0;\nk10 = init < 0.5 ? 1 : newblk ? 1 : 0;\nk1 = init < 0.5 ? 1 : newblk ? 0.1 : 0;\ncv_t = c_t + (rt_ - c_t) * k5;\ncv_s = c_s + (rs_ - c_s) * k5;\ncv_h = c_h + (rh_ - c_h) * k5;\ncv_p = c_p + (rp_ - c_p) * k10;\ncv_d = c_d + (rd_ - c_d) * k10;\ncv_a1 = c_a1 + (ra1 - c_a1) * k1;\ncv_a2 = c_a2 + (ra2 - c_a2) * k1;\ncv_a3 = c_a3 + (ra3 - c_a3) * k1;\n// FREEZE / SEED gate inputs (per sample, like the module's gate inputs)\nfrozen = freeze > 0.5 || (dst_freeze > 0.5 && pick(dst_freeze, g1, g2, g3, g4, s5, g6, in9) > 0.5);\next = dst_seed > 0.5;\negate_now = ext && pick(dst_seed, g1, g2, g3, g4, s5, g6, in8) > 0.5;\n// beads.cc: \"Delay the seed input by 2.5ms\" (event_delay.Read(size * 10)) — lets a CV\n// sent together with the gate (e.g. SEQ → TIME and SEQ → SEED) settle first\npoke(sdl, egate_now, sdw, 0);\negate = ext && peek(sdl, wrapi(sdw - BLK * 10, 1024), 0) > 0.5;\nnsdw = wrapi(sdw + 1, 1024);\n\n// ---- trigger generator (Processor::Process + TriggerGenerator::Render)\nexpo = clamp(20 * (abs(st_dens - 0.5) - 0.225), 0, 1);\nlin_fm = (1 - expo) * cv_d;\nexp_fm = expo * cv_d;\ndivmode = ext && seedstate > 1.5;\ndens = clamp(st_dens + lin_fm + (divmode ? exp_fm : 0), 0, 1);\nfmr = divmode ? 1 : pow(2, exp_fm * 60 / 12);\n// gate stream: latched mode with an external SEED = the clock alone (divider), else button OR input\n// the SEED input has its own edge memory (beads.cc previous_seed, updated whenever patched);\n// the merged gate keeps TriggerGenerator::previous_flags_ (updated outside the divider)\nerising = egate && prev_ext < 0.5;\nsgate = divmode ? egate : (seedstate > 0.5 || egate);\nrising = divmode ? erising : (sgate && prev_gate < 0.5);\nnpg = divmode ? prev_gate : sgate;\nph = tg_phase;\nratio = tg_ratio;\ntapf = tg_freq;\ntg_el = tg_elapsed;\ntrig = 0;\nfrac = 0;\nregularity = 1;\nmaxf = 130.81278 / FS;\ntgt = init < 0.5 ? 2 / FS : tg_target;\ntapf = init < 0.5 ? 2 / FS : tapf;\nndiv = tg_div;\nlpc = tg_lpc;\naud = tg_audio;\nacc_p = tg_accept;\npcount = tg_count;\nrint = init < 0.5 ? trunc(FS * 4) : tg_resetint;\nquant = tg_quant;\nif (divmode) {\n\t// ---- RenderDivider: clocked SEED (division CCW / probability CW of the incoming pulses)\n\tqv = dens * 2.15 * 8 - 0.5;\n\tqs = qv > quant ? -1 : 1;\n\tquant = dens < 0.48 ? clamp(trunc(qv + qs * 0.075 + 0.5), 0, 7) : quant;\n\tdivision = dens < 0.48 ? divratio(quant) : 1;\n\tpsq = dens < 0.48 ? 1.01 : max((dens - 0.52) * 2.15, 0);\n\tprob = psq * psq;\n\ttapf = tapf + (tgt - tapf) * lpc;\n\tph = ph + tapf;\n\tif (rising) {\n\t\tif (tg_el >= rint) {\n\t\t\tpcount = 0;\n\t\t\tph = 0;\n\t\t}\n\t\trint = max(trunc(FS * 4), 4 * tg_el);\n\t\tthr = trunc(FS / 48) + (aud > 0.5 ? 8 : 0);\n\t\taud = (tg_el < thr) && (prob >= 1);\n\t\tacc_p = rnd() < prob && wrapi(pcount, division) < 0.5;\n\t\tif (acc_p) {\n\t\t\tperiod = tg_el;\n\t\t\tpfreq = 1 / period;\n\t\t\ttgt = prob >= 1 ? pfreq / division : pfreq * prob;\n\t\t\tif (aud) {\n\t\t\t\tnoglide = division != ndiv;\n\t\t\t\tndiv = division;\n\t\t\t\tnoglide = noglide || tgt > (1.02 + 2 * pfreq) * tapf || tgt < (0.98 - 2 * pfreq) * tapf;\n\t\t\t\tlpc = noglide ? 1 : period / FS;\n\t\t\t} else {\n\t\t\t\tph = 0;\n\t\t\t\tlpc = 1;\n\t\t\t}\n\t\t} else if (prob < 1) {\n\t\t\ttgt = tgt * (1 - prob);\n\t\t}\n\t\tpcount = wrapi(pcount + 1, 48);\n\t\ttg_el = 0;\n\t}\n\ttg_el = tg_el + 1;\n\tif (aud) {\n\t\tif (ph >= 1) {\n\t\t\tph = ph - 1;\n\t\t\tfrac = ph / tapf;\n\t\t\ttrig = 1;\n\t\t}\n\t} else {\n\t\tph = min(ph, 1);\n\t\ttrig = acc_p && rising;\n\t}\n\tregularity = prob >= 1 ? 1 : 0;\n} else if (dens < 0.48 || dens > 0.52) {\n\trandomize = dens > 0.52;\n\tf = (randomize ? 0.5 * maxf * pow(2, -(1 - dens) * 16) : maxf * pow(2, -dens * 16)) * fmr;\n\tif (!randomize) {\n\t\tratio = 1;\n\t}\n\tff = clamp(f * ratio, 0.000001, 0.25);\n\tph = ph + (sgate ? ff : 0);\n\treset = 0;\n\tif (rising) {\n\t\tph = 0;\n\t\treset = 1;\n\t} else if (ph >= 1) {\n\t\tph = ph - 1;\n\t\tfrac = ph / ff;\n\t\treset = 1;\n\t}\n\tif (reset && randomize) {\n\t\tx = 0.1 + 0.9 * rnd();\n\t\tratio = -1 / (-x * (1 + x * (0.5 + x * (0.3333 + x * 0.25))));\n\t}\n\ttrig = reset && sgate;\n\tregularity = randomize ? 0 : 1;\n} else if (seedstate < 1.5 || ext) {\n\t// manual taps: one grain per press\n\tph = ph + tapf;\n\tif (rising) {\n\t\tph = 0;\n\t\ttapf = 1 / tg_el;\n\t\ttg_el = 0;\n\t}\n\ttg_el = tg_el + 1;\n\tph = min(ph, 1);\n\ttrig = rising;\n\tregularity = 1 - (dens - 0.48) * 25;\n}\n\n// ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)\ninl = in1 * ingain;\ninr = in2 * ingain;\ninc_fb = newblk ? (clamp(st_fbk * 1.005 + (dst_feedback > 0.5 ? cv_a1 * fb_amt : 0), 0, 1) - s_fb) / BLK : i_fb;\nfbk = s_fb + inc_fb;\nsl = inl + prev_l * fbk * fbk * 3;\nsr = inr + prev_r * fbk * fbk * 3;\npk = min(max(abs(sl), abs(sr)), 40);\ne1 = pk - lim_in_p;\nli_p = lim_in_p + (e1 > 0 ? 0.1 : 1 / FS) * e1;\ne2 = li_p - lim_in_lp;\nli_lp = lim_in_lp + (e2 > 0 ? 0.5 : 1 / FS) * e2;\nlg = li_lp <= 0.95 ? 1 : 0.95 / li_lp;\nsl = sl * lg;\nsr = sr * lg;\n\n// ---- recording buffer with freeze tail (DelayLine::Write(in, frozen))\nw = wp;\ntwp = tail_wp;\ntxf = tail_xf;\nif (frozen) {\n\tif (was_frozen < 0.5) {\n\t\ttwp = 0;\n\t}\n\tif (twp < 256) {\n\t\tpoke(ftail, sl, twp, 0);\n\t\tpoke(ftail, sr, twp, 1);\n\t\ttwp = twp + 1;\n\t}\n} else {\n\tif (was_frozen > 0.5 && twp > 0) {\n\t\ttxf = twp;\n\t}\n\tif (twp > 0) {\n\t\ttpos = txf - twp;\n\t\tg = sstep(twp / txf);\n\t\tsl = sl + (peek(ftail, tpos, 0) - sl) * g;\n\t\tsr = sr + (peek(ftail, tpos, 1) - sr) * g;\n\t\ttwp = twp - 1;\n\t}\n\tql = q16(sl);\n\tqr = q16(sr);\n\tpoke(buf, ql, w, 0);\n\tpoke(buf, qr, w, 1);\n\tif (w < 4) {\n\t\tpoke(buf, ql, w + MAXD, 0);\n\t\tpoke(buf, qr, w + MAXD, 1);\n\t}\n\tw = w == 0 ? MAXD - 1 : w - 1;\n}\n\n// ---- grain start (DelayGranularPlayer::Render + DelayGrain::Start)\ngint = interval;\nlpos = lastpos;\nlspd = lastspd;\nif (trig) {\n\tpoke(sum, 1, 3, 0);\n\tfor (k = 0; k < 32; k += 1) {\n\t\tif (peek(gr, k, 0) < 2.5 && peek(gr, k, 6) > 0) {\n\t\t\tpoke(sum, peek(sum, 3, 0) + 1, 3, 0);\n\t\t}\n\t}\n\tnact = peek(sum, 3, 0);\n\ttamt = st_tamt;\n\tsamt = st_samt;\n\thamt = st_hamt;\n\tpamt = st_pamt;\n\tdur_k = rparam(st_size, samt, cv_s, has_s, 1, 1);\n\trev = dur_k < 0.3333333;\n\tamp = 1 / sqrt(nact);\n\tspread = min(1, ramount(tamt, has_t) + ramount(samt, has_s) + ramount(hamt, has_h) + ramount(pamt, has_p) + 1 - regularity);\n\tu = rnd();\n\tv = rnd();\n\tpan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);\n\tmaxdel = MAXD - 2 * 257;\n\tgdelay = rparam(st_timeh, tamt, cv_t, has_t, 1, 1) * maxdel + 257;\n\tsemis = rparam(st_pitch, pamt, cv_p, has_p, 24, 0);\n\tspeed = (rev ? -1 : 1) * pow(2, semis / 12);\n\tcsh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);\n\tduration = pow(2, min(1, 1.025 * csh) * -9) * FS * 4;\n\tshp = rparam(st_shape, hamt, cv_h, has_h, 1, 1);\n\tg0 = peek(prio, 0, 0);\n\tcons = speed - (frozen ? 0 : 1);\n\tgdelay = gdelay - frac * cons;\n\tif (cons != 0) {\n\t\tduration = min(duration, MAXD / abs(cons));\n\t}\n\tif (cons > 0) {\n\t\tgdelay = max(gdelay, duration * cons);\n\t} else if (cons < 0) {\n\t\tgdelay = min(gdelay, MAXD + duration * cons);\n\t}\n\tif (pan < 0.5) {\n\t\tpn = pan * 2;\n\t\tpoke(gr, amp, g0, 10);\n\t\tpoke(gr, (1 - pn) * (1 + pn) * amp, g0, 11);\n\t\tpoke(gr, 0, g0, 12);\n\t\tpoke(gr, pn * (2 - pn) * amp, g0, 13);\n\t} else {\n\t\tpn = (1 - pan) * 2;\n\t\tpoke(gr, pn * (2 - pn) * amp, g0, 10);\n\t\tpoke(gr, 0, g0, 11);\n\t\tpoke(gr, (1 - pn) * (1 + pn) * amp, g0, 12);\n\t\tpoke(gr, amp, g0, 13);\n\t}\n\t// DelayGrain stores position and speed in fixed point (×1024, truncated) like the module\n\tpoke(gr, trunc(gdelay * 1024) / 1024, g0, 8);\n\tlpos = gdelay / MAXD;\n\tlspd = speed;\n\tpoke(gr, trunc(speed * 1024) / 1024, g0, 9);\n\t// GrainEnvelope::Start(duration, shape, fractional)\n\tsus = max(1 - 3 * shp, 0);\n\tat = (shp - 0.33333333) * 1.5;\n\tif (at < 0) {\n\t\tat = 0;\n\t} else if (at < 0.5) {\n\t\tat = at * at * at * 4;\n\t}\n\tre = (1 - at) * (1 - sus);\n\tia = 1 / max(duration * at, 0.0005 * FS * (1 + 3 * sus));\n\tis = 1 / max(duration * sus, 2);\n\tir = 1 / max(duration * re, 0.010 * FS);\n\tpoke(gr, ia, g0, 2);\n\tpoke(gr, is, g0, 3);\n\tpoke(gr, ir, g0, 4);\n\tpoke(gr, at < 0.5 ? 2 * at : 2 - 2 * at, g0, 5);\n\tgph = ia * frac;\n\tgst = 0;\n\tif (gph >= 1) {\n\t\tgph = (gph - 1) / ia * is;\n\t\tgst = 1;\n\t}\n\tpoke(gr, gst, g0, 0);\n\tpoke(gr, gph, g0, 1);\n\tpoke(gr, trunc(duration), g0, 14);\n\tpoke(gr, 1, g0, 6);\n\tpoke(gr, 0, g0, 7);\n\t// SortGrainList (polyphonic)\n\tinst = trunc(FS * 0.005);\n\tpre = trunc(FS * 0.1);\n\tf0 = 1;\n\tf1 = 1;\n\tf2 = 1;\n\tf3 = 1;\n\tif (gint < trunc(FS * 0.025)) {\n\t\tfirst = peek(prio, 0, 0);\n\t\tfor (k = 0; k < 31; k += 1) {\n\t\t\tpoke(prio, peek(prio, k + 1, 0), k, 0);\n\t\t}\n\t\tpoke(prio, first, 31, 0);\n\t\tf0 = gint + 1;\n\t\tf1 = inst;\n\t\tf2 = inst;\n\t\tf3 = pre;\n\t\tif (gint > inst) {\n\t\t\ttmp = f0;\n\t\t\tf0 = f2;\n\t\t\tf2 = tmp;\n\t\t}\n\t} else {\n\t\tfor (k = 0; k < 4; k += 1) {\n\t\t\tpoke(sum, k, 4, 0);\n\t\t\tpoke(sum, peek(gr, peek(prio, k, 0), 14), 5, 0);\n\t\t\tfor (j = k + 1; j < 32; j += 1) {\n\t\t\t\trj = peek(gr, peek(prio, j, 0), 14);\n\t\t\t\tif (rj < peek(sum, 5, 0)) {\n\t\t\t\t\tpoke(sum, j, 4, 0);\n\t\t\t\t\tpoke(sum, rj, 5, 0);\n\t\t\t\t}\n\t\t\t}\n\t\t\tbest = peek(sum, 4, 0);\n\t\t\tif (best != k) {\n\t\t\t\ttmp = peek(prio, k, 0);\n\t\t\t\tpoke(prio, peek(prio, best, 0), k, 0);\n\t\t\t\tpoke(prio, tmp, best, 0);\n\t\t\t}\n\t\t}\n\t\tf0 = inst;\n\t\tf1 = inst;\n\t\tf2 = gint;\n\t\tf3 = pre;\n\t\tif (gint > pre) {\n\t\t\ttmp = f2;\n\t\t\tf2 = f3;\n\t\t\tf3 = tmp;\n\t\t}\n\t}\n\tfor (k = 0; k < 4; k += 1) {\n\t\tgk = peek(prio, k, 0);\n\t\tfd = k == 0 ? f0 : k == 1 ? f1 : k == 2 ? f2 : f3;\n\t\tfd = max(fd, 1);\n\t\tif (peek(gr, gk, 14) > fd) {\n\t\t\tpoke(gr, 1 / fd, gk, 7);\n\t\t\tpoke(gr, trunc(peek(gr, gk, 6) * fd), gk, 14);\n\t\t}\n\t}\n\tgint = 0;\n}\n\n// ---- render all grains (DelayGrain::Render<STOP, fade_out>)\npoke(sum, 0, 0, 0);\npoke(sum, 0, 1, 0);\npoke(sum, 0, 2, 0);\nfor (k = 0; k < 32; k += 1) {\n\tstg = peek(gr, k, 0);\n\tvs = peek(gr, k, 6);\n\tif (stg < 2.5 && vs > 0) {\n\t\tpoke(sum, peek(sum, 2, 0) + 1, 2, 0);\n\t\tdl = peek(gr, k, 8) - peek(gr, k, 9);\n\t\tif (!frozen) {\n\t\t\tdl = dl + 1;\n\t\t}\n\t\tif (dl < 0 || dl >= MAXD) {\n\t\t\tdl = 0;\n\t\t\tstg = 3;\n\t\t}\n\t\tdd = abs(dl >= MAXD * 0.5 ? dl - MAXD : dl);\n\t\tfr = dd < 256 ? dd / 256 : 1;\n\t\tdi = floor(dl);\n\t\tdf = dl - di;\n\t\tidx = wrapi(w + di + MAXD - 1, MAXD);\n\t\txl0 = peek(buf, idx, 0);\n\t\txl1 = peek(buf, idx + 1, 0);\n\t\txl2 = peek(buf, idx + 2, 0);\n\t\txl3 = peek(buf, idx + 3, 0);\n\t\txr0 = peek(buf, idx, 1);\n\t\txr1 = peek(buf, idx + 1, 1);\n\t\txr2 = peek(buf, idx + 2, 1);\n\t\txr3 = peek(buf, idx + 3, 1);\n\t\tcl = (xl2 - xl0) * 0.5;\n\t\tvl = xl1 - xl2;\n\t\twl = cl + vl;\n\t\tal = wl + vl + (xl3 - xl1) * 0.5;\n\t\tyl = (((al * df) - (wl + al)) * df + cl) * df + xl1;\n\t\tcr = (xr2 - xr0) * 0.5;\n\t\tvr = xr1 - xr2;\n\t\twr = cr + vr;\n\t\tar = wr + vr + (xr3 - xr1) * 0.5;\n\t\tyr = (((ar * df) - (wr + ar)) * df + cr) * df + xr1;\n\t\tffr = sstep(fr);\n\t\t// GrainEnvelope::Render\n\t\tenv = 0;\n\t\tgph = peek(gr, k, 1);\n\t\tif (stg < 2.5) {\n\t\t\tif (stg > 0.5 && stg < 1.5) {\n\t\t\t\tenv = 1;\n\t\t\t} else {\n\t\t\t\ttt = stg < 0.5 ? gph : 1 - gph;\n\t\t\t\tbs = stg < 0.5 ? tt : tt * tt * tt * tt;\n\t\t\t\tenv = bs + (sstep(tt) - bs) * peek(gr, k, 5);\n\t\t\t}\n\t\t\tinc = peek(gr, k, 2 + stg);\n\t\t\tgph = gph + inc;\n\t\t\tif (gph >= 1) {\n\t\t\t\tt2 = (gph - 1) / inc;\n\t\t\t\tstg = stg + 1;\n\t\t\t\tgph = stg < 2.5 ? t2 * peek(gr, k, 2 + stg) : 0;\n\t\t\t}\n\t\t}\n\t\tvs = vs - peek(gr, k, 7);\n\t\tgenv = env * max(vs, 0) * ffr;\n\t\tpoke(sum, peek(sum, 0, 0) + (yl * peek(gr, k, 10) + yr * peek(gr, k, 11)) * genv, 0, 0);\n\t\tpoke(sum, peek(sum, 1, 0) + (yl * peek(gr, k, 12) + yr * peek(gr, k, 13)) * genv, 1, 0);\n\t\trem = peek(gr, k, 14) - 1;\n\t\tif (stg > 2.5 || vs <= 0) {\n\t\t\trem = 0;\n\t\t}\n\t\tpoke(gr, stg, k, 0);\n\t\tpoke(gr, gph, k, 1);\n\t\tpoke(gr, vs, k, 6);\n\t\tpoke(gr, dl, k, 8);\n\t\tpoke(gr, rem, k, 14);\n\t}\n}\ngint = gint + 1;\noutl = peek(sum, 0, 0);\noutr = peek(sum, 1, 0);\nnplay = peek(sum, 2, 0);\n\n// ---- feedback path: DC blocker (Svf HP 40 Hz, q 0.5) → one-pole 0.999\nfhp = 40 / FS;\ngg = fhp * (pi + fhp * fhp * (0.326 * pi * pi * pi + 0.1823 * pi * pi * pi * pi * pi * fhp * fhp));\nhh = 1 / (1 + 2 * gg + gg * gg);\nhpl = (outl - 2 * hp1 - gg * hp1 - hp2) * hh;\nbpl = gg * hpl + hp1;\nn_hp1 = gg * hpl + bpl;\nlpl = gg * bpl + hp2;\nn_hp2 = gg * bpl + lpl;\nhpr = (outr - 2 * hq1 - gg * hq1 - hq2) * hh;\nbpr = gg * hpr + hq1;\nn_hq1 = gg * hpr + bpr;\nlpr = gg * bpr + hq2;\nn_hq2 = gg * bpr + lpr;\nn_prev_l = prev_l + 0.999 * (hpl - prev_l);\nn_prev_r = prev_r + 0.999 * (hpr - prev_r);\n\n// ---- dry / wet (Processor::Process)\ndw = clamp(st_dwk * 1.005 + (dst_drywet > 0.5 ? cv_a2 * dw_amt : 0), 0, 1);\ndry_t = (1 - dw) * (1 + dw) * 0.75;\nwet_t = dw * (2 - dw) * 1.5;\ninc_dry = newblk ? (dry_t - s_dry) / BLK : i_dry;\ninc_wet = newblk ? (wet_t - s_wet) / BLK : i_wet;\ndry = s_dry + inc_dry;\nwet = s_wet + inc_wet;\nml = dry * inl + wet * outl;\nmr = dry * inr + wet * outr;\n\n// ---- pre-reverb limiter (decay 1/(4 sr), 0.9)\npk = min(max(abs(ml), abs(mr)), 40);\ne1 = pk - lim_pre_p;\nlp_p = lim_pre_p + (e1 > 0 ? 0.1 : 1 / (FS * 4)) * e1;\ne2 = lp_p - lim_pre_lp;\nlp_lp = lim_pre_lp + (e2 > 0 ? 0.5 : 1 / (FS * 4)) * e2;\nlg = lp_lp <= 0.9 ? 1 : 0.9 / lp_lp;\nml = ml * lg;\nmr = mr * lg;\n\n// ---- reverb (Griesinger / Dattorro topology, FxEngine 16-bit, 32768 words)\nrva = clamp(st_rvk * 1.005 + (dst_reverb > 0.5 ? cv_a3 * rv_amt : 0), 0, 1);\nrmix = rva * rva * 0.9;\nrtime = 0.3 + 0.6 * rva * rva * rva;\nrlp = 0.6;\nig = 0.2 * (1 - 0.333 * rtime);\nssq = rmix * (2 - rmix);\ninc_rd = newblk ? ((1 - rmix) * (1 + rmix) - rv_dry) / BLK : i_rd;\ninc_rw = newblk ? (0.4 / ig - rv_wet) / BLK : i_rw;\ninc_rs = newblk ? (ssq * (2 - ssq) * ig - rv_send) / BLK : i_rs;\nr_dry = rv_dry + inc_rd;\nr_wet = rv_wet + inc_rw;\nr_send = rv_send + inc_rs;\nrw = rv_wp - 1;\nif (rw < 0) {\n\trw = rw + 32768;\n}\n// stmlib CosineOscillator (approximate), 0.5 Hz / 0.3 Hz × 32, updated every 32 samples.\n// Start(): y1 = c·0.25, y0 = 0.5 → value() = y1 + 0.5 until the first update.\nc1 = 16 * (0.25 - 0.5 / FS * 32) * (1 - 2 * (0.25 - 0.5 / FS * 32));\nc2 = 16 * (0.25 - 0.3 / FS * 32) * (1 - 2 * (0.25 - 0.3 / FS * 32));\ny10 = init < 0.5 ? 0.5 : l1y0;\ny11 = init < 0.5 ? c1 * 0.25 : l1y1;\ny20 = init < 0.5 ? 0.5 : l2y0;\ny21 = init < 0.5 ? c2 * 0.25 : l2y1;\nlv1 = init < 0.5 ? c1 * 0.25 + 0.5 : l1v;\nlv2 = init < 0.5 ? c2 * 0.25 + 0.5 : l2v;\nif (wrapi(rw, 32) < 0.5) {\n\ttmp = y10;\n\ty10 = c1 * y10 - y11;\n\ty11 = tmp;\n\tlv1 = tmp + 0.5;\n\ttmp = y20;\n\ty20 = c2 * y20 - y21;\n\ty21 = tmp;\n\tlv2 = tmp + 0.5;\n}\nkap = 0.625;\n// smear AP1: interpolate at 10 + 80*lfo1, write at 100\no = 10 + 80 * lv1;\noi = floor(o);\nof = o - oi;\nra = peek(rv, wrapi(rw + oi, 32768), 0);\nrb = peek(rv, wrapi(rw + oi + 1, 32768), 0);\nacc = ra + (rb - ra) * of;\npoke(rv, q16(acc), wrapi(rw + 100, 32768), 0);\nacc = (ml + mr) * r_send;\n// 4 diffusers: base/length 0/150, 151/214, 366/319, 686/527\npr = peek(rv, wrapi(rw + 149, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 151 + 213, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 151, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 366 + 318, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 366, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 686 + 526, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 686, 32768), 0);\nacc = acc * -kap + pr;\napout = acc;\n// left loop: del2 (15314/6312) → lp → dap1a (1214/2182) → dap1b (3397/2690) → del1 (6088/4501)\no = 6261 + 50 * lv2;\noi = floor(o);\nof = o - oi;\nra = peek(rv, wrapi(rw + oi + 15314, 32768), 0);\nrb = peek(rv, wrapi(rw + oi + 15315, 32768), 0);\nacc = apout + (ra + (rb - ra) * of) * rtime;\nlp1 = rv_lp1 + rlp * (acc - rv_lp1);\nacc = lp1;\npr = peek(rv, wrapi(rw + 1214 + 2181, 32768), 0);\nacc = acc + pr * -kap;\npoke(rv, q16(acc), wrapi(rw + 1214, 32768), 0);\nacc = acc * kap + pr;\npr = peek(rv, wrapi(rw + 3397 + 2689, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 3397, 32768), 0);\nacc = acc * -kap + pr;\npoke(rv, q16(acc), wrapi(rw + 6088, 32768), 0);\nwl_ = acc;\n// right loop: del1 → lp → dap2a (10590/2525) → dap2b (13116/2197) → del2\no = 4460 + 40 * lv1;\noi = floor(o);\nof = o - oi;\nra = peek(rv, wrapi(rw + oi + 6088, 32768), 0);\nrb = peek(rv, wrapi(rw + oi + 6089, 32768), 0);\nacc = apout + (ra + (rb - ra) * of) * rtime;\nlp2 = rv_lp2 + rlp * (acc - rv_lp2);\nacc = lp2;\npr = peek(rv, wrapi(rw + 10590 + 2524, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 10590, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 13116 + 2196, 32768), 0);\nacc = acc + pr * -kap;\npoke(rv, q16(acc), wrapi(rw + 13116, 32768), 0);\nacc = acc * kap + pr;\npoke(rv, q16(acc), wrapi(rw + 15314, 32768), 0);\nwr_ = acc;\nml = ml * r_dry + wl_ * r_wet;\nmr = mr * r_dry + wr_ * r_wet;\n\n// ---- output limiter (decay 1/(6 sr), 0.9) and output gain\npk = min(max(abs(ml), abs(mr)), 40);\ne1 = pk - lim_out_p;\nlo_p = lim_out_p + (e1 > 0 ? 0.1 : 1 / (FS * 6)) * e1;\ne2 = lo_p - lim_out_lp;\nlo_lp = lim_out_lp + (e2 > 0 ? 0.5 : 1 / (FS * 6)) * e2;\nlg = lo_lp <= 0.9 ? 1 : 0.9 / lo_lp;\nout1 = ml * lg * outgain;\nout2 = mr * lg * outgain;\nout3 = trig;\nout4 = nplay;\nout5 = w / MAXD;\nout6 = lpos;\nout7 = lspd;\nout8 = sstp;\nout9 = running;\n\n// ---- state write-back (all History writes at the end of the pass)\ninit = 1;\nwp = w;\ns_time = st_time;\ns_size = st_size;\ns_shape = st_shape;\ns_pitch = st_pitch;\ns_tamt = st_tamt;\ns_samt = st_samt;\ns_hamt = st_hamt;\ns_pamt = st_pamt;\ns_dens = st_dens;\ns_timeh = st_timeh;\ns_fbk = st_fbk;\ns_dwk = st_dwk;\ns_rvk = st_rvk;\ns_fb = fbk;\ns_dry = dry;\ns_wet = wet;\ntg_phase = ph;\ntg_ratio = ratio;\ntg_freq = tapf;\ntg_elapsed = tg_el;\nprev_gate = npg;\nprev_ext = egate;\nsdw = nsdw;\ninterval = gint;\nlastpos = lpos;\nlastspd = lspd;\nprev_l = n_prev_l;\nprev_r = n_prev_r;\nhp1 = n_hp1;\nhp2 = n_hp2;\nhq1 = n_hq1;\nhq2 = n_hq2;\nlim_in_p = li_p;\nlim_in_lp = li_lp;\nlim_pre_p = lp_p;\nlim_pre_lp = lp_lp;\nlim_out_p = lo_p;\nlim_out_lp = lo_lp;\nwas_frozen = frozen;\ntail_wp = twp;\ntail_xf = txf;\nrv_wp = rw;\nrv_lp1 = lp1;\nrv_lp2 = lp2;\nrv_dry = r_dry;\nrv_wet = r_wet;\nrv_send = r_send;\nblk = nblk;\ni_fb = inc_fb;\ni_dry = inc_dry;\ni_wet = inc_wet;\ni_rd = inc_rd;\ni_rw = inc_rw;\ni_rs = inc_rs;\nl1y0 = y10;\nl1y1 = y11;\nl2y0 = y20;\nl2y1 = y21;\nl1v = lv1;\nprev_bp = bp;\nbar_cnt = nbars;\nwas_run = running;\nl1_ph = l1f;\nl2_ph = l2f;\nrn_ph = rnf;\nrn_pph = rnf;\nrn_seed = nseed;\nrn_from = nfrom;\nrn_to = nto;\nenv_st = nenv;\nck_ph = ckf;\nc_t = cv_t;\nc_s = cv_s;\nc_h = cv_h;\nc_p = cv_p;\nc_d = cv_d;\nc_a1 = cv_a1;\nc_a2 = cv_a2;\nc_a3 = cv_a3;\ntg_target = tgt;\ntg_lpc = lpc;\ntg_audio = aud;\ntg_accept = acc_p;\ntg_count = pcount;\ntg_resetint = rint;\ntg_quant = quant;\ntg_div = ndiv;\nl2v = lv2;\n",
+         "code": "// FLØCK engine — gen~ codebox (GenExpr). v0.1: Pristine quality (16-bit stereo buffer), granular mode.\n//\n// Port of the Beads DSP by Emilie Gillet (Mutable Instruments), MIT licence:\n//   Copyright 2017 Emilie Gillet. Permission is hereby granted, free of charge, to any person\n//   obtaining a copy of this software ... (full text: flock/LICENSE-BEADS.txt).\n// Files ported here: beads/dsp/processor.cc, granular_processor.h, granular_player.h,\n// delay_granular_player.h, delay_grain.h, grain_envelope.h, voice_stealing_envelope.h,\n// delay_line.h (16-bit, Hermite read, freeze tail), trigger_generator.cc (latched / gated),\n// randomized_parameter.h, limiter.h, fx/reverb.h + fx_engine.h, cv_reader.h (pot laws),\n// stmlib SoftClip / Svf / CosineOscillator / Random.\n// Deviations (documented in docs/PORTING_NOTES.md): runs at the host sample rate with the\n// buffer length of the 48 kHz module (192000 frames); block-rate interpolation → per-sample\n// one-pole; no hysteresis on the pots; noise() instead of the module's LCG.\n//\n// Inlets : in1 L, in2 R, in3..in6 CV for TIME, SIZE, SHAPE, PITCH (MOD matrix; used if *_cv = 1)\n// Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,\n//          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed),\n//          out8 sequencer step, out9 Live transport running (bar phase moving)\n//          in7 bar phase from Live (phasor~ 1n @lock 1); in8..in11 external SEED / FREEZE / DENSITY / assign\n//          (destination index 7, used by the tests)\n//\n// Written in the subset that tools/genexpr.js can run and lint (see that file).\n\n// gen~ rule (Max 9.1): function definitions come before any Param / Data / History.\nsstep(x) {\n\treturn x * x * (3 - 2 * x);\n}\ninterval_st(n) {\n\treturn n < 0.5 ? 0 : n < 1.5 ? 1 : n < 2.5 ? 3 : n < 3.5 ? 4 : n < 4.5 ? 7 : n < 5.5 ? 12 : 24;\n}\nattenu_law(k) {\n\tv = k - 0.5;\n\treturn (2 / 0.47) * v * max(abs(v) - 0.03, 0);\n}\ndetune_law(k) {\n\td = 2 * k - 1;\n\tsg = d < 0 ? -1 : 1;\n\td = d * sg * 6;\n\tdi = floor(d);\n\tdf = d - di;\n\tdf = max((df - 0.33333333) * 1.5, 0);\n\ta = interval_st(di);\n\tb = interval_st(di + 1);\n\treturn (a + (b - a) * sstep(df)) * sg;\n}\nq16(x) {\n\treturn clamp(trunc(x * 32768), -32768, 32767) / 32768;\n}\nrnd() {\n\treturn (noise() + 1) * 0.5;\n}\n// RandomizedParameter::value(NULL, 0, range, clamp)\nrparam(base, att, cv, hascv, range, clampit) {\n\tres = base;\n\tif (hascv < 0.5) {\n\t\tblend = att > 0 ? att : min(1, att * rnd() * -3);\n\t\trval = clampit > 0.5 ? rnd() * range - res : (2 * rnd() - 1) * range;\n\t\tres = res + rval * blend;\n\t} else {\n\t\tif (att < 0) {\n\t\t\tu = rnd();\n\t\t\tres = res + max(cv, 0) * -att * (u * (u * (4 * u - 6) + 4) - 1);\n\t\t} else {\n\t\t\tres = res + att * cv;\n\t\t}\n\t}\n\treturn clampit > 0.5 ? clamp(res, 0, 1) : res;\n}\nramount(att, hascv) {\n\treturn hascv > 0.5 ? max(-att, 0) : abs(att);\n}\n// tempo divisions per bar: 8 bars, 4 bars, 2 bars, 1 bar, 1/2, 1/4D, 1/2T, 1/4, 1/8D, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32\ndivper(i) {\n\treturn i < 0.5 ? 0.125 : i < 1.5 ? 0.25 : i < 2.5 ? 0.5 : i < 3.5 ? 1 : i < 4.5 ? 2 : i < 5.5 ? 2.6666667 : i < 6.5 ? 3 : i < 7.5 ? 4 : i < 8.5 ? 5.3333333 : i < 9.5 ? 6 : i < 10.5 ? 8 : i < 11.5 ? 12 : i < 12.5 ? 16 : i < 13.5 ? 24 : 32;\n}\nlfo_shape(ph, shp) {\n\treturn shp < 0.5 ? sin(twopi * ph) : shp < 1.5 ? (ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph) : shp < 2.5 ? 1 - 2 * ph : (ph < 0.5 ? 1 : -1);\n}\n// source 1..6: LFO 1, LFO 2, RANDOM, ENV, CLOCK, SEQ ; 7 = external inlet (tests / future)\npick(i, a, b, c, d, v5, v6, x) {\n\treturn i < 0.5 ? 0 : i < 1.5 ? a : i < 2.5 ? b : i < 3.5 ? c : i < 4.5 ? d : i < 5.5 ? v5 : i < 6.5 ? v6 : x;\n}\n// the module's division table for the clocked SEED (kDivisionRatios)\ndivratio(q) {\n\treturn q < 0.5 ? 1 : q < 1.5 ? 2 : q < 2.5 ? 3 : q < 3.5 ? 4 : q < 4.5 ? 6 : q < 5.5 ? 8 : q < 6.5 ? 12 : 16;\n}\nwrapi(x, n) {\n\treturn x - floor(x / n) * n;\n}\n\nParam time(0.15, min=0, max=1);\nParam size(0.6, min=0, max=1);\nParam shape(0.6, min=0, max=1);\nParam pitch(0.5, min=0, max=1);\nParam time_amt(0.75, min=0, max=1);\nParam size_amt(0.5, min=0, max=1);\nParam shape_amt(0.5, min=0, max=1);\nParam pitch_amt(0.5, min=0, max=1);\nParam time_cv(0, min=0, max=1);\nParam size_cv(0, min=0, max=1);\nParam shape_cv(0, min=0, max=1);\nParam pitch_cv(0, min=0, max=1);\nParam density(0.12, min=0, max=1);\nParam feedback(0.1, min=0, max=1);\nParam drywet(0.7, min=0, max=1);\nParam reverb(0.35, min=0, max=1);\nParam freeze(0, min=0, max=1);\nParam seed(0, min=0, max=1);\nParam seedlatch(1, min=0, max=1);\nParam ingain(1, min=0, max=40);\nParam outgain(1, min=0, max=4);\n// Beads GainControl: automatic input gain (learns 1 s + 5 s, then follows slowly), ×1 … ×40;\n// agc = 0 → manual gain `ingain`. agc_restart: any new value restarts the learning (LEARN).\nParam agc(1, min=0, max=1);\nParam agc_restart(0, min=0, max=1000000);\n// DENSITY CV depth (FLØCK; Beads has none = 1)\nParam dn_amt(0.5, min=0, max=1);\n// ---- modulation (MOD tab). Destinations take a source index: 0 none, 1 LFO1, 2 LFO2, 3 RANDOM,\n// 4 ENV, 5 CLOCK, 6 SEQ, 7 external inlet (in8..in11, tests / future)\nParam dst_freeze(0, min=0, max=7);\nParam dst_seed(0, min=0, max=7);\nParam dst_time(0, min=0, max=7);\nParam dst_pitch(0, min=0, max=7);\nParam dst_size(0, min=0, max=7);\nParam dst_shape(0, min=0, max=7);\nParam dst_density(0, min=0, max=7);\nParam dst_feedback(0, min=0, max=7);\nParam dst_reverb(0, min=0, max=7);\nParam dst_drywet(0, min=0, max=7);\nParam fb_amt(1, min=0, max=1);\nParam dw_amt(1, min=0, max=1);\nParam rv_amt(1, min=0, max=1);\nParam l1_rate(0.4, min=0, max=1);\nParam l1_sync(0, min=0, max=1);\nParam l1_shape(0, min=0, max=3);\nParam l1_reset(0, min=0, max=1);\nParam l1_amt(1, min=0, max=1);\nParam l2_rate(0.25, min=0, max=1);\nParam l2_sync(0, min=0, max=1);\nParam l2_shape(1, min=0, max=3);\nParam l2_reset(0, min=0, max=1);\nParam l2_amt(1, min=0, max=1);\nParam rn_rate(0.4, min=0, max=1);\nParam rn_sync(0, min=0, max=1);\nParam rn_smooth(1, min=0, max=1);\nParam rn_amt(1, min=0, max=1);\nParam env_gain(0.5, min=0, max=1);\nParam ck_rate(0.857, min=0, max=1);\nParam ck_sync(1, min=0, max=1);\nParam sq_div(12, min=0, max=14);\nParam sq_len(16, min=1, max=16);\n// sequencer steps: value 0..1, negative = step off\nParam sq0(1, min=-1, max=1);\nParam sq1(-1, min=-1, max=1);\nParam sq2(-1, min=-1, max=1);\nParam sq3(-1, min=-1, max=1);\nParam sq4(0.25, min=-1, max=1);\nParam sq5(-1, min=-1, max=1);\nParam sq6(-1, min=-1, max=1);\nParam sq7(-1, min=-1, max=1);\nParam sq8(0.5, min=-1, max=1);\nParam sq9(-1, min=-1, max=1);\nParam sq10(0.75, min=-1, max=1);\nParam sq11(-1, min=-1, max=1);\nParam sq12(0.625, min=-1, max=1);\nParam sq13(-1, min=-1, max=1);\nParam sq14(-1, min=-1, max=1);\nParam sq15(-1, min=-1, max=1);\n\nData buf(192004, 2);\nData gr(32, 16);\nData prio(32, 1);\nData ftail(256, 2);\nData rv(32768, 1);\nData sum(8, 1);\nData sdl(1024, 1);   // SEED input delay line (beads.cc event_delay: 10 blocks = 2.5 ms)   // per-sample accumulators: 0 L, 1 R, 2 playing grains, 3 active count, 4 best, 5 best remaining\n\nHistory init(0);\nHistory wp(0);\nHistory s_time(0.5);\nHistory s_size(0.45);\nHistory s_shape(0.5);\nHistory s_pitch(0);\nHistory s_tamt(0);\nHistory s_samt(0);\nHistory s_hamt(0);\nHistory s_pamt(0);\nHistory s_dens(0.3);\nHistory s_timeh(0.5);\nHistory s_fbk(0);\nHistory s_dwk(0.5);\nHistory s_rvk(0.2);\nHistory s_fb(0);\nHistory s_dry(0);\nHistory s_wet(0);\nHistory tg_phase(0);\nHistory tg_ratio(1);\nHistory tg_freq(0.0001);\nHistory tg_elapsed(24000);\nHistory prev_gate(0);\nHistory interval(1);\nHistory prev_l(0);\nHistory prev_r(0);\nHistory hp1(0);\nHistory hp2(0);\nHistory hq1(0);\nHistory hq2(0);\nHistory lim_in_p(0.5);\nHistory lim_in_lp(0.5);\nHistory lim_pre_p(0.5);\nHistory lim_pre_lp(0.5);\nHistory lim_out_p(0.5);\nHistory lim_out_lp(0.5);\nHistory was_frozen(0);\nHistory tail_wp(0);\nHistory tail_xf(0);\nHistory rv_wp(0);\nHistory rv_lp1(0);\nHistory rv_lp2(0);\nHistory rv_dry(0);\nHistory rv_wet(0);\nHistory rv_send(0);\n// stmlib ParameterInterpolator: mix parameters move linearly over blocks of sr/4000 samples (12 at 48 kHz, like the module)\nHistory blk(0);\nHistory i_fb(0);\nHistory i_dry(0);\nHistory i_wet(0);\nHistory i_rd(0);\nHistory i_rw(0);\nHistory i_rs(0);\nHistory l1y0(0.5);\nHistory l1y1(0.5);\nHistory l2y0(0.5);\nHistory l2y1(0.5);\nHistory l1v(0.5);\nHistory l2v(0.5);\nHistory prev_bp(0);\nHistory bar_cnt(0);\nHistory was_run(0);\nHistory l1_ph(0);\nHistory l2_ph(0);\nHistory rn_ph(0);\nHistory rn_from(0);\nHistory rn_to(0);\nHistory rn_seed(22222);\nHistory rn_pph(0);\nHistory env_st(0);\nHistory ck_ph(0);\nHistory c_t(0);\nHistory c_s(0);\nHistory c_h(0);\nHistory c_p(0);\nHistory c_d(0);\nHistory c_a1(0);\nHistory c_a2(0);\nHistory c_a3(0);\nHistory tg_target(0.0001);\nHistory tg_lpc(1);\nHistory tg_audio(0);\nHistory tg_accept(1);\nHistory tg_count(0);\nHistory tg_resetint(192000);\nHistory tg_quant(0);\nHistory tg_div(1);\nHistory prev_ext(0);\nHistory sdw(0);\nHistory g_peak(0.5);\nHistory g_agc(0.5);\nHistory g_stable(0.5);\nHistory g_gain(1);\nHistory g_inc(0);\nHistory g_time(0);\nHistory g_rst(0);\nHistory lastpos(0);\nHistory lastspd(1);\n\n// ---------------------------------------------------------------- per sample\nFS = samplerate;\nMAXD = 192000;\nk = 0;\nj = 0;\n// one-time init of the grain priority list\nif (init < 0.5) {\n\tfor (k = 0; k < 32; k += 1) {\n\t\tpoke(prio, k, k, 0);\n\t\tpoke(gr, 3, k, 0);\n\t\tpoke(gr, 1, k, 6);\n\t}\n}\n\n// ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)\n// Like the module: pots are read once per block of sr/4000 samples (cv_reader.Read in the audio\n// callback): law → one-pole 0.05 → hysteresis (TIME 0.001). On load: no glide from zero.\nnewblk = blk < 0.5;\n// the module's audio block: kBlockRate = 4000 → sr / 4000 samples (12 at 48 kHz)\nBLK = floor(FS / 4000 + 0.5);\nnblk = blk > BLK - 1.5 ? 0 : blk + 1;\nkp = init < 0.5 ? 1 : newblk ? 0.05 : 0;\nst_time = s_time + (time - s_time) * kp;\nth_err = st_time - s_timeh;\nst_timeh = init < 0.5 ? st_time : th_err > 0.001 ? st_time - 0.001 : th_err < -0.001 ? st_time + 0.001 : s_timeh;\nst_fbk = s_fbk + (feedback - s_fbk) * kp;\nst_dwk = s_dwk + (drywet - s_dwk) * kp;\nst_rvk = s_rvk + (reverb - s_rvk) * kp;\nst_size = s_size + (size - s_size) * kp;\nst_shape = s_shape + (shape - s_shape) * kp;\nst_pitch = s_pitch + (detune_law(pitch) - s_pitch) * kp;\nst_tamt = s_tamt + (attenu_law(time_amt) - s_tamt) * kp;\nst_samt = s_samt + (attenu_law(size_amt) - s_samt) * kp;\nst_hamt = s_hamt + (attenu_law(shape_amt) - s_hamt) * kp;\nst_pamt = s_pamt + (attenu_law(pitch_amt) - s_pamt) * kp;\nst_dens = s_dens + (density - s_dens) * kp;\nseedstate = seedlatch > 0.5 ? 2 : seed > 0.5 ? 1 : 0;\n\n// ---- tempo from Live: bar phase (phasor~ 1n @lock 1) on in7; bars counted modulo 24\nbp = in7;\nrunning = abs(bp - prev_bp) > 0;\nnbars = bp < prev_bp - 0.5 ? (bar_cnt > 22.5 ? 0 : bar_cnt + 1) : bar_cnt;\nstarted = running && was_run < 0.5;\n// synced sources run 10 blocks ahead: the SEED input delay of the module (2.5 ms, kept for the\n// CV-settling it gives) then lands their gates exactly on Live's grid\ndph = running ? bp - prev_bp + (bp < prev_bp - 0.5 ? 1 : 0) : 0;\npos = nbars + bp + dph * floor(FS / 4000 + 0.5) * 10 + 0.000000001;   // + 1e-9 bar: exact grid points round up, not down\n// ---- input gain (GainControl::Process): block rate for the learning, sample rate for the peak\ng_ign = trunc(FS * 1);\ng_act = trunc(FS * 6);\ngtime = init < 0.5 ? 0 : (agc_restart != g_rst ? g_ign : g_time);\ngagc = g_agc;\ngstb = g_stable;\nginc = g_inc;\nif (newblk) {\n\tghz = BLK / FS;\n\tgerr = g_peak - gagc;\n\tif (gtime < g_ign) {\n\t\tgagc = 0.5;\n\t} else if (gtime < g_act) {\n\t\tgagc = gagc + (gerr > 0 ? 10 * ghz : 2 * ghz) * gerr;\n\t\tgstb = gagc;\n\t} else {\n\t\tgagc = gagc + (gerr > 0 ? 5 * ghz : (g_peak > gstb ? 0.5 : 0.01) * ghz) * gerr;\n\t}\n\tgtime = (gtime > g_ign || g_peak > 0.001) ? min(gtime + BLK, g_act) : gtime;\n\tgtarget = agc > 0.5 ? min(0.9 / min(gagc, 0.9), 40) : ingain;\n\tginc = (gtarget - g_gain) / BLK;\n}\nggain = g_gain + ginc;\ngpk = max(abs(in1), abs(in2));\ngpe = gpk - g_peak;\nnpeak = g_peak + (gpe > 0 ? 0.1 : 2 / FS) * gpe;\ninl = agc > 0.5 ? in1 * ggain : clamp(in1 * ggain, -1, 1);\ninr = agc > 0.5 ? in2 * ggain : clamp(in2 * ggain, -1, 1);\nlearning = agc > 0.5 && gtime < g_act;\n\n// ---- sources (MOD tab)\nl1d = divper(floor(l1_rate * 14 + 0.5));\nl1f = fract(l1_ph + 0.02 * pow(1000, l1_rate) / FS);\nl1f = (l1_reset > 0.5 && started) ? 0 : l1f;\ns1 = lfo_shape(l1_sync > 0.5 ? fract(pos * l1d) : l1f, l1_shape) * l1_amt;\nl2d = divper(floor(l2_rate * 14 + 0.5));\nl2f = fract(l2_ph + 0.02 * pow(1000, l2_rate) / FS);\nl2f = (l2_reset > 0.5 && started) ? 0 : l2f;\ns2 = lfo_shape(l2_sync > 0.5 ? fract(pos * l2d) : l2f, l2_shape) * l2_amt;\n// RANDOM: random walk like RandomWalkModulation (own generator, not the grains' random stream)\nrnf = rn_sync > 0.5 ? fract(pos * divper(floor(rn_rate * 14 + 0.5))) : fract(rn_ph + 0.02 * pow(1000, rn_rate) / FS);\nrnwrap = rnf < rn_pph || init < 0.5;   // also on load: start from a random value, not from 0\nnseed = rnwrap ? wrapi(rn_seed * 1664525 + 1013904223, 4294967296) : rn_seed;\nnfrom = rnwrap ? rn_to : rn_from;\nnto = rnwrap ? nseed / 4294967296 * 2 - 1 : rn_to;\ns3 = (rn_smooth > 0.5 ? nfrom + (nto - nfrom) * sstep(rnf) : nto) * rn_amt;\n// ENV: follower of the input, gain ×0.25 … ×16\nein = max(abs(inl), abs(inr));\nnenv = env_st + (ein - env_st) * (ein > env_st ? 1 - exp(-1 / (0.003 * FS)) : 1 - exp(-1 / (0.15 * FS)));\ns4 = clamp(nenv * 0.25 * pow(64, env_gain), 0, 1);\n// CLOCK: tempo division (sync) or 0.1 … 40 Hz\nckf = fract(ck_ph + 0.1 * pow(400, ck_rate) / FS);\nckp = ck_sync > 0.5 ? fract(pos * divper(floor(ck_rate * 14 + 0.5))) : ckf;\ns5 = (ckp < 0.5 && (ck_sync < 0.5 || running)) ? 1 : 0;\n// SEQ: steps at the tempo division, length 1..16; value 0..1, gate in the first half of an \"on\" step\nspos = pos * divper(sq_div);\nsstp = wrapi(floor(spos), floor(sq_len));\nsval = sstp < 0.5 ? sq0 : sstp < 1.5 ? sq1 : sstp < 2.5 ? sq2 : sstp < 3.5 ? sq3 : sstp < 4.5 ? sq4 : sstp < 5.5 ? sq5 : sstp < 6.5 ? sq6 : sstp < 7.5 ? sq7 : sstp < 8.5 ? sq8 : sstp < 9.5 ? sq9 : sstp < 10.5 ? sq10 : sstp < 11.5 ? sq11 : sstp < 12.5 ? sq12 : sstp < 13.5 ? sq13 : sstp < 14.5 ? sq14 : sq15;\ns6 = max(sval, 0);\ng6 = (sval >= 0 && fract(spos) < 0.5 && running) ? 1 : 0;\n// gates: LFO / RANDOM positive half, ENV above 0.25, CLOCK and SEQ their pulses\ng1 = s1 > 0;\ng2 = s2 > 0;\ng3 = s3 > 0;\ng4 = s4 > 0.25;\n// ---- destinations, read like the module's CV inputs (once per block, CvReader low-pass)\nhas_t = time_cv > 0.5 || dst_time > 0.5;\nhas_s = size_cv > 0.5 || dst_size > 0.5;\nhas_h = shape_cv > 0.5 || dst_shape > 0.5;\nhas_p = pitch_cv > 0.5 || dst_pitch > 0.5;\nrt_ = dst_time > 0.5 ? pick(dst_time, s1, s2, s3, s4, s5, s6, in3) : in3;\nrs_ = dst_size > 0.5 ? pick(dst_size, s1, s2, s3, s4, s5, s6, in4) : in4;\nrh_ = dst_shape > 0.5 ? pick(dst_shape, s1, s2, s3, s4, s5, s6, in5) : in5;\nrp_ = dst_pitch > 0.5 ? pick(dst_pitch, s1, s2, s3, s4, s5, s6, in6 / 12) * 12 : in6;\nrd_ = pick(dst_density, s1, s2, s3, s4, s5, s6, in10) * dn_amt;\nra1 = pick(dst_feedback, s1, s2, s3, s4, s5, s6, in11);\nra2 = pick(dst_drywet, s1, s2, s3, s4, s5, s6, in11);\nra3 = pick(dst_reverb, s1, s2, s3, s4, s5, s6, in11);\n// CvChannel low-pass per block: TIME/SIZE/SHAPE 0.5, PITCH/DENSITY 1.0, ASSIGN 0.1 (first sample: direct)\nk5 = init < 0.5 ? 1 : newblk ? 0.5 : 0;\nk10 = init < 0.5 ? 1 : newblk ? 1 : 0;\nk1 = init < 0.5 ? 1 : newblk ? 0.1 : 0;\ncv_t = c_t + (rt_ - c_t) * k5;\ncv_s = c_s + (rs_ - c_s) * k5;\ncv_h = c_h + (rh_ - c_h) * k5;\ncv_p = c_p + (rp_ - c_p) * k10;\ncv_d = c_d + (rd_ - c_d) * k10;\ncv_a1 = c_a1 + (ra1 - c_a1) * k1;\ncv_a2 = c_a2 + (ra2 - c_a2) * k1;\ncv_a3 = c_a3 + (ra3 - c_a3) * k1;\n// FREEZE / SEED gate inputs (per sample, like the module's gate inputs)\nfrozen = freeze > 0.5 || (dst_freeze > 0.5 && pick(dst_freeze, g1, g2, g3, g4, s5, g6, in9) > 0.5);\next = dst_seed > 0.5;\negate_now = ext && pick(dst_seed, g1, g2, g3, g4, s5, g6, in8) > 0.5;\n// beads.cc: \"Delay the seed input by 2.5ms\" (event_delay.Read(size * 10)) — lets a CV\n// sent together with the gate (e.g. SEQ → TIME and SEQ → SEED) settle first\npoke(sdl, egate_now, sdw, 0);\negate = ext && peek(sdl, wrapi(sdw - BLK * 10, 1024), 0) > 0.5;\nnsdw = wrapi(sdw + 1, 1024);\n\n// ---- trigger generator (Processor::Process + TriggerGenerator::Render)\nexpo = clamp(20 * (abs(st_dens - 0.5) - 0.225), 0, 1);\nlin_fm = (1 - expo) * cv_d;\nexp_fm = expo * cv_d;\ndivmode = ext && seedstate > 1.5;\ndens = clamp(st_dens + lin_fm + (divmode ? exp_fm : 0), 0, 1);\nfmr = divmode ? 1 : pow(2, exp_fm * 60 / 12);\n// gate stream: latched mode with an external SEED = the clock alone (divider), else button OR input\n// the SEED input has its own edge memory (beads.cc previous_seed, updated whenever patched);\n// the merged gate keeps TriggerGenerator::previous_flags_ (updated outside the divider)\nerising = egate && prev_ext < 0.5;\nsgate = divmode ? egate : (seedstate > 0.5 || egate);\nrising = divmode ? erising : (sgate && prev_gate < 0.5);\nnpg = divmode ? prev_gate : sgate;\nph = tg_phase;\nratio = tg_ratio;\ntapf = tg_freq;\ntg_el = tg_elapsed;\ntrig = 0;\nfrac = 0;\nregularity = 1;\nmaxf = 130.81278 / FS;\ntgt = init < 0.5 ? 2 / FS : tg_target;\ntapf = init < 0.5 ? 2 / FS : tapf;\nndiv = tg_div;\nlpc = tg_lpc;\naud = tg_audio;\nacc_p = tg_accept;\npcount = tg_count;\nrint = init < 0.5 ? trunc(FS * 4) : tg_resetint;\nquant = tg_quant;\nif (divmode) {\n\t// ---- RenderDivider: clocked SEED (division CCW / probability CW of the incoming pulses)\n\tqv = dens * 2.15 * 8 - 0.5;\n\tqs = qv > quant ? -1 : 1;\n\tquant = dens < 0.48 ? clamp(trunc(qv + qs * 0.075 + 0.5), 0, 7) : quant;\n\tdivision = dens < 0.48 ? divratio(quant) : 1;\n\tpsq = dens < 0.48 ? 1.01 : max((dens - 0.52) * 2.15, 0);\n\tprob = psq * psq;\n\ttapf = tapf + (tgt - tapf) * lpc;\n\tph = ph + tapf;\n\tif (rising) {\n\t\tif (tg_el >= rint) {\n\t\t\tpcount = 0;\n\t\t\tph = 0;\n\t\t}\n\t\trint = max(trunc(FS * 4), 4 * tg_el);\n\t\tthr = trunc(FS / 48) + (aud > 0.5 ? 8 : 0);\n\t\taud = (tg_el < thr) && (prob >= 1);\n\t\tacc_p = rnd() < prob && wrapi(pcount, division) < 0.5;\n\t\tif (acc_p) {\n\t\t\tperiod = tg_el;\n\t\t\tpfreq = 1 / period;\n\t\t\ttgt = prob >= 1 ? pfreq / division : pfreq * prob;\n\t\t\tif (aud) {\n\t\t\t\tnoglide = division != ndiv;\n\t\t\t\tndiv = division;\n\t\t\t\tnoglide = noglide || tgt > (1.02 + 2 * pfreq) * tapf || tgt < (0.98 - 2 * pfreq) * tapf;\n\t\t\t\tlpc = noglide ? 1 : period / FS;\n\t\t\t} else {\n\t\t\t\tph = 0;\n\t\t\t\tlpc = 1;\n\t\t\t}\n\t\t} else if (prob < 1) {\n\t\t\ttgt = tgt * (1 - prob);\n\t\t}\n\t\tpcount = wrapi(pcount + 1, 48);\n\t\ttg_el = 0;\n\t}\n\ttg_el = tg_el + 1;\n\tif (aud) {\n\t\tif (ph >= 1) {\n\t\t\tph = ph - 1;\n\t\t\tfrac = ph / tapf;\n\t\t\ttrig = 1;\n\t\t}\n\t} else {\n\t\tph = min(ph, 1);\n\t\ttrig = acc_p && rising;\n\t}\n\tregularity = prob >= 1 ? 1 : 0;\n} else if (dens < 0.48 || dens > 0.52) {\n\trandomize = dens > 0.52;\n\tf = (randomize ? 0.5 * maxf * pow(2, -(1 - dens) * 16) : maxf * pow(2, -dens * 16)) * fmr;\n\tif (!randomize) {\n\t\tratio = 1;\n\t}\n\tff = clamp(f * ratio, 0.000001, 0.25);\n\tph = ph + (sgate ? ff : 0);\n\treset = 0;\n\tif (rising) {\n\t\tph = 0;\n\t\treset = 1;\n\t} else if (ph >= 1) {\n\t\tph = ph - 1;\n\t\tfrac = ph / ff;\n\t\treset = 1;\n\t}\n\tif (reset && randomize) {\n\t\tx = 0.1 + 0.9 * rnd();\n\t\tratio = -1 / (-x * (1 + x * (0.5 + x * (0.3333 + x * 0.25))));\n\t}\n\ttrig = reset && sgate;\n\tregularity = randomize ? 0 : 1;\n} else if (seedstate < 1.5 || ext) {\n\t// manual taps: one grain per press\n\tph = ph + tapf;\n\tif (rising) {\n\t\tph = 0;\n\t\ttapf = 1 / tg_el;\n\t\ttg_el = 0;\n\t}\n\ttg_el = tg_el + 1;\n\tph = min(ph, 1);\n\ttrig = rising;\n\tregularity = 1 - (dens - 0.48) * 25;\n}\n\n// ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)\ninc_fb = newblk ? (clamp(st_fbk * 1.005 + (dst_feedback > 0.5 ? cv_a1 * fb_amt : 0), 0, 1) - s_fb) / BLK : i_fb;\nfbk = s_fb + inc_fb;\nsl = inl + prev_l * fbk * fbk * 3;\nsr = inr + prev_r * fbk * fbk * 3;\npk = min(max(abs(sl), abs(sr)), 40);\ne1 = pk - lim_in_p;\nli_p = lim_in_p + (e1 > 0 ? 0.1 : 1 / FS) * e1;\ne2 = li_p - lim_in_lp;\nli_lp = lim_in_lp + (e2 > 0 ? 0.5 : 1 / FS) * e2;\nlg = li_lp <= 0.95 ? 1 : 0.95 / li_lp;\nsl = sl * lg;\nsr = sr * lg;\n\n// ---- recording buffer with freeze tail (DelayLine::Write(in, frozen))\nw = wp;\ntwp = tail_wp;\ntxf = tail_xf;\nif (frozen) {\n\tif (was_frozen < 0.5) {\n\t\ttwp = 0;\n\t}\n\tif (twp < 256) {\n\t\tpoke(ftail, sl, twp, 0);\n\t\tpoke(ftail, sr, twp, 1);\n\t\ttwp = twp + 1;\n\t}\n} else {\n\tif (was_frozen > 0.5 && twp > 0) {\n\t\ttxf = twp;\n\t}\n\tif (twp > 0) {\n\t\ttpos = txf - twp;\n\t\tg = sstep(twp / txf);\n\t\tsl = sl + (peek(ftail, tpos, 0) - sl) * g;\n\t\tsr = sr + (peek(ftail, tpos, 1) - sr) * g;\n\t\ttwp = twp - 1;\n\t}\n\tql = q16(sl);\n\tqr = q16(sr);\n\tpoke(buf, ql, w, 0);\n\tpoke(buf, qr, w, 1);\n\tif (w < 4) {\n\t\tpoke(buf, ql, w + MAXD, 0);\n\t\tpoke(buf, qr, w + MAXD, 1);\n\t}\n\tw = w == 0 ? MAXD - 1 : w - 1;\n}\n\n// ---- grain start (DelayGranularPlayer::Render + DelayGrain::Start)\ngint = interval;\nlpos = lastpos;\nlspd = lastspd;\nif (trig) {\n\tpoke(sum, 1, 3, 0);\n\tfor (k = 0; k < 32; k += 1) {\n\t\tif (peek(gr, k, 0) < 2.5 && peek(gr, k, 6) > 0) {\n\t\t\tpoke(sum, peek(sum, 3, 0) + 1, 3, 0);\n\t\t}\n\t}\n\tnact = peek(sum, 3, 0);\n\ttamt = st_tamt;\n\tsamt = st_samt;\n\thamt = st_hamt;\n\tpamt = st_pamt;\n\tdur_k = rparam(st_size, samt, cv_s, has_s, 1, 1);\n\trev = dur_k < 0.3333333;\n\tamp = 1 / sqrt(nact);\n\tspread = min(1, ramount(tamt, has_t) + ramount(samt, has_s) + ramount(hamt, has_h) + ramount(pamt, has_p) + 1 - regularity);\n\tu = rnd();\n\tv = rnd();\n\tpan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);\n\tmaxdel = MAXD - 2 * 257;\n\tgdelay = rparam(st_timeh, tamt, cv_t, has_t, 1, 1) * maxdel + 257;\n\tsemis = rparam(st_pitch, pamt, cv_p, has_p, 24, 0);\n\tspeed = (rev ? -1 : 1) * pow(2, semis / 12);\n\tcsh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);\n\tduration = pow(2, min(1, 1.025 * csh) * -9) * FS * 4;\n\tshp = rparam(st_shape, hamt, cv_h, has_h, 1, 1);\n\tg0 = peek(prio, 0, 0);\n\tcons = speed - (frozen ? 0 : 1);\n\tgdelay = gdelay - frac * cons;\n\tif (cons != 0) {\n\t\tduration = min(duration, MAXD / abs(cons));\n\t}\n\tif (cons > 0) {\n\t\tgdelay = max(gdelay, duration * cons);\n\t} else if (cons < 0) {\n\t\tgdelay = min(gdelay, MAXD + duration * cons);\n\t}\n\tif (pan < 0.5) {\n\t\tpn = pan * 2;\n\t\tpoke(gr, amp, g0, 10);\n\t\tpoke(gr, (1 - pn) * (1 + pn) * amp, g0, 11);\n\t\tpoke(gr, 0, g0, 12);\n\t\tpoke(gr, pn * (2 - pn) * amp, g0, 13);\n\t} else {\n\t\tpn = (1 - pan) * 2;\n\t\tpoke(gr, pn * (2 - pn) * amp, g0, 10);\n\t\tpoke(gr, 0, g0, 11);\n\t\tpoke(gr, (1 - pn) * (1 + pn) * amp, g0, 12);\n\t\tpoke(gr, amp, g0, 13);\n\t}\n\t// DelayGrain stores position and speed in fixed point (×1024, truncated) like the module\n\tpoke(gr, trunc(gdelay * 1024) / 1024, g0, 8);\n\tlpos = gdelay / MAXD;\n\tlspd = speed;\n\tpoke(gr, trunc(speed * 1024) / 1024, g0, 9);\n\t// GrainEnvelope::Start(duration, shape, fractional)\n\tsus = max(1 - 3 * shp, 0);\n\tat = (shp - 0.33333333) * 1.5;\n\tif (at < 0) {\n\t\tat = 0;\n\t} else if (at < 0.5) {\n\t\tat = at * at * at * 4;\n\t}\n\tre = (1 - at) * (1 - sus);\n\tia = 1 / max(duration * at, 0.0005 * FS * (1 + 3 * sus));\n\tis = 1 / max(duration * sus, 2);\n\tir = 1 / max(duration * re, 0.010 * FS);\n\tpoke(gr, ia, g0, 2);\n\tpoke(gr, is, g0, 3);\n\tpoke(gr, ir, g0, 4);\n\tpoke(gr, at < 0.5 ? 2 * at : 2 - 2 * at, g0, 5);\n\tgph = ia * frac;\n\tgst = 0;\n\tif (gph >= 1) {\n\t\tgph = (gph - 1) / ia * is;\n\t\tgst = 1;\n\t}\n\tpoke(gr, gst, g0, 0);\n\tpoke(gr, gph, g0, 1);\n\tpoke(gr, trunc(duration), g0, 14);\n\tpoke(gr, 1, g0, 6);\n\tpoke(gr, 0, g0, 7);\n\t// SortGrainList (polyphonic)\n\tinst = trunc(FS * 0.005);\n\tpre = trunc(FS * 0.1);\n\tf0 = 1;\n\tf1 = 1;\n\tf2 = 1;\n\tf3 = 1;\n\tif (gint < trunc(FS * 0.025)) {\n\t\tfirst = peek(prio, 0, 0);\n\t\tfor (k = 0; k < 31; k += 1) {\n\t\t\tpoke(prio, peek(prio, k + 1, 0), k, 0);\n\t\t}\n\t\tpoke(prio, first, 31, 0);\n\t\tf0 = gint + 1;\n\t\tf1 = inst;\n\t\tf2 = inst;\n\t\tf3 = pre;\n\t\tif (gint > inst) {\n\t\t\ttmp = f0;\n\t\t\tf0 = f2;\n\t\t\tf2 = tmp;\n\t\t}\n\t} else {\n\t\tfor (k = 0; k < 4; k += 1) {\n\t\t\tpoke(sum, k, 4, 0);\n\t\t\tpoke(sum, peek(gr, peek(prio, k, 0), 14), 5, 0);\n\t\t\tfor (j = k + 1; j < 32; j += 1) {\n\t\t\t\trj = peek(gr, peek(prio, j, 0), 14);\n\t\t\t\tif (rj < peek(sum, 5, 0)) {\n\t\t\t\t\tpoke(sum, j, 4, 0);\n\t\t\t\t\tpoke(sum, rj, 5, 0);\n\t\t\t\t}\n\t\t\t}\n\t\t\tbest = peek(sum, 4, 0);\n\t\t\tif (best != k) {\n\t\t\t\ttmp = peek(prio, k, 0);\n\t\t\t\tpoke(prio, peek(prio, best, 0), k, 0);\n\t\t\t\tpoke(prio, tmp, best, 0);\n\t\t\t}\n\t\t}\n\t\tf0 = inst;\n\t\tf1 = inst;\n\t\tf2 = gint;\n\t\tf3 = pre;\n\t\tif (gint > pre) {\n\t\t\ttmp = f2;\n\t\t\tf2 = f3;\n\t\t\tf3 = tmp;\n\t\t}\n\t}\n\tfor (k = 0; k < 4; k += 1) {\n\t\tgk = peek(prio, k, 0);\n\t\tfd = k == 0 ? f0 : k == 1 ? f1 : k == 2 ? f2 : f3;\n\t\tfd = max(fd, 1);\n\t\tif (peek(gr, gk, 14) > fd) {\n\t\t\tpoke(gr, 1 / fd, gk, 7);\n\t\t\tpoke(gr, trunc(peek(gr, gk, 6) * fd), gk, 14);\n\t\t}\n\t}\n\tgint = 0;\n}\n\n// ---- render all grains (DelayGrain::Render<STOP, fade_out>)\npoke(sum, 0, 0, 0);\npoke(sum, 0, 1, 0);\npoke(sum, 0, 2, 0);\nfor (k = 0; k < 32; k += 1) {\n\tstg = peek(gr, k, 0);\n\tvs = peek(gr, k, 6);\n\tif (stg < 2.5 && vs > 0) {\n\t\tpoke(sum, peek(sum, 2, 0) + 1, 2, 0);\n\t\tdl = peek(gr, k, 8) - peek(gr, k, 9);\n\t\tif (!frozen) {\n\t\t\tdl = dl + 1;\n\t\t}\n\t\tif (dl < 0 || dl >= MAXD) {\n\t\t\tdl = 0;\n\t\t\tstg = 3;\n\t\t}\n\t\tdd = abs(dl >= MAXD * 0.5 ? dl - MAXD : dl);\n\t\tfr = dd < 256 ? dd / 256 : 1;\n\t\tdi = floor(dl);\n\t\tdf = dl - di;\n\t\tidx = wrapi(w + di + MAXD - 1, MAXD);\n\t\txl0 = peek(buf, idx, 0);\n\t\txl1 = peek(buf, idx + 1, 0);\n\t\txl2 = peek(buf, idx + 2, 0);\n\t\txl3 = peek(buf, idx + 3, 0);\n\t\txr0 = peek(buf, idx, 1);\n\t\txr1 = peek(buf, idx + 1, 1);\n\t\txr2 = peek(buf, idx + 2, 1);\n\t\txr3 = peek(buf, idx + 3, 1);\n\t\tcl = (xl2 - xl0) * 0.5;\n\t\tvl = xl1 - xl2;\n\t\twl = cl + vl;\n\t\tal = wl + vl + (xl3 - xl1) * 0.5;\n\t\tyl = (((al * df) - (wl + al)) * df + cl) * df + xl1;\n\t\tcr = (xr2 - xr0) * 0.5;\n\t\tvr = xr1 - xr2;\n\t\twr = cr + vr;\n\t\tar = wr + vr + (xr3 - xr1) * 0.5;\n\t\tyr = (((ar * df) - (wr + ar)) * df + cr) * df + xr1;\n\t\tffr = sstep(fr);\n\t\t// GrainEnvelope::Render\n\t\tenv = 0;\n\t\tgph = peek(gr, k, 1);\n\t\tif (stg < 2.5) {\n\t\t\tif (stg > 0.5 && stg < 1.5) {\n\t\t\t\tenv = 1;\n\t\t\t} else {\n\t\t\t\ttt = stg < 0.5 ? gph : 1 - gph;\n\t\t\t\tbs = stg < 0.5 ? tt : tt * tt * tt * tt;\n\t\t\t\tenv = bs + (sstep(tt) - bs) * peek(gr, k, 5);\n\t\t\t}\n\t\t\tinc = peek(gr, k, 2 + stg);\n\t\t\tgph = gph + inc;\n\t\t\tif (gph >= 1) {\n\t\t\t\tt2 = (gph - 1) / inc;\n\t\t\t\tstg = stg + 1;\n\t\t\t\tgph = stg < 2.5 ? t2 * peek(gr, k, 2 + stg) : 0;\n\t\t\t}\n\t\t}\n\t\tvs = vs - peek(gr, k, 7);\n\t\tgenv = env * max(vs, 0) * ffr;\n\t\tpoke(sum, peek(sum, 0, 0) + (yl * peek(gr, k, 10) + yr * peek(gr, k, 11)) * genv, 0, 0);\n\t\tpoke(sum, peek(sum, 1, 0) + (yl * peek(gr, k, 12) + yr * peek(gr, k, 13)) * genv, 1, 0);\n\t\trem = peek(gr, k, 14) - 1;\n\t\tif (stg > 2.5 || vs <= 0) {\n\t\t\trem = 0;\n\t\t}\n\t\tpoke(gr, stg, k, 0);\n\t\tpoke(gr, gph, k, 1);\n\t\tpoke(gr, vs, k, 6);\n\t\tpoke(gr, dl, k, 8);\n\t\tpoke(gr, rem, k, 14);\n\t}\n}\ngint = gint + 1;\noutl = peek(sum, 0, 0);\noutr = peek(sum, 1, 0);\nnplay = peek(sum, 2, 0);\n\n// ---- feedback path: DC blocker (Svf HP 40 Hz, q 0.5) → one-pole 0.999\nfhp = 40 / FS;\ngg = fhp * (pi + fhp * fhp * (0.326 * pi * pi * pi + 0.1823 * pi * pi * pi * pi * pi * fhp * fhp));\nhh = 1 / (1 + 2 * gg + gg * gg);\nhpl = (outl - 2 * hp1 - gg * hp1 - hp2) * hh;\nbpl = gg * hpl + hp1;\nn_hp1 = gg * hpl + bpl;\nlpl = gg * bpl + hp2;\nn_hp2 = gg * bpl + lpl;\nhpr = (outr - 2 * hq1 - gg * hq1 - hq2) * hh;\nbpr = gg * hpr + hq1;\nn_hq1 = gg * hpr + bpr;\nlpr = gg * bpr + hq2;\nn_hq2 = gg * bpr + lpr;\nn_prev_l = prev_l + 0.999 * (hpl - prev_l);\nn_prev_r = prev_r + 0.999 * (hpr - prev_r);\n\n// ---- dry / wet (Processor::Process)\ndw = clamp(st_dwk * 1.005 + (dst_drywet > 0.5 ? cv_a2 * dw_amt : 0), 0, 1);\ndry_t = (1 - dw) * (1 + dw) * 0.75;\nwet_t = dw * (2 - dw) * 1.5;\ninc_dry = newblk ? (dry_t - s_dry) / BLK : i_dry;\ninc_wet = newblk ? (wet_t - s_wet) / BLK : i_wet;\ndry = s_dry + inc_dry;\nwet = s_wet + inc_wet;\nml = dry * inl + wet * outl;\nmr = dry * inr + wet * outr;\n\n// ---- pre-reverb limiter (decay 1/(4 sr), 0.9)\npk = min(max(abs(ml), abs(mr)), 40);\ne1 = pk - lim_pre_p;\nlp_p = lim_pre_p + (e1 > 0 ? 0.1 : 1 / (FS * 4)) * e1;\ne2 = lp_p - lim_pre_lp;\nlp_lp = lim_pre_lp + (e2 > 0 ? 0.5 : 1 / (FS * 4)) * e2;\nlg = lp_lp <= 0.9 ? 1 : 0.9 / lp_lp;\nml = ml * lg;\nmr = mr * lg;\n\n// ---- reverb (Griesinger / Dattorro topology, FxEngine 16-bit, 32768 words)\nrva = clamp(st_rvk * 1.005 + (dst_reverb > 0.5 ? cv_a3 * rv_amt : 0), 0, 1);\nrmix = rva * rva * 0.9;\nrtime = 0.3 + 0.6 * rva * rva * rva;\nrlp = 0.6;\nig = 0.2 * (1 - 0.333 * rtime);\nssq = rmix * (2 - rmix);\ninc_rd = newblk ? ((1 - rmix) * (1 + rmix) - rv_dry) / BLK : i_rd;\ninc_rw = newblk ? (0.4 / ig - rv_wet) / BLK : i_rw;\ninc_rs = newblk ? (ssq * (2 - ssq) * ig - rv_send) / BLK : i_rs;\nr_dry = rv_dry + inc_rd;\nr_wet = rv_wet + inc_rw;\nr_send = rv_send + inc_rs;\nrw = rv_wp - 1;\nif (rw < 0) {\n\trw = rw + 32768;\n}\n// stmlib CosineOscillator (approximate), 0.5 Hz / 0.3 Hz × 32, updated every 32 samples.\n// Start(): y1 = c·0.25, y0 = 0.5 → value() = y1 + 0.5 until the first update.\nc1 = 16 * (0.25 - 0.5 / FS * 32) * (1 - 2 * (0.25 - 0.5 / FS * 32));\nc2 = 16 * (0.25 - 0.3 / FS * 32) * (1 - 2 * (0.25 - 0.3 / FS * 32));\ny10 = init < 0.5 ? 0.5 : l1y0;\ny11 = init < 0.5 ? c1 * 0.25 : l1y1;\ny20 = init < 0.5 ? 0.5 : l2y0;\ny21 = init < 0.5 ? c2 * 0.25 : l2y1;\nlv1 = init < 0.5 ? c1 * 0.25 + 0.5 : l1v;\nlv2 = init < 0.5 ? c2 * 0.25 + 0.5 : l2v;\nif (wrapi(rw, 32) < 0.5) {\n\ttmp = y10;\n\ty10 = c1 * y10 - y11;\n\ty11 = tmp;\n\tlv1 = tmp + 0.5;\n\ttmp = y20;\n\ty20 = c2 * y20 - y21;\n\ty21 = tmp;\n\tlv2 = tmp + 0.5;\n}\nkap = 0.625;\n// smear AP1: interpolate at 10 + 80*lfo1, write at 100\no = 10 + 80 * lv1;\noi = floor(o);\nof = o - oi;\nra = peek(rv, wrapi(rw + oi, 32768), 0);\nrb = peek(rv, wrapi(rw + oi + 1, 32768), 0);\nacc = ra + (rb - ra) * of;\npoke(rv, q16(acc), wrapi(rw + 100, 32768), 0);\nacc = (ml + mr) * r_send;\n// 4 diffusers: base/length 0/150, 151/214, 366/319, 686/527\npr = peek(rv, wrapi(rw + 149, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 151 + 213, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 151, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 366 + 318, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 366, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 686 + 526, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 686, 32768), 0);\nacc = acc * -kap + pr;\napout = acc;\n// left loop: del2 (15314/6312) → lp → dap1a (1214/2182) → dap1b (3397/2690) → del1 (6088/4501)\no = 6261 + 50 * lv2;\noi = floor(o);\nof = o - oi;\nra = peek(rv, wrapi(rw + oi + 15314, 32768), 0);\nrb = peek(rv, wrapi(rw + oi + 15315, 32768), 0);\nacc = apout + (ra + (rb - ra) * of) * rtime;\nlp1 = rv_lp1 + rlp * (acc - rv_lp1);\nacc = lp1;\npr = peek(rv, wrapi(rw + 1214 + 2181, 32768), 0);\nacc = acc + pr * -kap;\npoke(rv, q16(acc), wrapi(rw + 1214, 32768), 0);\nacc = acc * kap + pr;\npr = peek(rv, wrapi(rw + 3397 + 2689, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 3397, 32768), 0);\nacc = acc * -kap + pr;\npoke(rv, q16(acc), wrapi(rw + 6088, 32768), 0);\nwl_ = acc;\n// right loop: del1 → lp → dap2a (10590/2525) → dap2b (13116/2197) → del2\no = 4460 + 40 * lv1;\noi = floor(o);\nof = o - oi;\nra = peek(rv, wrapi(rw + oi + 6088, 32768), 0);\nrb = peek(rv, wrapi(rw + oi + 6089, 32768), 0);\nacc = apout + (ra + (rb - ra) * of) * rtime;\nlp2 = rv_lp2 + rlp * (acc - rv_lp2);\nacc = lp2;\npr = peek(rv, wrapi(rw + 10590 + 2524, 32768), 0);\nacc = acc + pr * kap;\npoke(rv, q16(acc), wrapi(rw + 10590, 32768), 0);\nacc = acc * -kap + pr;\npr = peek(rv, wrapi(rw + 13116 + 2196, 32768), 0);\nacc = acc + pr * -kap;\npoke(rv, q16(acc), wrapi(rw + 13116, 32768), 0);\nacc = acc * kap + pr;\npoke(rv, q16(acc), wrapi(rw + 15314, 32768), 0);\nwr_ = acc;\nml = ml * r_dry + wl_ * r_wet;\nmr = mr * r_dry + wr_ * r_wet;\n\n// ---- output limiter (decay 1/(6 sr), 0.9) and output gain\npk = min(max(abs(ml), abs(mr)), 40);\ne1 = pk - lim_out_p;\nlo_p = lim_out_p + (e1 > 0 ? 0.1 : 1 / (FS * 6)) * e1;\ne2 = lo_p - lim_out_lp;\nlo_lp = lim_out_lp + (e2 > 0 ? 0.5 : 1 / (FS * 6)) * e2;\nlg = lo_lp <= 0.9 ? 1 : 0.9 / lo_lp;\nout1 = ml * lg * outgain;\nout2 = mr * lg * outgain;\nout3 = trig;\nout4 = nplay;\nout5 = w / MAXD;\nout6 = lpos;\nout7 = lspd;\nout8 = sstp;\nout9 = running;\nout10 = ggain;\nout11 = learning;\n\n// ---- state write-back (all History writes at the end of the pass)\ninit = 1;\nwp = w;\ns_time = st_time;\ns_size = st_size;\ns_shape = st_shape;\ns_pitch = st_pitch;\ns_tamt = st_tamt;\ns_samt = st_samt;\ns_hamt = st_hamt;\ns_pamt = st_pamt;\ns_dens = st_dens;\ns_timeh = st_timeh;\ns_fbk = st_fbk;\ns_dwk = st_dwk;\ns_rvk = st_rvk;\ns_fb = fbk;\ns_dry = dry;\ns_wet = wet;\ntg_phase = ph;\ntg_ratio = ratio;\ntg_freq = tapf;\ntg_elapsed = tg_el;\nprev_gate = npg;\nprev_ext = egate;\ng_peak = npeak;\ng_agc = gagc;\ng_stable = gstb;\ng_gain = ggain;\ng_inc = ginc;\ng_time = gtime;\ng_rst = agc_restart;\nsdw = nsdw;\ninterval = gint;\nlastpos = lpos;\nlastspd = lspd;\nprev_l = n_prev_l;\nprev_r = n_prev_r;\nhp1 = n_hp1;\nhp2 = n_hp2;\nhq1 = n_hq1;\nhq2 = n_hq2;\nlim_in_p = li_p;\nlim_in_lp = li_lp;\nlim_pre_p = lp_p;\nlim_pre_lp = lp_lp;\nlim_out_p = lo_p;\nlim_out_lp = lo_lp;\nwas_frozen = frozen;\ntail_wp = twp;\ntail_xf = txf;\nrv_wp = rw;\nrv_lp1 = lp1;\nrv_lp2 = lp2;\nrv_dry = r_dry;\nrv_wet = r_wet;\nrv_send = r_send;\nblk = nblk;\ni_fb = inc_fb;\ni_dry = inc_dry;\ni_wet = inc_wet;\ni_rd = inc_rd;\ni_rw = inc_rw;\ni_rs = inc_rs;\nl1y0 = y10;\nl1y1 = y11;\nl2y0 = y20;\nl2y1 = y21;\nl1v = lv1;\nprev_bp = bp;\nbar_cnt = nbars;\nwas_run = running;\nl1_ph = l1f;\nl2_ph = l2f;\nrn_ph = rnf;\nrn_pph = rnf;\nrn_seed = nseed;\nrn_from = nfrom;\nrn_to = nto;\nenv_st = nenv;\nck_ph = ckf;\nc_t = cv_t;\nc_s = cv_s;\nc_h = cv_h;\nc_p = cv_p;\nc_d = cv_d;\nc_a1 = cv_a1;\nc_a2 = cv_a2;\nc_a3 = cv_a3;\ntg_target = tgt;\ntg_lpc = lpc;\ntg_audio = aud;\ntg_accept = acc_p;\ntg_count = pcount;\ntg_resetint = rint;\ntg_quant = quant;\ntg_div = ndiv;\nl2v = lv2;\n",
          "numinlets": 11,
-         "numoutlets": 9,
+         "numoutlets": 11,
          "outlettype": [
+          "",
+          "",
           "",
           "",
           "",
@@ -461,6 +465,38 @@
           22
          ],
          "id": "obj-21"
+        }
+       },
+       {
+        "box": {
+         "maxclass": "newobj",
+         "text": "out 10",
+         "numinlets": 1,
+         "numoutlets": 0,
+         "outlettype": [],
+         "patching_rect": [
+          560,
+          680,
+          56,
+          22
+         ],
+         "id": "obj-22"
+        }
+       },
+       {
+        "box": {
+         "maxclass": "newobj",
+         "text": "out 11",
+         "numinlets": 1,
+         "numoutlets": 0,
+         "outlettype": [],
+         "patching_rect": [
+          620,
+          680,
+          56,
+          22
+         ],
+         "id": "obj-23"
         }
        }
       ],
@@ -704,6 +740,30 @@
           0
          ]
         }
+       },
+       {
+        "patchline": {
+         "source": [
+          "obj-12",
+          9
+         ],
+         "destination": [
+          "obj-22",
+          0
+         ]
+        }
+       },
+       {
+        "patchline": {
+         "source": [
+          "obj-12",
+          10
+         ],
+         "destination": [
+          "obj-23",
+          0
+         ]
+        }
        }
       ]
      },
@@ -793,10 +853,12 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "route time density pitch size shape time_amt pitch_amt size_amt shape_amt feedback drywet reverb freeze seed seedlatch input output dst_freeze dst_seed dst_time dst_pitch dst_size dst_shape dst_density dst_feedback dst_reverb dst_drywet fb_amt dw_amt rv_amt l1_rate l1_sync l1_shape l1_reset l1_amt l2_rate l2_sync l2_shape l2_reset l2_amt rn_rate rn_sync rn_smooth rn_amt env_gain ck_rate ck_sync sq_div sq_len sq0 sq1 sq2 sq3 sq4 sq5 sq6 sq7 sq8 sq9 sq10 sq11 sq12 sq13 sq14 sq15",
+     "text": "route time density pitch size shape time_amt pitch_amt size_amt shape_amt feedback drywet reverb freeze seed seedlatch input output agc dst_freeze dst_seed dst_time dst_pitch dst_size dst_shape dst_density dst_feedback dst_reverb dst_drywet fb_amt dw_amt rv_amt dn_amt l1_rate l1_sync l1_shape l1_reset l1_amt l2_rate l2_sync l2_shape l2_reset l2_amt rn_rate rn_sync rn_smooth rn_amt env_gain ck_rate ck_sync sq_div sq_len sq0 sq1 sq2 sq3 sq4 sq5 sq6 sq7 sq8 sq9 sq10 sq11 sq12 sq13 sq14 sq15",
      "numinlets": 2,
-     "numoutlets": 66,
+     "numoutlets": 68,
      "outlettype": [
+      "",
+      "",
       "",
       "",
       "",
@@ -875,6 +937,43 @@
    },
    {
     "box": {
+     "maxclass": "newobj",
+     "text": "route agc_restart",
+     "numinlets": 2,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      ""
+     ],
+     "patching_rect": [
+      1200,
+      110,
+      140,
+      22
+     ],
+     "id": "obj-9"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend agc_restart",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      1200,
+      140,
+      140,
+      22
+     ],
+     "id": "obj-10"
+    }
+   },
+   {
+    "box": {
      "maxclass": "live.dial",
      "numinlets": 1,
      "numoutlets": 2,
@@ -897,14 +996,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.5
+        0.15
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-9"
+     "id": "obj-11"
     }
    },
    {
@@ -922,7 +1021,7 @@
       90,
       22
      ],
-     "id": "obj-10"
+     "id": "obj-12"
     }
    },
    {
@@ -940,7 +1039,7 @@
       90,
       22
      ],
-     "id": "obj-11"
+     "id": "obj-13"
     }
    },
    {
@@ -967,14 +1066,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.3
+        0.12
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-12"
+     "id": "obj-14"
     }
    },
    {
@@ -992,7 +1091,7 @@
       90,
       22
      ],
-     "id": "obj-13"
+     "id": "obj-15"
     }
    },
    {
@@ -1010,7 +1109,7 @@
       90,
       22
      ],
-     "id": "obj-14"
+     "id": "obj-16"
     }
    },
    {
@@ -1044,7 +1143,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-15"
+     "id": "obj-17"
     }
    },
    {
@@ -1062,7 +1161,7 @@
       90,
       22
      ],
-     "id": "obj-16"
+     "id": "obj-18"
     }
    },
    {
@@ -1080,7 +1179,7 @@
       90,
       22
      ],
-     "id": "obj-17"
+     "id": "obj-19"
     }
    },
    {
@@ -1107,14 +1206,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.45
+        0.6
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-18"
+     "id": "obj-20"
     }
    },
    {
@@ -1132,7 +1231,7 @@
       90,
       22
      ],
-     "id": "obj-19"
+     "id": "obj-21"
     }
    },
    {
@@ -1150,7 +1249,7 @@
       90,
       22
      ],
-     "id": "obj-20"
+     "id": "obj-22"
     }
    },
    {
@@ -1177,14 +1276,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.5
+        0.6
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-21"
+     "id": "obj-23"
     }
    },
    {
@@ -1202,7 +1301,7 @@
       90,
       22
      ],
-     "id": "obj-22"
+     "id": "obj-24"
     }
    },
    {
@@ -1220,7 +1319,7 @@
       90,
       22
      ],
-     "id": "obj-23"
+     "id": "obj-25"
     }
    },
    {
@@ -1247,14 +1346,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.5
+        0.75
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-24"
+     "id": "obj-26"
     }
    },
    {
@@ -1272,7 +1371,7 @@
       90,
       22
      ],
-     "id": "obj-25"
+     "id": "obj-27"
     }
    },
    {
@@ -1290,7 +1389,7 @@
       90,
       22
      ],
-     "id": "obj-26"
+     "id": "obj-28"
     }
    },
    {
@@ -1324,7 +1423,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-27"
+     "id": "obj-29"
     }
    },
    {
@@ -1342,7 +1441,7 @@
       90,
       22
      ],
-     "id": "obj-28"
+     "id": "obj-30"
     }
    },
    {
@@ -1360,7 +1459,7 @@
       90,
       22
      ],
-     "id": "obj-29"
+     "id": "obj-31"
     }
    },
    {
@@ -1394,7 +1493,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-30"
+     "id": "obj-32"
     }
    },
    {
@@ -1412,7 +1511,7 @@
       90,
       22
      ],
-     "id": "obj-31"
+     "id": "obj-33"
     }
    },
    {
@@ -1430,7 +1529,7 @@
       90,
       22
      ],
-     "id": "obj-32"
+     "id": "obj-34"
     }
    },
    {
@@ -1464,7 +1563,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-33"
+     "id": "obj-35"
     }
    },
    {
@@ -1482,7 +1581,7 @@
       90,
       22
      ],
-     "id": "obj-34"
+     "id": "obj-36"
     }
    },
    {
@@ -1500,7 +1599,7 @@
       90,
       22
      ],
-     "id": "obj-35"
+     "id": "obj-37"
     }
    },
    {
@@ -1527,14 +1626,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.0
+        0.1
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-36"
+     "id": "obj-38"
     }
    },
    {
@@ -1552,7 +1651,7 @@
       90,
       22
      ],
-     "id": "obj-37"
+     "id": "obj-39"
     }
    },
    {
@@ -1570,7 +1669,7 @@
       90,
       22
      ],
-     "id": "obj-38"
+     "id": "obj-40"
     }
    },
    {
@@ -1597,14 +1696,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.5
+        0.7
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-39"
+     "id": "obj-41"
     }
    },
    {
@@ -1622,7 +1721,7 @@
       90,
       22
      ],
-     "id": "obj-40"
+     "id": "obj-42"
     }
    },
    {
@@ -1640,7 +1739,7 @@
       90,
       22
      ],
-     "id": "obj-41"
+     "id": "obj-43"
     }
    },
    {
@@ -1667,14 +1766,14 @@
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.2
+        0.35
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-42"
+     "id": "obj-44"
     }
    },
    {
@@ -1692,7 +1791,7 @@
       90,
       22
      ],
-     "id": "obj-43"
+     "id": "obj-45"
     }
    },
    {
@@ -1710,7 +1809,7 @@
       90,
       22
      ],
-     "id": "obj-44"
+     "id": "obj-46"
     }
    },
    {
@@ -1746,7 +1845,7 @@
        ]
       }
      },
-     "id": "obj-45"
+     "id": "obj-47"
     }
    },
    {
@@ -1764,7 +1863,7 @@
       90,
       22
      ],
-     "id": "obj-46"
+     "id": "obj-48"
     }
    },
    {
@@ -1782,7 +1881,7 @@
       90,
       22
      ],
-     "id": "obj-47"
+     "id": "obj-49"
     }
    },
    {
@@ -1818,7 +1917,7 @@
        ]
       }
      },
-     "id": "obj-48"
+     "id": "obj-50"
     }
    },
    {
@@ -1836,7 +1935,7 @@
       90,
       22
      ],
-     "id": "obj-49"
+     "id": "obj-51"
     }
    },
    {
@@ -1854,7 +1953,7 @@
       90,
       22
      ],
-     "id": "obj-50"
+     "id": "obj-52"
     }
    },
    {
@@ -1890,7 +1989,7 @@
        ]
       }
      },
-     "id": "obj-51"
+     "id": "obj-53"
     }
    },
    {
@@ -1908,7 +2007,7 @@
       90,
       22
      ],
-     "id": "obj-52"
+     "id": "obj-54"
     }
    },
    {
@@ -1926,7 +2025,7 @@
       90,
       22
      ],
-     "id": "obj-53"
+     "id": "obj-55"
     }
    },
    {
@@ -1960,7 +2059,7 @@
        "parameter_unitstyle": 4
       }
      },
-     "id": "obj-54"
+     "id": "obj-56"
     }
    },
    {
@@ -1978,7 +2077,7 @@
       90,
       22
      ],
-     "id": "obj-55"
+     "id": "obj-57"
     }
    },
    {
@@ -1996,7 +2095,7 @@
       49,
       22
      ],
-     "id": "obj-56"
+     "id": "obj-58"
     }
    },
    {
@@ -2014,7 +2113,7 @@
       90,
       22
      ],
-     "id": "obj-57"
+     "id": "obj-59"
     }
    },
    {
@@ -2048,7 +2147,7 @@
        "parameter_unitstyle": 4
       }
      },
-     "id": "obj-58"
+     "id": "obj-60"
     }
    },
    {
@@ -2066,7 +2165,7 @@
       90,
       22
      ],
-     "id": "obj-59"
+     "id": "obj-61"
     }
    },
    {
@@ -2084,7 +2183,7 @@
       49,
       22
      ],
-     "id": "obj-60"
+     "id": "obj-62"
     }
    },
    {
@@ -2102,7 +2201,79 @@
       90,
       22
      ],
-     "id": "obj-61"
+     "id": "obj-63"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.toggle",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "varname": "agc",
+     "parameter_enable": 1,
+     "patching_rect": [
+      420,
+      280,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Input Auto Gain",
+       "parameter_shortname": "Auto Gain",
+       "parameter_mmin": 0,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        1
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 2,
+       "parameter_enum": [
+        "off",
+        "on"
+       ]
+      }
+     },
+     "id": "obj-64"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p agc",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      420,
+      336,
+      90,
+      22
+     ],
+     "id": "obj-65"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend agc",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      420,
+      384,
+      90,
+      22
+     ],
+     "id": "obj-66"
     }
    },
    {
@@ -2117,7 +2288,7 @@
      "varname": "dst_freeze",
      "parameter_enable": 1,
      "patching_rect": [
-      420,
+      520,
       280,
       44,
       48
@@ -2144,7 +2315,7 @@
        ]
       }
      },
-     "id": "obj-62"
+     "id": "obj-67"
     }
    },
    {
@@ -2157,12 +2328,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      520,
       336,
       90,
       22
      ],
-     "id": "obj-63"
+     "id": "obj-68"
     }
    },
    {
@@ -2175,12 +2346,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      520,
       384,
       90,
       22
      ],
-     "id": "obj-64"
+     "id": "obj-69"
     }
    },
    {
@@ -2195,7 +2366,7 @@
      "varname": "dst_seed",
      "parameter_enable": 1,
      "patching_rect": [
-      520,
+      620,
       280,
       44,
       48
@@ -2222,7 +2393,7 @@
        ]
       }
      },
-     "id": "obj-65"
+     "id": "obj-70"
     }
    },
    {
@@ -2235,12 +2406,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      620,
       336,
       90,
       22
      ],
-     "id": "obj-66"
+     "id": "obj-71"
     }
    },
    {
@@ -2253,12 +2424,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      620,
       384,
       90,
       22
      ],
-     "id": "obj-67"
+     "id": "obj-72"
     }
    },
    {
@@ -2273,7 +2444,7 @@
      "varname": "dst_time",
      "parameter_enable": 1,
      "patching_rect": [
-      620,
+      720,
       280,
       44,
       48
@@ -2300,7 +2471,7 @@
        ]
       }
      },
-     "id": "obj-68"
+     "id": "obj-73"
     }
    },
    {
@@ -2313,12 +2484,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      720,
       336,
       90,
       22
      ],
-     "id": "obj-69"
+     "id": "obj-74"
     }
    },
    {
@@ -2331,12 +2502,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      720,
       384,
       90,
       22
      ],
-     "id": "obj-70"
+     "id": "obj-75"
     }
    },
    {
@@ -2351,7 +2522,7 @@
      "varname": "dst_pitch",
      "parameter_enable": 1,
      "patching_rect": [
-      720,
+      820,
       280,
       44,
       48
@@ -2378,7 +2549,7 @@
        ]
       }
      },
-     "id": "obj-71"
+     "id": "obj-76"
     }
    },
    {
@@ -2391,12 +2562,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      820,
       336,
       90,
       22
      ],
-     "id": "obj-72"
+     "id": "obj-77"
     }
    },
    {
@@ -2409,12 +2580,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      820,
       384,
       90,
       22
      ],
-     "id": "obj-73"
+     "id": "obj-78"
     }
    },
    {
@@ -2429,7 +2600,7 @@
      "varname": "dst_size",
      "parameter_enable": 1,
      "patching_rect": [
-      820,
+      920,
       280,
       44,
       48
@@ -2456,7 +2627,7 @@
        ]
       }
      },
-     "id": "obj-74"
+     "id": "obj-79"
     }
    },
    {
@@ -2469,12 +2640,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      920,
       336,
       90,
       22
      ],
-     "id": "obj-75"
+     "id": "obj-80"
     }
    },
    {
@@ -2487,12 +2658,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      920,
       384,
       90,
       22
      ],
-     "id": "obj-76"
+     "id": "obj-81"
     }
    },
    {
@@ -2507,7 +2678,7 @@
      "varname": "dst_shape",
      "parameter_enable": 1,
      "patching_rect": [
-      920,
+      1020,
       280,
       44,
       48
@@ -2534,7 +2705,7 @@
        ]
       }
      },
-     "id": "obj-77"
+     "id": "obj-82"
     }
    },
    {
@@ -2547,12 +2718,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1020,
       336,
       90,
       22
      ],
-     "id": "obj-78"
+     "id": "obj-83"
     }
    },
    {
@@ -2565,12 +2736,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1020,
       384,
       90,
       22
      ],
-     "id": "obj-79"
+     "id": "obj-84"
     }
    },
    {
@@ -2585,7 +2756,7 @@
      "varname": "dst_density",
      "parameter_enable": 1,
      "patching_rect": [
-      1020,
+      1120,
       280,
       44,
       48
@@ -2612,7 +2783,7 @@
        ]
       }
      },
-     "id": "obj-80"
+     "id": "obj-85"
     }
    },
    {
@@ -2625,12 +2796,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1120,
       336,
       90,
       22
      ],
-     "id": "obj-81"
+     "id": "obj-86"
     }
    },
    {
@@ -2643,12 +2814,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1120,
       384,
       90,
       22
      ],
-     "id": "obj-82"
+     "id": "obj-87"
     }
    },
    {
@@ -2663,7 +2834,7 @@
      "varname": "dst_feedback",
      "parameter_enable": 1,
      "patching_rect": [
-      1120,
+      1220,
       280,
       44,
       48
@@ -2690,7 +2861,7 @@
        ]
       }
      },
-     "id": "obj-83"
+     "id": "obj-88"
     }
    },
    {
@@ -2703,12 +2874,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
+      1220,
       336,
       90,
       22
      ],
-     "id": "obj-84"
+     "id": "obj-89"
     }
    },
    {
@@ -2721,12 +2892,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
+      1220,
       384,
       90,
       22
      ],
-     "id": "obj-85"
+     "id": "obj-90"
     }
    },
    {
@@ -2741,8 +2912,8 @@
      "varname": "dst_reverb",
      "parameter_enable": 1,
      "patching_rect": [
-      1220,
-      280,
+      20,
+      420,
       44,
       48
      ],
@@ -2768,7 +2939,7 @@
        ]
       }
      },
-     "id": "obj-86"
+     "id": "obj-91"
     }
    },
    {
@@ -2781,12 +2952,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      336,
+      20,
+      476,
       90,
       22
      ],
-     "id": "obj-87"
+     "id": "obj-92"
     }
    },
    {
@@ -2799,12 +2970,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      384,
+      20,
+      524,
       90,
       22
      ],
-     "id": "obj-88"
+     "id": "obj-93"
     }
    },
    {
@@ -2819,7 +2990,7 @@
      "varname": "dst_drywet",
      "parameter_enable": 1,
      "patching_rect": [
-      20,
+      120,
       420,
       44,
       48
@@ -2846,7 +3017,7 @@
        ]
       }
      },
-     "id": "obj-89"
+     "id": "obj-94"
     }
    },
    {
@@ -2859,12 +3030,12 @@
       ""
      ],
      "patching_rect": [
-      20,
+      120,
       476,
       90,
       22
      ],
-     "id": "obj-90"
+     "id": "obj-95"
     }
    },
    {
@@ -2877,12 +3048,12 @@
       ""
      ],
      "patching_rect": [
-      20,
+      120,
       524,
       90,
       22
      ],
-     "id": "obj-91"
+     "id": "obj-96"
     }
    },
    {
@@ -2897,7 +3068,7 @@
      "varname": "fb_amt",
      "parameter_enable": 1,
      "patching_rect": [
-      120,
+      220,
       420,
       44,
       48
@@ -2916,7 +3087,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-92"
+     "id": "obj-97"
     }
    },
    {
@@ -2929,12 +3100,12 @@
       ""
      ],
      "patching_rect": [
-      120,
+      220,
       476,
       90,
       22
      ],
-     "id": "obj-93"
+     "id": "obj-98"
     }
    },
    {
@@ -2947,12 +3118,12 @@
       ""
      ],
      "patching_rect": [
-      120,
+      220,
       524,
       90,
       22
      ],
-     "id": "obj-94"
+     "id": "obj-99"
     }
    },
    {
@@ -2967,7 +3138,7 @@
      "varname": "dw_amt",
      "parameter_enable": 1,
      "patching_rect": [
-      220,
+      320,
       420,
       44,
       48
@@ -2986,7 +3157,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-95"
+     "id": "obj-100"
     }
    },
    {
@@ -2999,12 +3170,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      320,
       476,
       90,
       22
      ],
-     "id": "obj-96"
+     "id": "obj-101"
     }
    },
    {
@@ -3017,12 +3188,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      320,
       524,
       90,
       22
      ],
-     "id": "obj-97"
+     "id": "obj-102"
     }
    },
    {
@@ -3037,7 +3208,7 @@
      "varname": "rv_amt",
      "parameter_enable": 1,
      "patching_rect": [
-      320,
+      420,
       420,
       44,
       48
@@ -3056,7 +3227,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-98"
+     "id": "obj-103"
     }
    },
    {
@@ -3069,12 +3240,12 @@
       ""
      ],
      "patching_rect": [
-      320,
+      420,
       476,
       90,
       22
      ],
-     "id": "obj-99"
+     "id": "obj-104"
     }
    },
    {
@@ -3087,12 +3258,82 @@
       ""
      ],
      "patching_rect": [
-      320,
+      420,
       524,
       90,
       22
      ],
-     "id": "obj-100"
+     "id": "obj-105"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "dn_amt",
+     "parameter_enable": 1,
+     "patching_rect": [
+      520,
+      420,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Mod Density Amount",
+       "parameter_shortname": "M Dn Amt",
+       "parameter_mmin": 0,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0.5
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-106"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p dn_amt",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      520,
+      476,
+      90,
+      22
+     ],
+     "id": "obj-107"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend dn_amt",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      520,
+      524,
+      90,
+      22
+     ],
+     "id": "obj-108"
     }
    },
    {
@@ -3107,7 +3348,7 @@
      "varname": "l1_rate",
      "parameter_enable": 1,
      "patching_rect": [
-      420,
+      620,
       420,
       44,
       48
@@ -3126,7 +3367,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-101"
+     "id": "obj-109"
     }
    },
    {
@@ -3139,12 +3380,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      620,
       476,
       90,
       22
      ],
-     "id": "obj-102"
+     "id": "obj-110"
     }
    },
    {
@@ -3157,12 +3398,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      620,
       524,
       90,
       22
      ],
-     "id": "obj-103"
+     "id": "obj-111"
     }
    },
    {
@@ -3176,7 +3417,7 @@
      "varname": "l1_sync",
      "parameter_enable": 1,
      "patching_rect": [
-      520,
+      720,
       420,
       44,
       48
@@ -3198,7 +3439,7 @@
        ]
       }
      },
-     "id": "obj-104"
+     "id": "obj-112"
     }
    },
    {
@@ -3211,12 +3452,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      720,
       476,
       90,
       22
      ],
-     "id": "obj-105"
+     "id": "obj-113"
     }
    },
    {
@@ -3229,12 +3470,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      720,
       524,
       90,
       22
      ],
-     "id": "obj-106"
+     "id": "obj-114"
     }
    },
    {
@@ -3249,7 +3490,7 @@
      "varname": "l1_shape",
      "parameter_enable": 1,
      "patching_rect": [
-      620,
+      820,
       420,
       44,
       48
@@ -3273,7 +3514,7 @@
        ]
       }
      },
-     "id": "obj-107"
+     "id": "obj-115"
     }
    },
    {
@@ -3286,12 +3527,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      820,
       476,
       90,
       22
      ],
-     "id": "obj-108"
+     "id": "obj-116"
     }
    },
    {
@@ -3304,12 +3545,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      820,
       524,
       90,
       22
      ],
-     "id": "obj-109"
+     "id": "obj-117"
     }
    },
    {
@@ -3323,7 +3564,7 @@
      "varname": "l1_reset",
      "parameter_enable": 1,
      "patching_rect": [
-      720,
+      920,
       420,
       44,
       48
@@ -3345,7 +3586,7 @@
        ]
       }
      },
-     "id": "obj-110"
+     "id": "obj-118"
     }
    },
    {
@@ -3358,12 +3599,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      920,
       476,
       90,
       22
      ],
-     "id": "obj-111"
+     "id": "obj-119"
     }
    },
    {
@@ -3376,12 +3617,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      920,
       524,
       90,
       22
      ],
-     "id": "obj-112"
+     "id": "obj-120"
     }
    },
    {
@@ -3396,7 +3637,7 @@
      "varname": "l1_amt",
      "parameter_enable": 1,
      "patching_rect": [
-      820,
+      1020,
       420,
       44,
       48
@@ -3415,7 +3656,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-113"
+     "id": "obj-121"
     }
    },
    {
@@ -3428,12 +3669,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      1020,
       476,
       90,
       22
      ],
-     "id": "obj-114"
+     "id": "obj-122"
     }
    },
    {
@@ -3446,12 +3687,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      1020,
       524,
       90,
       22
      ],
-     "id": "obj-115"
+     "id": "obj-123"
     }
    },
    {
@@ -3466,7 +3707,7 @@
      "varname": "l2_rate",
      "parameter_enable": 1,
      "patching_rect": [
-      920,
+      1120,
       420,
       44,
       48
@@ -3485,7 +3726,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-116"
+     "id": "obj-124"
     }
    },
    {
@@ -3498,12 +3739,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1120,
       476,
       90,
       22
      ],
-     "id": "obj-117"
+     "id": "obj-125"
     }
    },
    {
@@ -3516,12 +3757,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1120,
       524,
       90,
       22
      ],
-     "id": "obj-118"
+     "id": "obj-126"
     }
    },
    {
@@ -3535,7 +3776,7 @@
      "varname": "l2_sync",
      "parameter_enable": 1,
      "patching_rect": [
-      1020,
+      1220,
       420,
       44,
       48
@@ -3557,7 +3798,7 @@
        ]
       }
      },
-     "id": "obj-119"
+     "id": "obj-127"
     }
    },
    {
@@ -3570,12 +3811,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1220,
       476,
       90,
       22
      ],
-     "id": "obj-120"
+     "id": "obj-128"
     }
    },
    {
@@ -3588,12 +3829,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1220,
       524,
       90,
       22
      ],
-     "id": "obj-121"
+     "id": "obj-129"
     }
    },
    {
@@ -3608,8 +3849,8 @@
      "varname": "l2_shape",
      "parameter_enable": 1,
      "patching_rect": [
-      1120,
-      420,
+      20,
+      560,
       44,
       48
      ],
@@ -3632,7 +3873,7 @@
        ]
       }
      },
-     "id": "obj-122"
+     "id": "obj-130"
     }
    },
    {
@@ -3645,12 +3886,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
-      476,
+      20,
+      616,
       90,
       22
      ],
-     "id": "obj-123"
+     "id": "obj-131"
     }
    },
    {
@@ -3663,12 +3904,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
-      524,
+      20,
+      664,
       90,
       22
      ],
-     "id": "obj-124"
+     "id": "obj-132"
     }
    },
    {
@@ -3682,8 +3923,8 @@
      "varname": "l2_reset",
      "parameter_enable": 1,
      "patching_rect": [
-      1220,
-      420,
+      120,
+      560,
       44,
       48
      ],
@@ -3704,7 +3945,7 @@
        ]
       }
      },
-     "id": "obj-125"
+     "id": "obj-133"
     }
    },
    {
@@ -3717,12 +3958,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      476,
+      120,
+      616,
       90,
       22
      ],
-     "id": "obj-126"
+     "id": "obj-134"
     }
    },
    {
@@ -3735,12 +3976,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      524,
+      120,
+      664,
       90,
       22
      ],
-     "id": "obj-127"
+     "id": "obj-135"
     }
    },
    {
@@ -3755,7 +3996,7 @@
      "varname": "l2_amt",
      "parameter_enable": 1,
      "patching_rect": [
-      20,
+      220,
       560,
       44,
       48
@@ -3774,7 +4015,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-128"
+     "id": "obj-136"
     }
    },
    {
@@ -3787,12 +4028,12 @@
       ""
      ],
      "patching_rect": [
-      20,
+      220,
       616,
       90,
       22
      ],
-     "id": "obj-129"
+     "id": "obj-137"
     }
    },
    {
@@ -3805,12 +4046,12 @@
       ""
      ],
      "patching_rect": [
-      20,
+      220,
       664,
       90,
       22
      ],
-     "id": "obj-130"
+     "id": "obj-138"
     }
    },
    {
@@ -3825,7 +4066,7 @@
      "varname": "rn_rate",
      "parameter_enable": 1,
      "patching_rect": [
-      120,
+      320,
       560,
       44,
       48
@@ -3844,7 +4085,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-131"
+     "id": "obj-139"
     }
    },
    {
@@ -3857,12 +4098,12 @@
       ""
      ],
      "patching_rect": [
-      120,
+      320,
       616,
       90,
       22
      ],
-     "id": "obj-132"
+     "id": "obj-140"
     }
    },
    {
@@ -3875,12 +4116,12 @@
       ""
      ],
      "patching_rect": [
-      120,
+      320,
       664,
       90,
       22
      ],
-     "id": "obj-133"
+     "id": "obj-141"
     }
    },
    {
@@ -3894,7 +4135,7 @@
      "varname": "rn_sync",
      "parameter_enable": 1,
      "patching_rect": [
-      220,
+      420,
       560,
       44,
       48
@@ -3916,7 +4157,7 @@
        ]
       }
      },
-     "id": "obj-134"
+     "id": "obj-142"
     }
    },
    {
@@ -3929,12 +4170,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      420,
       616,
       90,
       22
      ],
-     "id": "obj-135"
+     "id": "obj-143"
     }
    },
    {
@@ -3947,12 +4188,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      420,
       664,
       90,
       22
      ],
-     "id": "obj-136"
+     "id": "obj-144"
     }
    },
    {
@@ -3966,7 +4207,7 @@
      "varname": "rn_smooth",
      "parameter_enable": 1,
      "patching_rect": [
-      320,
+      520,
       560,
       44,
       48
@@ -3988,7 +4229,7 @@
        ]
       }
      },
-     "id": "obj-137"
+     "id": "obj-145"
     }
    },
    {
@@ -4001,12 +4242,12 @@
       ""
      ],
      "patching_rect": [
-      320,
+      520,
       616,
       90,
       22
      ],
-     "id": "obj-138"
+     "id": "obj-146"
     }
    },
    {
@@ -4019,12 +4260,12 @@
       ""
      ],
      "patching_rect": [
-      320,
+      520,
       664,
       90,
       22
      ],
-     "id": "obj-139"
+     "id": "obj-147"
     }
    },
    {
@@ -4039,7 +4280,7 @@
      "varname": "rn_amt",
      "parameter_enable": 1,
      "patching_rect": [
-      420,
+      620,
       560,
       44,
       48
@@ -4058,7 +4299,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-140"
+     "id": "obj-148"
     }
    },
    {
@@ -4071,12 +4312,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      620,
       616,
       90,
       22
      ],
-     "id": "obj-141"
+     "id": "obj-149"
     }
    },
    {
@@ -4089,12 +4330,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      620,
       664,
       90,
       22
      ],
-     "id": "obj-142"
+     "id": "obj-150"
     }
    },
    {
@@ -4109,7 +4350,7 @@
      "varname": "env_gain",
      "parameter_enable": 1,
      "patching_rect": [
-      520,
+      720,
       560,
       44,
       48
@@ -4128,7 +4369,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-143"
+     "id": "obj-151"
     }
    },
    {
@@ -4141,12 +4382,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      720,
       616,
       90,
       22
      ],
-     "id": "obj-144"
+     "id": "obj-152"
     }
    },
    {
@@ -4159,12 +4400,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      720,
       664,
       90,
       22
      ],
-     "id": "obj-145"
+     "id": "obj-153"
     }
    },
    {
@@ -4179,7 +4420,7 @@
      "varname": "ck_rate",
      "parameter_enable": 1,
      "patching_rect": [
-      620,
+      820,
       560,
       44,
       48
@@ -4198,7 +4439,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-146"
+     "id": "obj-154"
     }
    },
    {
@@ -4211,12 +4452,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      820,
       616,
       90,
       22
      ],
-     "id": "obj-147"
+     "id": "obj-155"
     }
    },
    {
@@ -4229,12 +4470,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      820,
       664,
       90,
       22
      ],
-     "id": "obj-148"
+     "id": "obj-156"
     }
    },
    {
@@ -4248,7 +4489,7 @@
      "varname": "ck_sync",
      "parameter_enable": 1,
      "patching_rect": [
-      720,
+      920,
       560,
       44,
       48
@@ -4270,7 +4511,7 @@
        ]
       }
      },
-     "id": "obj-149"
+     "id": "obj-157"
     }
    },
    {
@@ -4283,12 +4524,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      920,
       616,
       90,
       22
      ],
-     "id": "obj-150"
+     "id": "obj-158"
     }
    },
    {
@@ -4301,12 +4542,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      920,
       664,
       90,
       22
      ],
-     "id": "obj-151"
+     "id": "obj-159"
     }
    },
    {
@@ -4321,7 +4562,7 @@
      "varname": "sq_div",
      "parameter_enable": 1,
      "patching_rect": [
-      820,
+      1020,
       560,
       44,
       48
@@ -4356,7 +4597,7 @@
        ]
       }
      },
-     "id": "obj-152"
+     "id": "obj-160"
     }
    },
    {
@@ -4369,12 +4610,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      1020,
       616,
       90,
       22
      ],
-     "id": "obj-153"
+     "id": "obj-161"
     }
    },
    {
@@ -4387,12 +4628,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      1020,
       664,
       90,
       22
      ],
-     "id": "obj-154"
+     "id": "obj-162"
     }
    },
    {
@@ -4407,7 +4648,7 @@
      "varname": "sq_len",
      "parameter_enable": 1,
      "patching_rect": [
-      920,
+      1120,
       560,
       44,
       48
@@ -4426,7 +4667,7 @@
        "parameter_unitstyle": 0
       }
      },
-     "id": "obj-155"
+     "id": "obj-163"
     }
    },
    {
@@ -4439,12 +4680,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1120,
       616,
       90,
       22
      ],
-     "id": "obj-156"
+     "id": "obj-164"
     }
    },
    {
@@ -4457,12 +4698,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1120,
       664,
       90,
       22
      ],
-     "id": "obj-157"
+     "id": "obj-165"
     }
    },
    {
@@ -4477,7 +4718,7 @@
      "varname": "sq0",
      "parameter_enable": 1,
      "patching_rect": [
-      1020,
+      1220,
       560,
       44,
       48
@@ -4496,7 +4737,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-158"
+     "id": "obj-166"
     }
    },
    {
@@ -4509,12 +4750,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1220,
       616,
       90,
       22
      ],
-     "id": "obj-159"
+     "id": "obj-167"
     }
    },
    {
@@ -4527,12 +4768,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1220,
       664,
       90,
       22
      ],
-     "id": "obj-160"
+     "id": "obj-168"
     }
    },
    {
@@ -4547,8 +4788,8 @@
      "varname": "sq1",
      "parameter_enable": 1,
      "patching_rect": [
-      1120,
-      560,
+      20,
+      700,
       44,
       48
      ],
@@ -4566,7 +4807,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-161"
+     "id": "obj-169"
     }
    },
    {
@@ -4579,12 +4820,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
-      616,
+      20,
+      756,
       90,
       22
      ],
-     "id": "obj-162"
+     "id": "obj-170"
     }
    },
    {
@@ -4597,12 +4838,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
-      664,
+      20,
+      804,
       90,
       22
      ],
-     "id": "obj-163"
+     "id": "obj-171"
     }
    },
    {
@@ -4617,8 +4858,8 @@
      "varname": "sq2",
      "parameter_enable": 1,
      "patching_rect": [
-      1220,
-      560,
+      120,
+      700,
       44,
       48
      ],
@@ -4636,7 +4877,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-164"
+     "id": "obj-172"
     }
    },
    {
@@ -4649,12 +4890,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      616,
+      120,
+      756,
       90,
       22
      ],
-     "id": "obj-165"
+     "id": "obj-173"
     }
    },
    {
@@ -4667,12 +4908,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      664,
+      120,
+      804,
       90,
       22
      ],
-     "id": "obj-166"
+     "id": "obj-174"
     }
    },
    {
@@ -4687,7 +4928,7 @@
      "varname": "sq3",
      "parameter_enable": 1,
      "patching_rect": [
-      20,
+      220,
       700,
       44,
       48
@@ -4706,7 +4947,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-167"
+     "id": "obj-175"
     }
    },
    {
@@ -4719,12 +4960,12 @@
       ""
      ],
      "patching_rect": [
-      20,
+      220,
       756,
       90,
       22
      ],
-     "id": "obj-168"
+     "id": "obj-176"
     }
    },
    {
@@ -4737,12 +4978,12 @@
       ""
      ],
      "patching_rect": [
-      20,
+      220,
       804,
       90,
       22
      ],
-     "id": "obj-169"
+     "id": "obj-177"
     }
    },
    {
@@ -4757,7 +4998,7 @@
      "varname": "sq4",
      "parameter_enable": 1,
      "patching_rect": [
-      120,
+      320,
       700,
       44,
       48
@@ -4776,7 +5017,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-170"
+     "id": "obj-178"
     }
    },
    {
@@ -4789,12 +5030,12 @@
       ""
      ],
      "patching_rect": [
-      120,
+      320,
       756,
       90,
       22
      ],
-     "id": "obj-171"
+     "id": "obj-179"
     }
    },
    {
@@ -4807,12 +5048,12 @@
       ""
      ],
      "patching_rect": [
-      120,
+      320,
       804,
       90,
       22
      ],
-     "id": "obj-172"
+     "id": "obj-180"
     }
    },
    {
@@ -4827,7 +5068,7 @@
      "varname": "sq5",
      "parameter_enable": 1,
      "patching_rect": [
-      220,
+      420,
       700,
       44,
       48
@@ -4846,7 +5087,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-173"
+     "id": "obj-181"
     }
    },
    {
@@ -4859,12 +5100,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      420,
       756,
       90,
       22
      ],
-     "id": "obj-174"
+     "id": "obj-182"
     }
    },
    {
@@ -4877,12 +5118,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      420,
       804,
       90,
       22
      ],
-     "id": "obj-175"
+     "id": "obj-183"
     }
    },
    {
@@ -4897,7 +5138,7 @@
      "varname": "sq6",
      "parameter_enable": 1,
      "patching_rect": [
-      320,
+      520,
       700,
       44,
       48
@@ -4916,7 +5157,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-176"
+     "id": "obj-184"
     }
    },
    {
@@ -4929,12 +5170,12 @@
       ""
      ],
      "patching_rect": [
-      320,
+      520,
       756,
       90,
       22
      ],
-     "id": "obj-177"
+     "id": "obj-185"
     }
    },
    {
@@ -4947,12 +5188,12 @@
       ""
      ],
      "patching_rect": [
-      320,
+      520,
       804,
       90,
       22
      ],
-     "id": "obj-178"
+     "id": "obj-186"
     }
    },
    {
@@ -4967,7 +5208,7 @@
      "varname": "sq7",
      "parameter_enable": 1,
      "patching_rect": [
-      420,
+      620,
       700,
       44,
       48
@@ -4986,7 +5227,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-179"
+     "id": "obj-187"
     }
    },
    {
@@ -4999,12 +5240,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      620,
       756,
       90,
       22
      ],
-     "id": "obj-180"
+     "id": "obj-188"
     }
    },
    {
@@ -5017,12 +5258,12 @@
       ""
      ],
      "patching_rect": [
-      420,
+      620,
       804,
       90,
       22
      ],
-     "id": "obj-181"
+     "id": "obj-189"
     }
    },
    {
@@ -5037,7 +5278,7 @@
      "varname": "sq8",
      "parameter_enable": 1,
      "patching_rect": [
-      520,
+      720,
       700,
       44,
       48
@@ -5056,7 +5297,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-182"
+     "id": "obj-190"
     }
    },
    {
@@ -5069,12 +5310,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      720,
       756,
       90,
       22
      ],
-     "id": "obj-183"
+     "id": "obj-191"
     }
    },
    {
@@ -5087,12 +5328,12 @@
       ""
      ],
      "patching_rect": [
-      520,
+      720,
       804,
       90,
       22
      ],
-     "id": "obj-184"
+     "id": "obj-192"
     }
    },
    {
@@ -5107,7 +5348,7 @@
      "varname": "sq9",
      "parameter_enable": 1,
      "patching_rect": [
-      620,
+      820,
       700,
       44,
       48
@@ -5126,7 +5367,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-185"
+     "id": "obj-193"
     }
    },
    {
@@ -5139,12 +5380,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      820,
       756,
       90,
       22
      ],
-     "id": "obj-186"
+     "id": "obj-194"
     }
    },
    {
@@ -5157,12 +5398,12 @@
       ""
      ],
      "patching_rect": [
-      620,
+      820,
       804,
       90,
       22
      ],
-     "id": "obj-187"
+     "id": "obj-195"
     }
    },
    {
@@ -5177,7 +5418,7 @@
      "varname": "sq10",
      "parameter_enable": 1,
      "patching_rect": [
-      720,
+      920,
       700,
       44,
       48
@@ -5196,7 +5437,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-188"
+     "id": "obj-196"
     }
    },
    {
@@ -5209,12 +5450,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      920,
       756,
       90,
       22
      ],
-     "id": "obj-189"
+     "id": "obj-197"
     }
    },
    {
@@ -5227,12 +5468,12 @@
       ""
      ],
      "patching_rect": [
-      720,
+      920,
       804,
       90,
       22
      ],
-     "id": "obj-190"
+     "id": "obj-198"
     }
    },
    {
@@ -5247,7 +5488,7 @@
      "varname": "sq11",
      "parameter_enable": 1,
      "patching_rect": [
-      820,
+      1020,
       700,
       44,
       48
@@ -5266,7 +5507,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-191"
+     "id": "obj-199"
     }
    },
    {
@@ -5279,12 +5520,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      1020,
       756,
       90,
       22
      ],
-     "id": "obj-192"
+     "id": "obj-200"
     }
    },
    {
@@ -5297,12 +5538,12 @@
       ""
      ],
      "patching_rect": [
-      820,
+      1020,
       804,
       90,
       22
      ],
-     "id": "obj-193"
+     "id": "obj-201"
     }
    },
    {
@@ -5317,7 +5558,7 @@
      "varname": "sq12",
      "parameter_enable": 1,
      "patching_rect": [
-      920,
+      1120,
       700,
       44,
       48
@@ -5336,7 +5577,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-194"
+     "id": "obj-202"
     }
    },
    {
@@ -5349,12 +5590,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1120,
       756,
       90,
       22
      ],
-     "id": "obj-195"
+     "id": "obj-203"
     }
    },
    {
@@ -5367,12 +5608,12 @@
       ""
      ],
      "patching_rect": [
-      920,
+      1120,
       804,
       90,
       22
      ],
-     "id": "obj-196"
+     "id": "obj-204"
     }
    },
    {
@@ -5387,7 +5628,7 @@
      "varname": "sq13",
      "parameter_enable": 1,
      "patching_rect": [
-      1020,
+      1220,
       700,
       44,
       48
@@ -5406,7 +5647,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-197"
+     "id": "obj-205"
     }
    },
    {
@@ -5419,12 +5660,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1220,
       756,
       90,
       22
      ],
-     "id": "obj-198"
+     "id": "obj-206"
     }
    },
    {
@@ -5437,12 +5678,12 @@
       ""
      ],
      "patching_rect": [
-      1020,
+      1220,
       804,
       90,
       22
      ],
-     "id": "obj-199"
+     "id": "obj-207"
     }
    },
    {
@@ -5457,8 +5698,8 @@
      "varname": "sq14",
      "parameter_enable": 1,
      "patching_rect": [
-      1120,
-      700,
+      20,
+      840,
       44,
       48
      ],
@@ -5476,7 +5717,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-200"
+     "id": "obj-208"
     }
    },
    {
@@ -5489,12 +5730,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
-      756,
+      20,
+      896,
       90,
       22
      ],
-     "id": "obj-201"
+     "id": "obj-209"
     }
    },
    {
@@ -5507,12 +5748,12 @@
       ""
      ],
      "patching_rect": [
-      1120,
-      804,
+      20,
+      944,
       90,
       22
      ],
-     "id": "obj-202"
+     "id": "obj-210"
     }
    },
    {
@@ -5527,8 +5768,8 @@
      "varname": "sq15",
      "parameter_enable": 1,
      "patching_rect": [
-      1220,
-      700,
+      120,
+      840,
       44,
       48
      ],
@@ -5546,7 +5787,7 @@
        "parameter_unitstyle": 1
       }
      },
-     "id": "obj-203"
+     "id": "obj-211"
     }
    },
    {
@@ -5559,12 +5800,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      756,
+      120,
+      896,
       90,
       22
      ],
-     "id": "obj-204"
+     "id": "obj-212"
     }
    },
    {
@@ -5577,12 +5818,12 @@
       ""
      ],
      "patching_rect": [
-      1220,
-      804,
+      120,
+      944,
       90,
       22
      ],
-     "id": "obj-205"
+     "id": "obj-213"
     }
    },
    {
@@ -5600,7 +5841,7 @@
       98,
       22
      ],
-     "id": "obj-206"
+     "id": "obj-214"
     }
    },
    {
@@ -5618,7 +5859,7 @@
       98,
       22
      ],
-     "id": "obj-207"
+     "id": "obj-215"
     }
    },
    {
@@ -5636,7 +5877,7 @@
       84,
       22
      ],
-     "id": "obj-208"
+     "id": "obj-216"
     }
    },
    {
@@ -5654,7 +5895,7 @@
       98,
       22
      ],
-     "id": "obj-209"
+     "id": "obj-217"
     }
    },
    {
@@ -5673,7 +5914,7 @@
       49,
       22
      ],
-     "id": "obj-210"
+     "id": "obj-218"
     }
    },
    {
@@ -5692,7 +5933,7 @@
       49,
       22
      ],
-     "id": "obj-211"
+     "id": "obj-219"
     }
    },
    {
@@ -5710,7 +5951,7 @@
       77,
       22
      ],
-     "id": "obj-212"
+     "id": "obj-220"
     }
    },
    {
@@ -5728,7 +5969,7 @@
       77,
       22
      ],
-     "id": "obj-213"
+     "id": "obj-221"
     }
    },
    {
@@ -5746,7 +5987,7 @@
       84,
       22
      ],
-     "id": "obj-214"
+     "id": "obj-222"
     }
    },
    {
@@ -5764,7 +6005,7 @@
       105,
       22
      ],
-     "id": "obj-215"
+     "id": "obj-223"
     }
    },
    {
@@ -5785,7 +6026,7 @@
       77,
       22
      ],
-     "id": "obj-216"
+     "id": "obj-224"
     }
    },
    {
@@ -5803,7 +6044,79 @@
       84,
       22
      ],
-     "id": "obj-217"
+     "id": "obj-225"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "snapshot~ 100",
+     "numinlets": 2,
+     "numoutlets": 1,
+     "outlettype": [
+      "float"
+     ],
+     "patching_rect": [
+      900,
+      980,
+      105,
+      22
+     ],
+     "id": "obj-226"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "snapshot~ 100",
+     "numinlets": 2,
+     "numoutlets": 1,
+     "outlettype": [
+      "float"
+     ],
+     "patching_rect": [
+      1000,
+      980,
+      105,
+      22
+     ],
+     "id": "obj-227"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "pack 0. 0",
+     "numinlets": 2,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      940,
+      1010,
+      77,
+      22
+     ],
+     "id": "obj-228"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend agcinfo",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      940,
+      1040,
+      119,
+      22
+     ],
+     "id": "obj-229"
     }
    },
    {
@@ -5821,7 +6134,7 @@
       98,
       22
      ],
-     "id": "obj-218"
+     "id": "obj-230"
     }
    },
    {
@@ -5839,7 +6152,7 @@
       98,
       22
      ],
-     "id": "obj-219"
+     "id": "obj-231"
     }
    },
    {
@@ -5857,7 +6170,7 @@
       70,
       22
      ],
-     "id": "obj-220"
+     "id": "obj-232"
     }
    },
    {
@@ -5875,7 +6188,7 @@
       91,
       22
      ],
-     "id": "obj-221"
+     "id": "obj-233"
     }
    }
   ],
@@ -5956,10 +6269,46 @@
     "patchline": {
      "source": [
       "obj-8",
-      0
+      67
      ],
      "destination": [
       "obj-9",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-9",
+      0
+     ],
+     "destination": [
+      "obj-10",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-10",
+      0
+     ],
+     "destination": [
+      "obj-3",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-8",
+      0
+     ],
+     "destination": [
+      "obj-11",
       0
      ]
     }
@@ -5971,7 +6320,7 @@
       0
      ],
      "destination": [
-      "obj-9",
+      "obj-11",
       0
      ]
     }
@@ -5979,11 +6328,11 @@
    {
     "patchline": {
      "source": [
-      "obj-9",
+      "obj-11",
       0
      ],
      "destination": [
-      "obj-10",
+      "obj-12",
       0
      ]
     }
@@ -5991,7 +6340,7 @@
    {
     "patchline": {
      "source": [
-      "obj-10",
+      "obj-12",
       0
      ],
      "destination": [
@@ -6003,11 +6352,11 @@
    {
     "patchline": {
      "source": [
-      "obj-9",
+      "obj-11",
       0
      ],
      "destination": [
-      "obj-11",
+      "obj-13",
       0
      ]
     }
@@ -6015,7 +6364,7 @@
    {
     "patchline": {
      "source": [
-      "obj-11",
+      "obj-13",
       0
      ],
      "destination": [
@@ -6031,7 +6380,7 @@
       1
      ],
      "destination": [
-      "obj-12",
+      "obj-14",
       0
      ]
     }
@@ -6043,7 +6392,7 @@
       0
      ],
      "destination": [
-      "obj-12",
+      "obj-14",
       0
      ]
     }
@@ -6051,11 +6400,11 @@
    {
     "patchline": {
      "source": [
-      "obj-12",
+      "obj-14",
       0
      ],
      "destination": [
-      "obj-13",
+      "obj-15",
       0
      ]
     }
@@ -6063,7 +6412,7 @@
    {
     "patchline": {
      "source": [
-      "obj-13",
+      "obj-15",
       0
      ],
      "destination": [
@@ -6075,11 +6424,11 @@
    {
     "patchline": {
      "source": [
-      "obj-12",
+      "obj-14",
       0
      ],
      "destination": [
-      "obj-14",
+      "obj-16",
       0
      ]
     }
@@ -6087,7 +6436,7 @@
    {
     "patchline": {
      "source": [
-      "obj-14",
+      "obj-16",
       0
      ],
      "destination": [
@@ -6103,7 +6452,7 @@
       2
      ],
      "destination": [
-      "obj-15",
+      "obj-17",
       0
      ]
     }
@@ -6115,7 +6464,7 @@
       0
      ],
      "destination": [
-      "obj-15",
+      "obj-17",
       0
      ]
     }
@@ -6123,11 +6472,11 @@
    {
     "patchline": {
      "source": [
-      "obj-15",
+      "obj-17",
       0
      ],
      "destination": [
-      "obj-16",
+      "obj-18",
       0
      ]
     }
@@ -6135,7 +6484,7 @@
    {
     "patchline": {
      "source": [
-      "obj-16",
+      "obj-18",
       0
      ],
      "destination": [
@@ -6147,11 +6496,11 @@
    {
     "patchline": {
      "source": [
-      "obj-15",
+      "obj-17",
       0
      ],
      "destination": [
-      "obj-17",
+      "obj-19",
       0
      ]
     }
@@ -6159,7 +6508,7 @@
    {
     "patchline": {
      "source": [
-      "obj-17",
+      "obj-19",
       0
      ],
      "destination": [
@@ -6175,7 +6524,7 @@
       3
      ],
      "destination": [
-      "obj-18",
+      "obj-20",
       0
      ]
     }
@@ -6187,7 +6536,7 @@
       0
      ],
      "destination": [
-      "obj-18",
+      "obj-20",
       0
      ]
     }
@@ -6195,11 +6544,11 @@
    {
     "patchline": {
      "source": [
-      "obj-18",
+      "obj-20",
       0
      ],
      "destination": [
-      "obj-19",
+      "obj-21",
       0
      ]
     }
@@ -6207,7 +6556,7 @@
    {
     "patchline": {
      "source": [
-      "obj-19",
+      "obj-21",
       0
      ],
      "destination": [
@@ -6219,11 +6568,11 @@
    {
     "patchline": {
      "source": [
-      "obj-18",
+      "obj-20",
       0
      ],
      "destination": [
-      "obj-20",
+      "obj-22",
       0
      ]
     }
@@ -6231,7 +6580,7 @@
    {
     "patchline": {
      "source": [
-      "obj-20",
+      "obj-22",
       0
      ],
      "destination": [
@@ -6247,7 +6596,7 @@
       4
      ],
      "destination": [
-      "obj-21",
+      "obj-23",
       0
      ]
     }
@@ -6259,7 +6608,7 @@
       0
      ],
      "destination": [
-      "obj-21",
+      "obj-23",
       0
      ]
     }
@@ -6267,11 +6616,11 @@
    {
     "patchline": {
      "source": [
-      "obj-21",
+      "obj-23",
       0
      ],
      "destination": [
-      "obj-22",
+      "obj-24",
       0
      ]
     }
@@ -6279,7 +6628,7 @@
    {
     "patchline": {
      "source": [
-      "obj-22",
+      "obj-24",
       0
      ],
      "destination": [
@@ -6291,11 +6640,11 @@
    {
     "patchline": {
      "source": [
-      "obj-21",
+      "obj-23",
       0
      ],
      "destination": [
-      "obj-23",
+      "obj-25",
       0
      ]
     }
@@ -6303,7 +6652,7 @@
    {
     "patchline": {
      "source": [
-      "obj-23",
+      "obj-25",
       0
      ],
      "destination": [
@@ -6319,7 +6668,7 @@
       5
      ],
      "destination": [
-      "obj-24",
+      "obj-26",
       0
      ]
     }
@@ -6331,7 +6680,7 @@
       0
      ],
      "destination": [
-      "obj-24",
+      "obj-26",
       0
      ]
     }
@@ -6339,11 +6688,11 @@
    {
     "patchline": {
      "source": [
-      "obj-24",
+      "obj-26",
       0
      ],
      "destination": [
-      "obj-25",
+      "obj-27",
       0
      ]
     }
@@ -6351,7 +6700,7 @@
    {
     "patchline": {
      "source": [
-      "obj-25",
+      "obj-27",
       0
      ],
      "destination": [
@@ -6363,11 +6712,11 @@
    {
     "patchline": {
      "source": [
-      "obj-24",
+      "obj-26",
       0
      ],
      "destination": [
-      "obj-26",
+      "obj-28",
       0
      ]
     }
@@ -6375,7 +6724,7 @@
    {
     "patchline": {
      "source": [
-      "obj-26",
+      "obj-28",
       0
      ],
      "destination": [
@@ -6391,7 +6740,7 @@
       6
      ],
      "destination": [
-      "obj-27",
+      "obj-29",
       0
      ]
     }
@@ -6403,7 +6752,7 @@
       0
      ],
      "destination": [
-      "obj-27",
+      "obj-29",
       0
      ]
     }
@@ -6411,11 +6760,11 @@
    {
     "patchline": {
      "source": [
-      "obj-27",
+      "obj-29",
       0
      ],
      "destination": [
-      "obj-28",
+      "obj-30",
       0
      ]
     }
@@ -6423,7 +6772,7 @@
    {
     "patchline": {
      "source": [
-      "obj-28",
+      "obj-30",
       0
      ],
      "destination": [
@@ -6435,11 +6784,11 @@
    {
     "patchline": {
      "source": [
-      "obj-27",
+      "obj-29",
       0
      ],
      "destination": [
-      "obj-29",
+      "obj-31",
       0
      ]
     }
@@ -6447,7 +6796,7 @@
    {
     "patchline": {
      "source": [
-      "obj-29",
+      "obj-31",
       0
      ],
      "destination": [
@@ -6463,7 +6812,7 @@
       7
      ],
      "destination": [
-      "obj-30",
+      "obj-32",
       0
      ]
     }
@@ -6475,7 +6824,7 @@
       0
      ],
      "destination": [
-      "obj-30",
+      "obj-32",
       0
      ]
     }
@@ -6483,11 +6832,11 @@
    {
     "patchline": {
      "source": [
-      "obj-30",
+      "obj-32",
       0
      ],
      "destination": [
-      "obj-31",
+      "obj-33",
       0
      ]
     }
@@ -6495,7 +6844,7 @@
    {
     "patchline": {
      "source": [
-      "obj-31",
+      "obj-33",
       0
      ],
      "destination": [
@@ -6507,11 +6856,11 @@
    {
     "patchline": {
      "source": [
-      "obj-30",
+      "obj-32",
       0
      ],
      "destination": [
-      "obj-32",
+      "obj-34",
       0
      ]
     }
@@ -6519,7 +6868,7 @@
    {
     "patchline": {
      "source": [
-      "obj-32",
+      "obj-34",
       0
      ],
      "destination": [
@@ -6535,7 +6884,7 @@
       8
      ],
      "destination": [
-      "obj-33",
+      "obj-35",
       0
      ]
     }
@@ -6547,7 +6896,7 @@
       0
      ],
      "destination": [
-      "obj-33",
+      "obj-35",
       0
      ]
     }
@@ -6555,11 +6904,11 @@
    {
     "patchline": {
      "source": [
-      "obj-33",
+      "obj-35",
       0
      ],
      "destination": [
-      "obj-34",
+      "obj-36",
       0
      ]
     }
@@ -6567,7 +6916,7 @@
    {
     "patchline": {
      "source": [
-      "obj-34",
+      "obj-36",
       0
      ],
      "destination": [
@@ -6579,11 +6928,11 @@
    {
     "patchline": {
      "source": [
-      "obj-33",
+      "obj-35",
       0
      ],
      "destination": [
-      "obj-35",
+      "obj-37",
       0
      ]
     }
@@ -6591,7 +6940,7 @@
    {
     "patchline": {
      "source": [
-      "obj-35",
+      "obj-37",
       0
      ],
      "destination": [
@@ -6607,7 +6956,7 @@
       9
      ],
      "destination": [
-      "obj-36",
+      "obj-38",
       0
      ]
     }
@@ -6619,7 +6968,7 @@
       0
      ],
      "destination": [
-      "obj-36",
+      "obj-38",
       0
      ]
     }
@@ -6627,11 +6976,11 @@
    {
     "patchline": {
      "source": [
-      "obj-36",
+      "obj-38",
       0
      ],
      "destination": [
-      "obj-37",
+      "obj-39",
       0
      ]
     }
@@ -6639,7 +6988,7 @@
    {
     "patchline": {
      "source": [
-      "obj-37",
+      "obj-39",
       0
      ],
      "destination": [
@@ -6651,11 +7000,11 @@
    {
     "patchline": {
      "source": [
-      "obj-36",
+      "obj-38",
       0
      ],
      "destination": [
-      "obj-38",
+      "obj-40",
       0
      ]
     }
@@ -6663,7 +7012,7 @@
    {
     "patchline": {
      "source": [
-      "obj-38",
+      "obj-40",
       0
      ],
      "destination": [
@@ -6679,7 +7028,7 @@
       10
      ],
      "destination": [
-      "obj-39",
+      "obj-41",
       0
      ]
     }
@@ -6691,7 +7040,7 @@
       0
      ],
      "destination": [
-      "obj-39",
+      "obj-41",
       0
      ]
     }
@@ -6699,11 +7048,11 @@
    {
     "patchline": {
      "source": [
-      "obj-39",
+      "obj-41",
       0
      ],
      "destination": [
-      "obj-40",
+      "obj-42",
       0
      ]
     }
@@ -6711,7 +7060,7 @@
    {
     "patchline": {
      "source": [
-      "obj-40",
+      "obj-42",
       0
      ],
      "destination": [
@@ -6723,11 +7072,11 @@
    {
     "patchline": {
      "source": [
-      "obj-39",
+      "obj-41",
       0
      ],
      "destination": [
-      "obj-41",
+      "obj-43",
       0
      ]
     }
@@ -6735,7 +7084,7 @@
    {
     "patchline": {
      "source": [
-      "obj-41",
+      "obj-43",
       0
      ],
      "destination": [
@@ -6751,7 +7100,7 @@
       11
      ],
      "destination": [
-      "obj-42",
+      "obj-44",
       0
      ]
     }
@@ -6763,7 +7112,7 @@
       0
      ],
      "destination": [
-      "obj-42",
+      "obj-44",
       0
      ]
     }
@@ -6771,11 +7120,11 @@
    {
     "patchline": {
      "source": [
-      "obj-42",
+      "obj-44",
       0
      ],
      "destination": [
-      "obj-43",
+      "obj-45",
       0
      ]
     }
@@ -6783,7 +7132,7 @@
    {
     "patchline": {
      "source": [
-      "obj-43",
+      "obj-45",
       0
      ],
      "destination": [
@@ -6795,11 +7144,11 @@
    {
     "patchline": {
      "source": [
-      "obj-42",
+      "obj-44",
       0
      ],
      "destination": [
-      "obj-44",
+      "obj-46",
       0
      ]
     }
@@ -6807,7 +7156,7 @@
    {
     "patchline": {
      "source": [
-      "obj-44",
+      "obj-46",
       0
      ],
      "destination": [
@@ -6823,7 +7172,7 @@
       12
      ],
      "destination": [
-      "obj-45",
+      "obj-47",
       0
      ]
     }
@@ -6835,7 +7184,7 @@
       0
      ],
      "destination": [
-      "obj-45",
+      "obj-47",
       0
      ]
     }
@@ -6843,11 +7192,11 @@
    {
     "patchline": {
      "source": [
-      "obj-45",
+      "obj-47",
       0
      ],
      "destination": [
-      "obj-46",
+      "obj-48",
       0
      ]
     }
@@ -6855,7 +7204,7 @@
    {
     "patchline": {
      "source": [
-      "obj-46",
+      "obj-48",
       0
      ],
      "destination": [
@@ -6867,11 +7216,11 @@
    {
     "patchline": {
      "source": [
-      "obj-45",
+      "obj-47",
       0
      ],
      "destination": [
-      "obj-47",
+      "obj-49",
       0
      ]
     }
@@ -6879,7 +7228,7 @@
    {
     "patchline": {
      "source": [
-      "obj-47",
+      "obj-49",
       0
      ],
      "destination": [
@@ -6895,7 +7244,7 @@
       13
      ],
      "destination": [
-      "obj-48",
+      "obj-50",
       0
      ]
     }
@@ -6907,7 +7256,7 @@
       0
      ],
      "destination": [
-      "obj-48",
+      "obj-50",
       0
      ]
     }
@@ -6915,11 +7264,11 @@
    {
     "patchline": {
      "source": [
-      "obj-48",
+      "obj-50",
       0
      ],
      "destination": [
-      "obj-49",
+      "obj-51",
       0
      ]
     }
@@ -6927,7 +7276,7 @@
    {
     "patchline": {
      "source": [
-      "obj-49",
+      "obj-51",
       0
      ],
      "destination": [
@@ -6939,11 +7288,11 @@
    {
     "patchline": {
      "source": [
-      "obj-48",
+      "obj-50",
       0
      ],
      "destination": [
-      "obj-50",
+      "obj-52",
       0
      ]
     }
@@ -6951,7 +7300,7 @@
    {
     "patchline": {
      "source": [
-      "obj-50",
+      "obj-52",
       0
      ],
      "destination": [
@@ -6967,7 +7316,7 @@
       14
      ],
      "destination": [
-      "obj-51",
+      "obj-53",
       0
      ]
     }
@@ -6979,7 +7328,7 @@
       0
      ],
      "destination": [
-      "obj-51",
+      "obj-53",
       0
      ]
     }
@@ -6987,11 +7336,11 @@
    {
     "patchline": {
      "source": [
-      "obj-51",
+      "obj-53",
       0
      ],
      "destination": [
-      "obj-52",
+      "obj-54",
       0
      ]
     }
@@ -6999,7 +7348,7 @@
    {
     "patchline": {
      "source": [
-      "obj-52",
+      "obj-54",
       0
      ],
      "destination": [
@@ -7011,11 +7360,11 @@
    {
     "patchline": {
      "source": [
-      "obj-51",
+      "obj-53",
       0
      ],
      "destination": [
-      "obj-53",
+      "obj-55",
       0
      ]
     }
@@ -7023,7 +7372,7 @@
    {
     "patchline": {
      "source": [
-      "obj-53",
+      "obj-55",
       0
      ],
      "destination": [
@@ -7039,7 +7388,7 @@
       15
      ],
      "destination": [
-      "obj-54",
+      "obj-56",
       0
      ]
     }
@@ -7051,7 +7400,7 @@
       0
      ],
      "destination": [
-      "obj-54",
+      "obj-56",
       0
      ]
     }
@@ -7059,11 +7408,11 @@
    {
     "patchline": {
      "source": [
-      "obj-54",
+      "obj-56",
       0
      ],
      "destination": [
-      "obj-55",
+      "obj-57",
       0
      ]
     }
@@ -7071,7 +7420,7 @@
    {
     "patchline": {
      "source": [
-      "obj-55",
+      "obj-57",
       0
      ],
      "destination": [
@@ -7083,11 +7432,11 @@
    {
     "patchline": {
      "source": [
-      "obj-54",
+      "obj-56",
       0
      ],
      "destination": [
-      "obj-56",
+      "obj-58",
       0
      ]
     }
@@ -7095,11 +7444,11 @@
    {
     "patchline": {
      "source": [
-      "obj-56",
+      "obj-58",
       0
      ],
      "destination": [
-      "obj-57",
+      "obj-59",
       0
      ]
     }
@@ -7107,7 +7456,7 @@
    {
     "patchline": {
      "source": [
-      "obj-57",
+      "obj-59",
       0
      ],
      "destination": [
@@ -7123,7 +7472,7 @@
       16
      ],
      "destination": [
-      "obj-58",
+      "obj-60",
       0
      ]
     }
@@ -7135,7 +7484,7 @@
       0
      ],
      "destination": [
-      "obj-58",
+      "obj-60",
       0
      ]
     }
@@ -7143,11 +7492,11 @@
    {
     "patchline": {
      "source": [
-      "obj-58",
+      "obj-60",
       0
      ],
      "destination": [
-      "obj-59",
+      "obj-61",
       0
      ]
     }
@@ -7155,7 +7504,7 @@
    {
     "patchline": {
      "source": [
-      "obj-59",
+      "obj-61",
       0
      ],
      "destination": [
@@ -7167,11 +7516,11 @@
    {
     "patchline": {
      "source": [
-      "obj-58",
+      "obj-60",
       0
      ],
      "destination": [
-      "obj-60",
+      "obj-62",
       0
      ]
     }
@@ -7179,11 +7528,11 @@
    {
     "patchline": {
      "source": [
-      "obj-60",
+      "obj-62",
       0
      ],
      "destination": [
-      "obj-61",
+      "obj-63",
       0
      ]
     }
@@ -7191,7 +7540,7 @@
    {
     "patchline": {
      "source": [
-      "obj-61",
+      "obj-63",
       0
      ],
      "destination": [
@@ -7207,7 +7556,7 @@
       17
      ],
      "destination": [
-      "obj-62",
+      "obj-64",
       0
      ]
     }
@@ -7219,7 +7568,7 @@
       0
      ],
      "destination": [
-      "obj-62",
+      "obj-64",
       0
      ]
     }
@@ -7227,11 +7576,11 @@
    {
     "patchline": {
      "source": [
-      "obj-62",
+      "obj-64",
       0
      ],
      "destination": [
-      "obj-63",
+      "obj-65",
       0
      ]
     }
@@ -7239,7 +7588,7 @@
    {
     "patchline": {
      "source": [
-      "obj-63",
+      "obj-65",
       0
      ],
      "destination": [
@@ -7251,11 +7600,11 @@
    {
     "patchline": {
      "source": [
-      "obj-62",
+      "obj-64",
       0
      ],
      "destination": [
-      "obj-64",
+      "obj-66",
       0
      ]
     }
@@ -7263,7 +7612,7 @@
    {
     "patchline": {
      "source": [
-      "obj-64",
+      "obj-66",
       0
      ],
      "destination": [
@@ -7279,7 +7628,7 @@
       18
      ],
      "destination": [
-      "obj-65",
+      "obj-67",
       0
      ]
     }
@@ -7291,7 +7640,7 @@
       0
      ],
      "destination": [
-      "obj-65",
+      "obj-67",
       0
      ]
     }
@@ -7299,11 +7648,11 @@
    {
     "patchline": {
      "source": [
-      "obj-65",
+      "obj-67",
       0
      ],
      "destination": [
-      "obj-66",
+      "obj-68",
       0
      ]
     }
@@ -7311,7 +7660,7 @@
    {
     "patchline": {
      "source": [
-      "obj-66",
+      "obj-68",
       0
      ],
      "destination": [
@@ -7323,11 +7672,11 @@
    {
     "patchline": {
      "source": [
-      "obj-65",
+      "obj-67",
       0
      ],
      "destination": [
-      "obj-67",
+      "obj-69",
       0
      ]
     }
@@ -7335,7 +7684,7 @@
    {
     "patchline": {
      "source": [
-      "obj-67",
+      "obj-69",
       0
      ],
      "destination": [
@@ -7351,7 +7700,7 @@
       19
      ],
      "destination": [
-      "obj-68",
+      "obj-70",
       0
      ]
     }
@@ -7363,7 +7712,7 @@
       0
      ],
      "destination": [
-      "obj-68",
+      "obj-70",
       0
      ]
     }
@@ -7371,11 +7720,11 @@
    {
     "patchline": {
      "source": [
-      "obj-68",
+      "obj-70",
       0
      ],
      "destination": [
-      "obj-69",
+      "obj-71",
       0
      ]
     }
@@ -7383,7 +7732,7 @@
    {
     "patchline": {
      "source": [
-      "obj-69",
+      "obj-71",
       0
      ],
      "destination": [
@@ -7395,11 +7744,11 @@
    {
     "patchline": {
      "source": [
-      "obj-68",
+      "obj-70",
       0
      ],
      "destination": [
-      "obj-70",
+      "obj-72",
       0
      ]
     }
@@ -7407,7 +7756,7 @@
    {
     "patchline": {
      "source": [
-      "obj-70",
+      "obj-72",
       0
      ],
      "destination": [
@@ -7423,7 +7772,7 @@
       20
      ],
      "destination": [
-      "obj-71",
+      "obj-73",
       0
      ]
     }
@@ -7435,7 +7784,7 @@
       0
      ],
      "destination": [
-      "obj-71",
+      "obj-73",
       0
      ]
     }
@@ -7443,11 +7792,11 @@
    {
     "patchline": {
      "source": [
-      "obj-71",
+      "obj-73",
       0
      ],
      "destination": [
-      "obj-72",
+      "obj-74",
       0
      ]
     }
@@ -7455,7 +7804,7 @@
    {
     "patchline": {
      "source": [
-      "obj-72",
+      "obj-74",
       0
      ],
      "destination": [
@@ -7467,11 +7816,11 @@
    {
     "patchline": {
      "source": [
-      "obj-71",
+      "obj-73",
       0
      ],
      "destination": [
-      "obj-73",
+      "obj-75",
       0
      ]
     }
@@ -7479,7 +7828,7 @@
    {
     "patchline": {
      "source": [
-      "obj-73",
+      "obj-75",
       0
      ],
      "destination": [
@@ -7495,7 +7844,7 @@
       21
      ],
      "destination": [
-      "obj-74",
+      "obj-76",
       0
      ]
     }
@@ -7507,7 +7856,7 @@
       0
      ],
      "destination": [
-      "obj-74",
+      "obj-76",
       0
      ]
     }
@@ -7515,11 +7864,11 @@
    {
     "patchline": {
      "source": [
-      "obj-74",
+      "obj-76",
       0
      ],
      "destination": [
-      "obj-75",
+      "obj-77",
       0
      ]
     }
@@ -7527,7 +7876,7 @@
    {
     "patchline": {
      "source": [
-      "obj-75",
+      "obj-77",
       0
      ],
      "destination": [
@@ -7539,11 +7888,11 @@
    {
     "patchline": {
      "source": [
-      "obj-74",
+      "obj-76",
       0
      ],
      "destination": [
-      "obj-76",
+      "obj-78",
       0
      ]
     }
@@ -7551,7 +7900,7 @@
    {
     "patchline": {
      "source": [
-      "obj-76",
+      "obj-78",
       0
      ],
      "destination": [
@@ -7567,7 +7916,7 @@
       22
      ],
      "destination": [
-      "obj-77",
+      "obj-79",
       0
      ]
     }
@@ -7579,7 +7928,7 @@
       0
      ],
      "destination": [
-      "obj-77",
+      "obj-79",
       0
      ]
     }
@@ -7587,11 +7936,11 @@
    {
     "patchline": {
      "source": [
-      "obj-77",
+      "obj-79",
       0
      ],
      "destination": [
-      "obj-78",
+      "obj-80",
       0
      ]
     }
@@ -7599,7 +7948,7 @@
    {
     "patchline": {
      "source": [
-      "obj-78",
+      "obj-80",
       0
      ],
      "destination": [
@@ -7611,11 +7960,11 @@
    {
     "patchline": {
      "source": [
-      "obj-77",
+      "obj-79",
       0
      ],
      "destination": [
-      "obj-79",
+      "obj-81",
       0
      ]
     }
@@ -7623,7 +7972,7 @@
    {
     "patchline": {
      "source": [
-      "obj-79",
+      "obj-81",
       0
      ],
      "destination": [
@@ -7639,7 +7988,7 @@
       23
      ],
      "destination": [
-      "obj-80",
+      "obj-82",
       0
      ]
     }
@@ -7651,7 +8000,7 @@
       0
      ],
      "destination": [
-      "obj-80",
+      "obj-82",
       0
      ]
     }
@@ -7659,11 +8008,11 @@
    {
     "patchline": {
      "source": [
-      "obj-80",
+      "obj-82",
       0
      ],
      "destination": [
-      "obj-81",
+      "obj-83",
       0
      ]
     }
@@ -7671,7 +8020,7 @@
    {
     "patchline": {
      "source": [
-      "obj-81",
+      "obj-83",
       0
      ],
      "destination": [
@@ -7683,11 +8032,11 @@
    {
     "patchline": {
      "source": [
-      "obj-80",
+      "obj-82",
       0
      ],
      "destination": [
-      "obj-82",
+      "obj-84",
       0
      ]
     }
@@ -7695,7 +8044,7 @@
    {
     "patchline": {
      "source": [
-      "obj-82",
+      "obj-84",
       0
      ],
      "destination": [
@@ -7711,7 +8060,7 @@
       24
      ],
      "destination": [
-      "obj-83",
+      "obj-85",
       0
      ]
     }
@@ -7723,7 +8072,7 @@
       0
      ],
      "destination": [
-      "obj-83",
+      "obj-85",
       0
      ]
     }
@@ -7731,11 +8080,11 @@
    {
     "patchline": {
      "source": [
-      "obj-83",
+      "obj-85",
       0
      ],
      "destination": [
-      "obj-84",
+      "obj-86",
       0
      ]
     }
@@ -7743,7 +8092,7 @@
    {
     "patchline": {
      "source": [
-      "obj-84",
+      "obj-86",
       0
      ],
      "destination": [
@@ -7755,11 +8104,11 @@
    {
     "patchline": {
      "source": [
-      "obj-83",
+      "obj-85",
       0
      ],
      "destination": [
-      "obj-85",
+      "obj-87",
       0
      ]
     }
@@ -7767,7 +8116,7 @@
    {
     "patchline": {
      "source": [
-      "obj-85",
+      "obj-87",
       0
      ],
      "destination": [
@@ -7783,7 +8132,7 @@
       25
      ],
      "destination": [
-      "obj-86",
+      "obj-88",
       0
      ]
     }
@@ -7795,7 +8144,7 @@
       0
      ],
      "destination": [
-      "obj-86",
+      "obj-88",
       0
      ]
     }
@@ -7803,11 +8152,11 @@
    {
     "patchline": {
      "source": [
-      "obj-86",
+      "obj-88",
       0
      ],
      "destination": [
-      "obj-87",
+      "obj-89",
       0
      ]
     }
@@ -7815,7 +8164,7 @@
    {
     "patchline": {
      "source": [
-      "obj-87",
+      "obj-89",
       0
      ],
      "destination": [
@@ -7827,11 +8176,11 @@
    {
     "patchline": {
      "source": [
-      "obj-86",
+      "obj-88",
       0
      ],
      "destination": [
-      "obj-88",
+      "obj-90",
       0
      ]
     }
@@ -7839,7 +8188,7 @@
    {
     "patchline": {
      "source": [
-      "obj-88",
+      "obj-90",
       0
      ],
      "destination": [
@@ -7855,7 +8204,7 @@
       26
      ],
      "destination": [
-      "obj-89",
+      "obj-91",
       0
      ]
     }
@@ -7867,7 +8216,7 @@
       0
      ],
      "destination": [
-      "obj-89",
+      "obj-91",
       0
      ]
     }
@@ -7875,11 +8224,11 @@
    {
     "patchline": {
      "source": [
-      "obj-89",
+      "obj-91",
       0
      ],
      "destination": [
-      "obj-90",
+      "obj-92",
       0
      ]
     }
@@ -7887,7 +8236,7 @@
    {
     "patchline": {
      "source": [
-      "obj-90",
+      "obj-92",
       0
      ],
      "destination": [
@@ -7899,11 +8248,11 @@
    {
     "patchline": {
      "source": [
-      "obj-89",
+      "obj-91",
       0
      ],
      "destination": [
-      "obj-91",
+      "obj-93",
       0
      ]
     }
@@ -7911,7 +8260,7 @@
    {
     "patchline": {
      "source": [
-      "obj-91",
+      "obj-93",
       0
      ],
      "destination": [
@@ -7927,7 +8276,7 @@
       27
      ],
      "destination": [
-      "obj-92",
+      "obj-94",
       0
      ]
     }
@@ -7939,7 +8288,7 @@
       0
      ],
      "destination": [
-      "obj-92",
+      "obj-94",
       0
      ]
     }
@@ -7947,11 +8296,11 @@
    {
     "patchline": {
      "source": [
-      "obj-92",
+      "obj-94",
       0
      ],
      "destination": [
-      "obj-93",
+      "obj-95",
       0
      ]
     }
@@ -7959,7 +8308,7 @@
    {
     "patchline": {
      "source": [
-      "obj-93",
+      "obj-95",
       0
      ],
      "destination": [
@@ -7971,11 +8320,11 @@
    {
     "patchline": {
      "source": [
-      "obj-92",
+      "obj-94",
       0
      ],
      "destination": [
-      "obj-94",
+      "obj-96",
       0
      ]
     }
@@ -7983,7 +8332,7 @@
    {
     "patchline": {
      "source": [
-      "obj-94",
+      "obj-96",
       0
      ],
      "destination": [
@@ -7999,7 +8348,7 @@
       28
      ],
      "destination": [
-      "obj-95",
+      "obj-97",
       0
      ]
     }
@@ -8011,7 +8360,7 @@
       0
      ],
      "destination": [
-      "obj-95",
+      "obj-97",
       0
      ]
     }
@@ -8019,11 +8368,11 @@
    {
     "patchline": {
      "source": [
-      "obj-95",
+      "obj-97",
       0
      ],
      "destination": [
-      "obj-96",
+      "obj-98",
       0
      ]
     }
@@ -8031,7 +8380,7 @@
    {
     "patchline": {
      "source": [
-      "obj-96",
+      "obj-98",
       0
      ],
      "destination": [
@@ -8043,11 +8392,11 @@
    {
     "patchline": {
      "source": [
-      "obj-95",
+      "obj-97",
       0
      ],
      "destination": [
-      "obj-97",
+      "obj-99",
       0
      ]
     }
@@ -8055,7 +8404,7 @@
    {
     "patchline": {
      "source": [
-      "obj-97",
+      "obj-99",
       0
      ],
      "destination": [
@@ -8071,7 +8420,7 @@
       29
      ],
      "destination": [
-      "obj-98",
+      "obj-100",
       0
      ]
     }
@@ -8083,7 +8432,7 @@
       0
      ],
      "destination": [
-      "obj-98",
+      "obj-100",
       0
      ]
     }
@@ -8091,11 +8440,11 @@
    {
     "patchline": {
      "source": [
-      "obj-98",
+      "obj-100",
       0
      ],
      "destination": [
-      "obj-99",
+      "obj-101",
       0
      ]
     }
@@ -8103,7 +8452,7 @@
    {
     "patchline": {
      "source": [
-      "obj-99",
+      "obj-101",
       0
      ],
      "destination": [
@@ -8115,11 +8464,11 @@
    {
     "patchline": {
      "source": [
-      "obj-98",
+      "obj-100",
       0
      ],
      "destination": [
-      "obj-100",
+      "obj-102",
       0
      ]
     }
@@ -8127,7 +8476,7 @@
    {
     "patchline": {
      "source": [
-      "obj-100",
+      "obj-102",
       0
      ],
      "destination": [
@@ -8143,7 +8492,7 @@
       30
      ],
      "destination": [
-      "obj-101",
+      "obj-103",
       0
      ]
     }
@@ -8155,7 +8504,7 @@
       0
      ],
      "destination": [
-      "obj-101",
+      "obj-103",
       0
      ]
     }
@@ -8163,11 +8512,11 @@
    {
     "patchline": {
      "source": [
-      "obj-101",
+      "obj-103",
       0
      ],
      "destination": [
-      "obj-102",
+      "obj-104",
       0
      ]
     }
@@ -8175,7 +8524,7 @@
    {
     "patchline": {
      "source": [
-      "obj-102",
+      "obj-104",
       0
      ],
      "destination": [
@@ -8187,11 +8536,11 @@
    {
     "patchline": {
      "source": [
-      "obj-101",
+      "obj-103",
       0
      ],
      "destination": [
-      "obj-103",
+      "obj-105",
       0
      ]
     }
@@ -8199,7 +8548,7 @@
    {
     "patchline": {
      "source": [
-      "obj-103",
+      "obj-105",
       0
      ],
      "destination": [
@@ -8215,7 +8564,7 @@
       31
      ],
      "destination": [
-      "obj-104",
+      "obj-106",
       0
      ]
     }
@@ -8227,7 +8576,7 @@
       0
      ],
      "destination": [
-      "obj-104",
+      "obj-106",
       0
      ]
     }
@@ -8235,11 +8584,11 @@
    {
     "patchline": {
      "source": [
-      "obj-104",
+      "obj-106",
       0
      ],
      "destination": [
-      "obj-105",
+      "obj-107",
       0
      ]
     }
@@ -8247,7 +8596,7 @@
    {
     "patchline": {
      "source": [
-      "obj-105",
+      "obj-107",
       0
      ],
      "destination": [
@@ -8259,11 +8608,11 @@
    {
     "patchline": {
      "source": [
-      "obj-104",
+      "obj-106",
       0
      ],
      "destination": [
-      "obj-106",
+      "obj-108",
       0
      ]
     }
@@ -8271,7 +8620,7 @@
    {
     "patchline": {
      "source": [
-      "obj-106",
+      "obj-108",
       0
      ],
      "destination": [
@@ -8287,7 +8636,7 @@
       32
      ],
      "destination": [
-      "obj-107",
+      "obj-109",
       0
      ]
     }
@@ -8299,7 +8648,7 @@
       0
      ],
      "destination": [
-      "obj-107",
+      "obj-109",
       0
      ]
     }
@@ -8307,11 +8656,11 @@
    {
     "patchline": {
      "source": [
-      "obj-107",
+      "obj-109",
       0
      ],
      "destination": [
-      "obj-108",
+      "obj-110",
       0
      ]
     }
@@ -8319,7 +8668,7 @@
    {
     "patchline": {
      "source": [
-      "obj-108",
+      "obj-110",
       0
      ],
      "destination": [
@@ -8331,11 +8680,11 @@
    {
     "patchline": {
      "source": [
-      "obj-107",
+      "obj-109",
       0
      ],
      "destination": [
-      "obj-109",
+      "obj-111",
       0
      ]
     }
@@ -8343,7 +8692,7 @@
    {
     "patchline": {
      "source": [
-      "obj-109",
+      "obj-111",
       0
      ],
      "destination": [
@@ -8359,7 +8708,7 @@
       33
      ],
      "destination": [
-      "obj-110",
+      "obj-112",
       0
      ]
     }
@@ -8371,7 +8720,7 @@
       0
      ],
      "destination": [
-      "obj-110",
+      "obj-112",
       0
      ]
     }
@@ -8379,11 +8728,11 @@
    {
     "patchline": {
      "source": [
-      "obj-110",
+      "obj-112",
       0
      ],
      "destination": [
-      "obj-111",
+      "obj-113",
       0
      ]
     }
@@ -8391,7 +8740,7 @@
    {
     "patchline": {
      "source": [
-      "obj-111",
+      "obj-113",
       0
      ],
      "destination": [
@@ -8403,11 +8752,11 @@
    {
     "patchline": {
      "source": [
-      "obj-110",
+      "obj-112",
       0
      ],
      "destination": [
-      "obj-112",
+      "obj-114",
       0
      ]
     }
@@ -8415,7 +8764,7 @@
    {
     "patchline": {
      "source": [
-      "obj-112",
+      "obj-114",
       0
      ],
      "destination": [
@@ -8431,7 +8780,7 @@
       34
      ],
      "destination": [
-      "obj-113",
+      "obj-115",
       0
      ]
     }
@@ -8443,7 +8792,7 @@
       0
      ],
      "destination": [
-      "obj-113",
+      "obj-115",
       0
      ]
     }
@@ -8451,11 +8800,11 @@
    {
     "patchline": {
      "source": [
-      "obj-113",
+      "obj-115",
       0
      ],
      "destination": [
-      "obj-114",
+      "obj-116",
       0
      ]
     }
@@ -8463,7 +8812,7 @@
    {
     "patchline": {
      "source": [
-      "obj-114",
+      "obj-116",
       0
      ],
      "destination": [
@@ -8475,11 +8824,11 @@
    {
     "patchline": {
      "source": [
-      "obj-113",
+      "obj-115",
       0
      ],
      "destination": [
-      "obj-115",
+      "obj-117",
       0
      ]
     }
@@ -8487,7 +8836,7 @@
    {
     "patchline": {
      "source": [
-      "obj-115",
+      "obj-117",
       0
      ],
      "destination": [
@@ -8503,7 +8852,7 @@
       35
      ],
      "destination": [
-      "obj-116",
+      "obj-118",
       0
      ]
     }
@@ -8515,7 +8864,7 @@
       0
      ],
      "destination": [
-      "obj-116",
+      "obj-118",
       0
      ]
     }
@@ -8523,11 +8872,11 @@
    {
     "patchline": {
      "source": [
-      "obj-116",
+      "obj-118",
       0
      ],
      "destination": [
-      "obj-117",
+      "obj-119",
       0
      ]
     }
@@ -8535,7 +8884,7 @@
    {
     "patchline": {
      "source": [
-      "obj-117",
+      "obj-119",
       0
      ],
      "destination": [
@@ -8547,11 +8896,11 @@
    {
     "patchline": {
      "source": [
-      "obj-116",
+      "obj-118",
       0
      ],
      "destination": [
-      "obj-118",
+      "obj-120",
       0
      ]
     }
@@ -8559,7 +8908,7 @@
    {
     "patchline": {
      "source": [
-      "obj-118",
+      "obj-120",
       0
      ],
      "destination": [
@@ -8575,7 +8924,7 @@
       36
      ],
      "destination": [
-      "obj-119",
+      "obj-121",
       0
      ]
     }
@@ -8587,7 +8936,7 @@
       0
      ],
      "destination": [
-      "obj-119",
+      "obj-121",
       0
      ]
     }
@@ -8595,11 +8944,11 @@
    {
     "patchline": {
      "source": [
-      "obj-119",
+      "obj-121",
       0
      ],
      "destination": [
-      "obj-120",
+      "obj-122",
       0
      ]
     }
@@ -8607,7 +8956,7 @@
    {
     "patchline": {
      "source": [
-      "obj-120",
+      "obj-122",
       0
      ],
      "destination": [
@@ -8619,11 +8968,11 @@
    {
     "patchline": {
      "source": [
-      "obj-119",
+      "obj-121",
       0
      ],
      "destination": [
-      "obj-121",
+      "obj-123",
       0
      ]
     }
@@ -8631,7 +8980,7 @@
    {
     "patchline": {
      "source": [
-      "obj-121",
+      "obj-123",
       0
      ],
      "destination": [
@@ -8647,7 +8996,7 @@
       37
      ],
      "destination": [
-      "obj-122",
+      "obj-124",
       0
      ]
     }
@@ -8659,7 +9008,7 @@
       0
      ],
      "destination": [
-      "obj-122",
+      "obj-124",
       0
      ]
     }
@@ -8667,11 +9016,11 @@
    {
     "patchline": {
      "source": [
-      "obj-122",
+      "obj-124",
       0
      ],
      "destination": [
-      "obj-123",
+      "obj-125",
       0
      ]
     }
@@ -8679,7 +9028,7 @@
    {
     "patchline": {
      "source": [
-      "obj-123",
+      "obj-125",
       0
      ],
      "destination": [
@@ -8691,11 +9040,11 @@
    {
     "patchline": {
      "source": [
-      "obj-122",
+      "obj-124",
       0
      ],
      "destination": [
-      "obj-124",
+      "obj-126",
       0
      ]
     }
@@ -8703,7 +9052,7 @@
    {
     "patchline": {
      "source": [
-      "obj-124",
+      "obj-126",
       0
      ],
      "destination": [
@@ -8719,7 +9068,7 @@
       38
      ],
      "destination": [
-      "obj-125",
+      "obj-127",
       0
      ]
     }
@@ -8731,7 +9080,7 @@
       0
      ],
      "destination": [
-      "obj-125",
+      "obj-127",
       0
      ]
     }
@@ -8739,11 +9088,11 @@
    {
     "patchline": {
      "source": [
-      "obj-125",
+      "obj-127",
       0
      ],
      "destination": [
-      "obj-126",
+      "obj-128",
       0
      ]
     }
@@ -8751,7 +9100,7 @@
    {
     "patchline": {
      "source": [
-      "obj-126",
+      "obj-128",
       0
      ],
      "destination": [
@@ -8763,11 +9112,11 @@
    {
     "patchline": {
      "source": [
-      "obj-125",
+      "obj-127",
       0
      ],
      "destination": [
-      "obj-127",
+      "obj-129",
       0
      ]
     }
@@ -8775,7 +9124,7 @@
    {
     "patchline": {
      "source": [
-      "obj-127",
+      "obj-129",
       0
      ],
      "destination": [
@@ -8791,7 +9140,7 @@
       39
      ],
      "destination": [
-      "obj-128",
+      "obj-130",
       0
      ]
     }
@@ -8803,7 +9152,7 @@
       0
      ],
      "destination": [
-      "obj-128",
+      "obj-130",
       0
      ]
     }
@@ -8811,11 +9160,11 @@
    {
     "patchline": {
      "source": [
-      "obj-128",
+      "obj-130",
       0
      ],
      "destination": [
-      "obj-129",
+      "obj-131",
       0
      ]
     }
@@ -8823,7 +9172,7 @@
    {
     "patchline": {
      "source": [
-      "obj-129",
+      "obj-131",
       0
      ],
      "destination": [
@@ -8835,11 +9184,11 @@
    {
     "patchline": {
      "source": [
-      "obj-128",
+      "obj-130",
       0
      ],
      "destination": [
-      "obj-130",
+      "obj-132",
       0
      ]
     }
@@ -8847,7 +9196,7 @@
    {
     "patchline": {
      "source": [
-      "obj-130",
+      "obj-132",
       0
      ],
      "destination": [
@@ -8863,7 +9212,7 @@
       40
      ],
      "destination": [
-      "obj-131",
+      "obj-133",
       0
      ]
     }
@@ -8875,7 +9224,7 @@
       0
      ],
      "destination": [
-      "obj-131",
+      "obj-133",
       0
      ]
     }
@@ -8883,11 +9232,11 @@
    {
     "patchline": {
      "source": [
-      "obj-131",
+      "obj-133",
       0
      ],
      "destination": [
-      "obj-132",
+      "obj-134",
       0
      ]
     }
@@ -8895,7 +9244,7 @@
    {
     "patchline": {
      "source": [
-      "obj-132",
+      "obj-134",
       0
      ],
      "destination": [
@@ -8907,11 +9256,11 @@
    {
     "patchline": {
      "source": [
-      "obj-131",
+      "obj-133",
       0
      ],
      "destination": [
-      "obj-133",
+      "obj-135",
       0
      ]
     }
@@ -8919,7 +9268,7 @@
    {
     "patchline": {
      "source": [
-      "obj-133",
+      "obj-135",
       0
      ],
      "destination": [
@@ -8935,7 +9284,7 @@
       41
      ],
      "destination": [
-      "obj-134",
+      "obj-136",
       0
      ]
     }
@@ -8947,7 +9296,7 @@
       0
      ],
      "destination": [
-      "obj-134",
+      "obj-136",
       0
      ]
     }
@@ -8955,11 +9304,11 @@
    {
     "patchline": {
      "source": [
-      "obj-134",
+      "obj-136",
       0
      ],
      "destination": [
-      "obj-135",
+      "obj-137",
       0
      ]
     }
@@ -8967,7 +9316,7 @@
    {
     "patchline": {
      "source": [
-      "obj-135",
+      "obj-137",
       0
      ],
      "destination": [
@@ -8979,11 +9328,11 @@
    {
     "patchline": {
      "source": [
-      "obj-134",
+      "obj-136",
       0
      ],
      "destination": [
-      "obj-136",
+      "obj-138",
       0
      ]
     }
@@ -8991,7 +9340,7 @@
    {
     "patchline": {
      "source": [
-      "obj-136",
+      "obj-138",
       0
      ],
      "destination": [
@@ -9007,7 +9356,7 @@
       42
      ],
      "destination": [
-      "obj-137",
+      "obj-139",
       0
      ]
     }
@@ -9019,7 +9368,7 @@
       0
      ],
      "destination": [
-      "obj-137",
+      "obj-139",
       0
      ]
     }
@@ -9027,11 +9376,11 @@
    {
     "patchline": {
      "source": [
-      "obj-137",
+      "obj-139",
       0
      ],
      "destination": [
-      "obj-138",
+      "obj-140",
       0
      ]
     }
@@ -9039,7 +9388,7 @@
    {
     "patchline": {
      "source": [
-      "obj-138",
+      "obj-140",
       0
      ],
      "destination": [
@@ -9051,11 +9400,11 @@
    {
     "patchline": {
      "source": [
-      "obj-137",
+      "obj-139",
       0
      ],
      "destination": [
-      "obj-139",
+      "obj-141",
       0
      ]
     }
@@ -9063,7 +9412,7 @@
    {
     "patchline": {
      "source": [
-      "obj-139",
+      "obj-141",
       0
      ],
      "destination": [
@@ -9079,7 +9428,7 @@
       43
      ],
      "destination": [
-      "obj-140",
+      "obj-142",
       0
      ]
     }
@@ -9091,7 +9440,7 @@
       0
      ],
      "destination": [
-      "obj-140",
+      "obj-142",
       0
      ]
     }
@@ -9099,11 +9448,11 @@
    {
     "patchline": {
      "source": [
-      "obj-140",
+      "obj-142",
       0
      ],
      "destination": [
-      "obj-141",
+      "obj-143",
       0
      ]
     }
@@ -9111,7 +9460,7 @@
    {
     "patchline": {
      "source": [
-      "obj-141",
+      "obj-143",
       0
      ],
      "destination": [
@@ -9123,11 +9472,11 @@
    {
     "patchline": {
      "source": [
-      "obj-140",
+      "obj-142",
       0
      ],
      "destination": [
-      "obj-142",
+      "obj-144",
       0
      ]
     }
@@ -9135,7 +9484,7 @@
    {
     "patchline": {
      "source": [
-      "obj-142",
+      "obj-144",
       0
      ],
      "destination": [
@@ -9151,7 +9500,7 @@
       44
      ],
      "destination": [
-      "obj-143",
+      "obj-145",
       0
      ]
     }
@@ -9163,7 +9512,7 @@
       0
      ],
      "destination": [
-      "obj-143",
+      "obj-145",
       0
      ]
     }
@@ -9171,11 +9520,11 @@
    {
     "patchline": {
      "source": [
-      "obj-143",
+      "obj-145",
       0
      ],
      "destination": [
-      "obj-144",
+      "obj-146",
       0
      ]
     }
@@ -9183,7 +9532,7 @@
    {
     "patchline": {
      "source": [
-      "obj-144",
+      "obj-146",
       0
      ],
      "destination": [
@@ -9195,11 +9544,11 @@
    {
     "patchline": {
      "source": [
-      "obj-143",
+      "obj-145",
       0
      ],
      "destination": [
-      "obj-145",
+      "obj-147",
       0
      ]
     }
@@ -9207,7 +9556,7 @@
    {
     "patchline": {
      "source": [
-      "obj-145",
+      "obj-147",
       0
      ],
      "destination": [
@@ -9223,7 +9572,7 @@
       45
      ],
      "destination": [
-      "obj-146",
+      "obj-148",
       0
      ]
     }
@@ -9235,7 +9584,7 @@
       0
      ],
      "destination": [
-      "obj-146",
+      "obj-148",
       0
      ]
     }
@@ -9243,11 +9592,11 @@
    {
     "patchline": {
      "source": [
-      "obj-146",
+      "obj-148",
       0
      ],
      "destination": [
-      "obj-147",
+      "obj-149",
       0
      ]
     }
@@ -9255,7 +9604,7 @@
    {
     "patchline": {
      "source": [
-      "obj-147",
+      "obj-149",
       0
      ],
      "destination": [
@@ -9267,11 +9616,11 @@
    {
     "patchline": {
      "source": [
-      "obj-146",
+      "obj-148",
       0
      ],
      "destination": [
-      "obj-148",
+      "obj-150",
       0
      ]
     }
@@ -9279,7 +9628,7 @@
    {
     "patchline": {
      "source": [
-      "obj-148",
+      "obj-150",
       0
      ],
      "destination": [
@@ -9295,7 +9644,7 @@
       46
      ],
      "destination": [
-      "obj-149",
+      "obj-151",
       0
      ]
     }
@@ -9307,7 +9656,7 @@
       0
      ],
      "destination": [
-      "obj-149",
+      "obj-151",
       0
      ]
     }
@@ -9315,11 +9664,11 @@
    {
     "patchline": {
      "source": [
-      "obj-149",
+      "obj-151",
       0
      ],
      "destination": [
-      "obj-150",
+      "obj-152",
       0
      ]
     }
@@ -9327,7 +9676,7 @@
    {
     "patchline": {
      "source": [
-      "obj-150",
+      "obj-152",
       0
      ],
      "destination": [
@@ -9339,11 +9688,11 @@
    {
     "patchline": {
      "source": [
-      "obj-149",
+      "obj-151",
       0
      ],
      "destination": [
-      "obj-151",
+      "obj-153",
       0
      ]
     }
@@ -9351,7 +9700,7 @@
    {
     "patchline": {
      "source": [
-      "obj-151",
+      "obj-153",
       0
      ],
      "destination": [
@@ -9367,7 +9716,7 @@
       47
      ],
      "destination": [
-      "obj-152",
+      "obj-154",
       0
      ]
     }
@@ -9379,7 +9728,7 @@
       0
      ],
      "destination": [
-      "obj-152",
+      "obj-154",
       0
      ]
     }
@@ -9387,11 +9736,11 @@
    {
     "patchline": {
      "source": [
-      "obj-152",
+      "obj-154",
       0
      ],
      "destination": [
-      "obj-153",
+      "obj-155",
       0
      ]
     }
@@ -9399,7 +9748,7 @@
    {
     "patchline": {
      "source": [
-      "obj-153",
+      "obj-155",
       0
      ],
      "destination": [
@@ -9411,11 +9760,11 @@
    {
     "patchline": {
      "source": [
-      "obj-152",
+      "obj-154",
       0
      ],
      "destination": [
-      "obj-154",
+      "obj-156",
       0
      ]
     }
@@ -9423,7 +9772,7 @@
    {
     "patchline": {
      "source": [
-      "obj-154",
+      "obj-156",
       0
      ],
      "destination": [
@@ -9439,7 +9788,7 @@
       48
      ],
      "destination": [
-      "obj-155",
+      "obj-157",
       0
      ]
     }
@@ -9451,7 +9800,7 @@
       0
      ],
      "destination": [
-      "obj-155",
+      "obj-157",
       0
      ]
     }
@@ -9459,11 +9808,11 @@
    {
     "patchline": {
      "source": [
-      "obj-155",
+      "obj-157",
       0
      ],
      "destination": [
-      "obj-156",
+      "obj-158",
       0
      ]
     }
@@ -9471,7 +9820,7 @@
    {
     "patchline": {
      "source": [
-      "obj-156",
+      "obj-158",
       0
      ],
      "destination": [
@@ -9483,11 +9832,11 @@
    {
     "patchline": {
      "source": [
-      "obj-155",
+      "obj-157",
       0
      ],
      "destination": [
-      "obj-157",
+      "obj-159",
       0
      ]
     }
@@ -9495,7 +9844,7 @@
    {
     "patchline": {
      "source": [
-      "obj-157",
+      "obj-159",
       0
      ],
      "destination": [
@@ -9511,7 +9860,7 @@
       49
      ],
      "destination": [
-      "obj-158",
+      "obj-160",
       0
      ]
     }
@@ -9523,7 +9872,7 @@
       0
      ],
      "destination": [
-      "obj-158",
+      "obj-160",
       0
      ]
     }
@@ -9531,11 +9880,11 @@
    {
     "patchline": {
      "source": [
-      "obj-158",
+      "obj-160",
       0
      ],
      "destination": [
-      "obj-159",
+      "obj-161",
       0
      ]
     }
@@ -9543,7 +9892,7 @@
    {
     "patchline": {
      "source": [
-      "obj-159",
+      "obj-161",
       0
      ],
      "destination": [
@@ -9555,11 +9904,11 @@
    {
     "patchline": {
      "source": [
-      "obj-158",
+      "obj-160",
       0
      ],
      "destination": [
-      "obj-160",
+      "obj-162",
       0
      ]
     }
@@ -9567,7 +9916,7 @@
    {
     "patchline": {
      "source": [
-      "obj-160",
+      "obj-162",
       0
      ],
      "destination": [
@@ -9583,7 +9932,7 @@
       50
      ],
      "destination": [
-      "obj-161",
+      "obj-163",
       0
      ]
     }
@@ -9595,7 +9944,7 @@
       0
      ],
      "destination": [
-      "obj-161",
+      "obj-163",
       0
      ]
     }
@@ -9603,11 +9952,11 @@
    {
     "patchline": {
      "source": [
-      "obj-161",
+      "obj-163",
       0
      ],
      "destination": [
-      "obj-162",
+      "obj-164",
       0
      ]
     }
@@ -9615,7 +9964,7 @@
    {
     "patchline": {
      "source": [
-      "obj-162",
+      "obj-164",
       0
      ],
      "destination": [
@@ -9627,11 +9976,11 @@
    {
     "patchline": {
      "source": [
-      "obj-161",
+      "obj-163",
       0
      ],
      "destination": [
-      "obj-163",
+      "obj-165",
       0
      ]
     }
@@ -9639,7 +9988,7 @@
    {
     "patchline": {
      "source": [
-      "obj-163",
+      "obj-165",
       0
      ],
      "destination": [
@@ -9655,7 +10004,7 @@
       51
      ],
      "destination": [
-      "obj-164",
+      "obj-166",
       0
      ]
     }
@@ -9667,7 +10016,7 @@
       0
      ],
      "destination": [
-      "obj-164",
+      "obj-166",
       0
      ]
     }
@@ -9675,11 +10024,11 @@
    {
     "patchline": {
      "source": [
-      "obj-164",
+      "obj-166",
       0
      ],
      "destination": [
-      "obj-165",
+      "obj-167",
       0
      ]
     }
@@ -9687,7 +10036,7 @@
    {
     "patchline": {
      "source": [
-      "obj-165",
+      "obj-167",
       0
      ],
      "destination": [
@@ -9699,11 +10048,11 @@
    {
     "patchline": {
      "source": [
-      "obj-164",
+      "obj-166",
       0
      ],
      "destination": [
-      "obj-166",
+      "obj-168",
       0
      ]
     }
@@ -9711,7 +10060,7 @@
    {
     "patchline": {
      "source": [
-      "obj-166",
+      "obj-168",
       0
      ],
      "destination": [
@@ -9727,7 +10076,7 @@
       52
      ],
      "destination": [
-      "obj-167",
+      "obj-169",
       0
      ]
     }
@@ -9739,7 +10088,7 @@
       0
      ],
      "destination": [
-      "obj-167",
+      "obj-169",
       0
      ]
     }
@@ -9747,11 +10096,11 @@
    {
     "patchline": {
      "source": [
-      "obj-167",
+      "obj-169",
       0
      ],
      "destination": [
-      "obj-168",
+      "obj-170",
       0
      ]
     }
@@ -9759,7 +10108,7 @@
    {
     "patchline": {
      "source": [
-      "obj-168",
+      "obj-170",
       0
      ],
      "destination": [
@@ -9771,11 +10120,11 @@
    {
     "patchline": {
      "source": [
-      "obj-167",
+      "obj-169",
       0
      ],
      "destination": [
-      "obj-169",
+      "obj-171",
       0
      ]
     }
@@ -9783,7 +10132,7 @@
    {
     "patchline": {
      "source": [
-      "obj-169",
+      "obj-171",
       0
      ],
      "destination": [
@@ -9799,7 +10148,7 @@
       53
      ],
      "destination": [
-      "obj-170",
+      "obj-172",
       0
      ]
     }
@@ -9811,7 +10160,7 @@
       0
      ],
      "destination": [
-      "obj-170",
+      "obj-172",
       0
      ]
     }
@@ -9819,11 +10168,11 @@
    {
     "patchline": {
      "source": [
-      "obj-170",
+      "obj-172",
       0
      ],
      "destination": [
-      "obj-171",
+      "obj-173",
       0
      ]
     }
@@ -9831,7 +10180,7 @@
    {
     "patchline": {
      "source": [
-      "obj-171",
+      "obj-173",
       0
      ],
      "destination": [
@@ -9843,11 +10192,11 @@
    {
     "patchline": {
      "source": [
-      "obj-170",
+      "obj-172",
       0
      ],
      "destination": [
-      "obj-172",
+      "obj-174",
       0
      ]
     }
@@ -9855,7 +10204,7 @@
    {
     "patchline": {
      "source": [
-      "obj-172",
+      "obj-174",
       0
      ],
      "destination": [
@@ -9871,7 +10220,7 @@
       54
      ],
      "destination": [
-      "obj-173",
+      "obj-175",
       0
      ]
     }
@@ -9883,7 +10232,7 @@
       0
      ],
      "destination": [
-      "obj-173",
+      "obj-175",
       0
      ]
     }
@@ -9891,11 +10240,11 @@
    {
     "patchline": {
      "source": [
-      "obj-173",
+      "obj-175",
       0
      ],
      "destination": [
-      "obj-174",
+      "obj-176",
       0
      ]
     }
@@ -9903,7 +10252,7 @@
    {
     "patchline": {
      "source": [
-      "obj-174",
+      "obj-176",
       0
      ],
      "destination": [
@@ -9915,11 +10264,11 @@
    {
     "patchline": {
      "source": [
-      "obj-173",
+      "obj-175",
       0
      ],
      "destination": [
-      "obj-175",
+      "obj-177",
       0
      ]
     }
@@ -9927,7 +10276,7 @@
    {
     "patchline": {
      "source": [
-      "obj-175",
+      "obj-177",
       0
      ],
      "destination": [
@@ -9943,7 +10292,7 @@
       55
      ],
      "destination": [
-      "obj-176",
+      "obj-178",
       0
      ]
     }
@@ -9955,7 +10304,7 @@
       0
      ],
      "destination": [
-      "obj-176",
+      "obj-178",
       0
      ]
     }
@@ -9963,11 +10312,11 @@
    {
     "patchline": {
      "source": [
-      "obj-176",
+      "obj-178",
       0
      ],
      "destination": [
-      "obj-177",
+      "obj-179",
       0
      ]
     }
@@ -9975,7 +10324,7 @@
    {
     "patchline": {
      "source": [
-      "obj-177",
+      "obj-179",
       0
      ],
      "destination": [
@@ -9987,11 +10336,11 @@
    {
     "patchline": {
      "source": [
-      "obj-176",
+      "obj-178",
       0
      ],
      "destination": [
-      "obj-178",
+      "obj-180",
       0
      ]
     }
@@ -9999,7 +10348,7 @@
    {
     "patchline": {
      "source": [
-      "obj-178",
+      "obj-180",
       0
      ],
      "destination": [
@@ -10015,7 +10364,7 @@
       56
      ],
      "destination": [
-      "obj-179",
+      "obj-181",
       0
      ]
     }
@@ -10027,7 +10376,7 @@
       0
      ],
      "destination": [
-      "obj-179",
+      "obj-181",
       0
      ]
     }
@@ -10035,11 +10384,11 @@
    {
     "patchline": {
      "source": [
-      "obj-179",
+      "obj-181",
       0
      ],
      "destination": [
-      "obj-180",
+      "obj-182",
       0
      ]
     }
@@ -10047,7 +10396,7 @@
    {
     "patchline": {
      "source": [
-      "obj-180",
+      "obj-182",
       0
      ],
      "destination": [
@@ -10059,11 +10408,11 @@
    {
     "patchline": {
      "source": [
-      "obj-179",
+      "obj-181",
       0
      ],
      "destination": [
-      "obj-181",
+      "obj-183",
       0
      ]
     }
@@ -10071,7 +10420,7 @@
    {
     "patchline": {
      "source": [
-      "obj-181",
+      "obj-183",
       0
      ],
      "destination": [
@@ -10087,7 +10436,7 @@
       57
      ],
      "destination": [
-      "obj-182",
+      "obj-184",
       0
      ]
     }
@@ -10099,7 +10448,7 @@
       0
      ],
      "destination": [
-      "obj-182",
+      "obj-184",
       0
      ]
     }
@@ -10107,11 +10456,11 @@
    {
     "patchline": {
      "source": [
-      "obj-182",
+      "obj-184",
       0
      ],
      "destination": [
-      "obj-183",
+      "obj-185",
       0
      ]
     }
@@ -10119,7 +10468,7 @@
    {
     "patchline": {
      "source": [
-      "obj-183",
+      "obj-185",
       0
      ],
      "destination": [
@@ -10131,11 +10480,11 @@
    {
     "patchline": {
      "source": [
-      "obj-182",
+      "obj-184",
       0
      ],
      "destination": [
-      "obj-184",
+      "obj-186",
       0
      ]
     }
@@ -10143,7 +10492,7 @@
    {
     "patchline": {
      "source": [
-      "obj-184",
+      "obj-186",
       0
      ],
      "destination": [
@@ -10159,7 +10508,7 @@
       58
      ],
      "destination": [
-      "obj-185",
+      "obj-187",
       0
      ]
     }
@@ -10171,7 +10520,7 @@
       0
      ],
      "destination": [
-      "obj-185",
+      "obj-187",
       0
      ]
     }
@@ -10179,11 +10528,11 @@
    {
     "patchline": {
      "source": [
-      "obj-185",
+      "obj-187",
       0
      ],
      "destination": [
-      "obj-186",
+      "obj-188",
       0
      ]
     }
@@ -10191,7 +10540,7 @@
    {
     "patchline": {
      "source": [
-      "obj-186",
+      "obj-188",
       0
      ],
      "destination": [
@@ -10203,11 +10552,11 @@
    {
     "patchline": {
      "source": [
-      "obj-185",
+      "obj-187",
       0
      ],
      "destination": [
-      "obj-187",
+      "obj-189",
       0
      ]
     }
@@ -10215,7 +10564,7 @@
    {
     "patchline": {
      "source": [
-      "obj-187",
+      "obj-189",
       0
      ],
      "destination": [
@@ -10231,7 +10580,7 @@
       59
      ],
      "destination": [
-      "obj-188",
+      "obj-190",
       0
      ]
     }
@@ -10243,7 +10592,7 @@
       0
      ],
      "destination": [
-      "obj-188",
+      "obj-190",
       0
      ]
     }
@@ -10251,11 +10600,11 @@
    {
     "patchline": {
      "source": [
-      "obj-188",
+      "obj-190",
       0
      ],
      "destination": [
-      "obj-189",
+      "obj-191",
       0
      ]
     }
@@ -10263,7 +10612,7 @@
    {
     "patchline": {
      "source": [
-      "obj-189",
+      "obj-191",
       0
      ],
      "destination": [
@@ -10275,11 +10624,11 @@
    {
     "patchline": {
      "source": [
-      "obj-188",
+      "obj-190",
       0
      ],
      "destination": [
-      "obj-190",
+      "obj-192",
       0
      ]
     }
@@ -10287,7 +10636,7 @@
    {
     "patchline": {
      "source": [
-      "obj-190",
+      "obj-192",
       0
      ],
      "destination": [
@@ -10303,7 +10652,7 @@
       60
      ],
      "destination": [
-      "obj-191",
+      "obj-193",
       0
      ]
     }
@@ -10315,7 +10664,7 @@
       0
      ],
      "destination": [
-      "obj-191",
+      "obj-193",
       0
      ]
     }
@@ -10323,11 +10672,11 @@
    {
     "patchline": {
      "source": [
-      "obj-191",
+      "obj-193",
       0
      ],
      "destination": [
-      "obj-192",
+      "obj-194",
       0
      ]
     }
@@ -10335,7 +10684,7 @@
    {
     "patchline": {
      "source": [
-      "obj-192",
+      "obj-194",
       0
      ],
      "destination": [
@@ -10347,11 +10696,11 @@
    {
     "patchline": {
      "source": [
-      "obj-191",
+      "obj-193",
       0
      ],
      "destination": [
-      "obj-193",
+      "obj-195",
       0
      ]
     }
@@ -10359,7 +10708,7 @@
    {
     "patchline": {
      "source": [
-      "obj-193",
+      "obj-195",
       0
      ],
      "destination": [
@@ -10375,7 +10724,7 @@
       61
      ],
      "destination": [
-      "obj-194",
+      "obj-196",
       0
      ]
     }
@@ -10387,7 +10736,7 @@
       0
      ],
      "destination": [
-      "obj-194",
+      "obj-196",
       0
      ]
     }
@@ -10395,11 +10744,11 @@
    {
     "patchline": {
      "source": [
-      "obj-194",
+      "obj-196",
       0
      ],
      "destination": [
-      "obj-195",
+      "obj-197",
       0
      ]
     }
@@ -10407,7 +10756,7 @@
    {
     "patchline": {
      "source": [
-      "obj-195",
+      "obj-197",
       0
      ],
      "destination": [
@@ -10419,11 +10768,11 @@
    {
     "patchline": {
      "source": [
-      "obj-194",
+      "obj-196",
       0
      ],
      "destination": [
-      "obj-196",
+      "obj-198",
       0
      ]
     }
@@ -10431,7 +10780,7 @@
    {
     "patchline": {
      "source": [
-      "obj-196",
+      "obj-198",
       0
      ],
      "destination": [
@@ -10447,7 +10796,7 @@
       62
      ],
      "destination": [
-      "obj-197",
+      "obj-199",
       0
      ]
     }
@@ -10459,7 +10808,7 @@
       0
      ],
      "destination": [
-      "obj-197",
+      "obj-199",
       0
      ]
     }
@@ -10467,11 +10816,11 @@
    {
     "patchline": {
      "source": [
-      "obj-197",
+      "obj-199",
       0
      ],
      "destination": [
-      "obj-198",
+      "obj-200",
       0
      ]
     }
@@ -10479,7 +10828,7 @@
    {
     "patchline": {
      "source": [
-      "obj-198",
+      "obj-200",
       0
      ],
      "destination": [
@@ -10491,11 +10840,11 @@
    {
     "patchline": {
      "source": [
-      "obj-197",
+      "obj-199",
       0
      ],
      "destination": [
-      "obj-199",
+      "obj-201",
       0
      ]
     }
@@ -10503,7 +10852,7 @@
    {
     "patchline": {
      "source": [
-      "obj-199",
+      "obj-201",
       0
      ],
      "destination": [
@@ -10519,7 +10868,7 @@
       63
      ],
      "destination": [
-      "obj-200",
+      "obj-202",
       0
      ]
     }
@@ -10531,7 +10880,7 @@
       0
      ],
      "destination": [
-      "obj-200",
+      "obj-202",
       0
      ]
     }
@@ -10539,11 +10888,11 @@
    {
     "patchline": {
      "source": [
-      "obj-200",
+      "obj-202",
       0
      ],
      "destination": [
-      "obj-201",
+      "obj-203",
       0
      ]
     }
@@ -10551,7 +10900,7 @@
    {
     "patchline": {
      "source": [
-      "obj-201",
+      "obj-203",
       0
      ],
      "destination": [
@@ -10563,11 +10912,11 @@
    {
     "patchline": {
      "source": [
-      "obj-200",
+      "obj-202",
       0
      ],
      "destination": [
-      "obj-202",
+      "obj-204",
       0
      ]
     }
@@ -10575,7 +10924,7 @@
    {
     "patchline": {
      "source": [
-      "obj-202",
+      "obj-204",
       0
      ],
      "destination": [
@@ -10591,7 +10940,7 @@
       64
      ],
      "destination": [
-      "obj-203",
+      "obj-205",
       0
      ]
     }
@@ -10603,7 +10952,7 @@
       0
      ],
      "destination": [
-      "obj-203",
+      "obj-205",
       0
      ]
     }
@@ -10611,11 +10960,11 @@
    {
     "patchline": {
      "source": [
-      "obj-203",
+      "obj-205",
       0
      ],
      "destination": [
-      "obj-204",
+      "obj-206",
       0
      ]
     }
@@ -10623,7 +10972,7 @@
    {
     "patchline": {
      "source": [
-      "obj-204",
+      "obj-206",
       0
      ],
      "destination": [
@@ -10635,11 +10984,11 @@
    {
     "patchline": {
      "source": [
-      "obj-203",
+      "obj-205",
       0
      ],
      "destination": [
-      "obj-205",
+      "obj-207",
       0
      ]
     }
@@ -10647,7 +10996,151 @@
    {
     "patchline": {
      "source": [
-      "obj-205",
+      "obj-207",
+      0
+     ],
+     "destination": [
+      "obj-3",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-8",
+      65
+     ],
+     "destination": [
+      "obj-208",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-7",
+      0
+     ],
+     "destination": [
+      "obj-208",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-208",
+      0
+     ],
+     "destination": [
+      "obj-209",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-209",
+      0
+     ],
+     "destination": [
+      "obj-6",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-208",
+      0
+     ],
+     "destination": [
+      "obj-210",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-210",
+      0
+     ],
+     "destination": [
+      "obj-3",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-8",
+      66
+     ],
+     "destination": [
+      "obj-211",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-7",
+      0
+     ],
+     "destination": [
+      "obj-211",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-211",
+      0
+     ],
+     "destination": [
+      "obj-212",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-212",
+      0
+     ],
+     "destination": [
+      "obj-6",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-211",
+      0
+     ],
+     "destination": [
+      "obj-213",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-213",
       0
      ],
      "destination": [
@@ -10663,7 +11156,7 @@
       3
      ],
      "destination": [
-      "obj-206",
+      "obj-214",
       0
      ]
     }
@@ -10675,7 +11168,7 @@
       4
      ],
      "destination": [
-      "obj-207",
+      "obj-215",
       0
      ]
     }
@@ -10683,11 +11176,11 @@
    {
     "patchline": {
      "source": [
-      "obj-207",
+      "obj-215",
       0
      ],
      "destination": [
-      "obj-208",
+      "obj-216",
       0
      ]
     }
@@ -10695,11 +11188,11 @@
    {
     "patchline": {
      "source": [
-      "obj-206",
+      "obj-214",
       0
      ],
      "destination": [
-      "obj-208",
+      "obj-216",
       1
      ]
     }
@@ -10707,11 +11200,11 @@
    {
     "patchline": {
      "source": [
-      "obj-208",
+      "obj-216",
       0
      ],
      "destination": [
-      "obj-209",
+      "obj-217",
       0
      ]
     }
@@ -10719,7 +11212,7 @@
    {
     "patchline": {
      "source": [
-      "obj-209",
+      "obj-217",
       0
      ],
      "destination": [
@@ -10735,7 +11228,7 @@
       2
      ],
      "destination": [
-      "obj-210",
+      "obj-218",
       0
      ]
     }
@@ -10743,11 +11236,11 @@
    {
     "patchline": {
      "source": [
-      "obj-210",
+      "obj-218",
       0
      ],
      "destination": [
-      "obj-211",
+      "obj-219",
       0
      ]
     }
@@ -10759,7 +11252,7 @@
       5
      ],
      "destination": [
-      "obj-212",
+      "obj-220",
       0
      ]
     }
@@ -10771,7 +11264,7 @@
       6
      ],
      "destination": [
-      "obj-213",
+      "obj-221",
       0
      ]
     }
@@ -10779,11 +11272,11 @@
    {
     "patchline": {
      "source": [
-      "obj-211",
+      "obj-219",
       0
      ],
      "destination": [
-      "obj-212",
+      "obj-220",
       0
      ]
     }
@@ -10791,11 +11284,11 @@
    {
     "patchline": {
      "source": [
-      "obj-211",
+      "obj-219",
       1
      ],
      "destination": [
-      "obj-213",
+      "obj-221",
       0
      ]
     }
@@ -10803,11 +11296,11 @@
    {
     "patchline": {
      "source": [
-      "obj-212",
+      "obj-220",
       0
      ],
      "destination": [
-      "obj-214",
+      "obj-222",
       0
      ]
     }
@@ -10815,11 +11308,11 @@
    {
     "patchline": {
      "source": [
-      "obj-213",
+      "obj-221",
       0
      ],
      "destination": [
-      "obj-214",
+      "obj-222",
       1
      ]
     }
@@ -10827,11 +11320,11 @@
    {
     "patchline": {
      "source": [
-      "obj-214",
+      "obj-222",
       0
      ],
      "destination": [
-      "obj-215",
+      "obj-223",
       0
      ]
     }
@@ -10839,7 +11332,7 @@
    {
     "patchline": {
      "source": [
-      "obj-215",
+      "obj-223",
       0
      ],
      "destination": [
@@ -10855,7 +11348,7 @@
       0
      ],
      "destination": [
-      "obj-216",
+      "obj-224",
       0
      ]
     }
@@ -10863,11 +11356,11 @@
    {
     "patchline": {
      "source": [
-      "obj-216",
+      "obj-224",
       1
      ],
      "destination": [
-      "obj-217",
+      "obj-225",
       0
      ]
     }
@@ -10875,7 +11368,79 @@
    {
     "patchline": {
      "source": [
-      "obj-217",
+      "obj-225",
+      0
+     ],
+     "destination": [
+      "obj-6",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-3",
+      9
+     ],
+     "destination": [
+      "obj-226",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-3",
+      10
+     ],
+     "destination": [
+      "obj-227",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-226",
+      0
+     ],
+     "destination": [
+      "obj-228",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-227",
+      0
+     ],
+     "destination": [
+      "obj-228",
+      1
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-228",
+      0
+     ],
+     "destination": [
+      "obj-229",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-229",
       0
      ],
      "destination": [
@@ -10891,7 +11456,7 @@
       7
      ],
      "destination": [
-      "obj-218",
+      "obj-230",
       0
      ]
     }
@@ -10903,7 +11468,7 @@
       8
      ],
      "destination": [
-      "obj-219",
+      "obj-231",
       0
      ]
     }
@@ -10911,11 +11476,11 @@
    {
     "patchline": {
      "source": [
-      "obj-218",
+      "obj-230",
       0
      ],
      "destination": [
-      "obj-220",
+      "obj-232",
       0
      ]
     }
@@ -10923,11 +11488,11 @@
    {
     "patchline": {
      "source": [
-      "obj-219",
+      "obj-231",
       0
      ],
      "destination": [
-      "obj-220",
+      "obj-232",
       1
      ]
     }
@@ -10935,11 +11500,11 @@
    {
     "patchline": {
      "source": [
-      "obj-220",
+      "obj-232",
       0
      ],
      "destination": [
-      "obj-221",
+      "obj-233",
       0
      ]
     }
@@ -10947,7 +11512,7 @@
    {
     "patchline": {
      "source": [
-      "obj-221",
+      "obj-233",
       0
      ],
      "destination": [

@@ -30,23 +30,24 @@ SIG = "signal"
 # (engine Param, Live long name, short, min, max, default, unitstyle, kind)
 #  unitstyle: 1 float, 4 dB ; kind: dial / toggle ; engine None = handled specially
 PARAMS = [
-    ("time", "Time", "Time", 0, 1, 0.5, 1, "dial"),
-    ("density", "Density", "Density", 0, 1, 0.3, 1, "dial"),
+    ("time", "Time", "Time", 0, 1, 0.15, 1, "dial"),
+    ("density", "Density", "Density", 0, 1, 0.12, 1, "dial"),
     ("pitch", "Pitch", "Pitch", 0, 1, 0.5, 1, "dial"),
-    ("size", "Size", "Size", 0, 1, 0.45, 1, "dial"),
-    ("shape", "Shape", "Shape", 0, 1, 0.5, 1, "dial"),
-    ("time_amt", "Time Random", "T Rnd", 0, 1, 0.5, 1, "dial"),
+    ("size", "Size", "Size", 0, 1, 0.6, 1, "dial"),
+    ("shape", "Shape", "Shape", 0, 1, 0.6, 1, "dial"),
+    ("time_amt", "Time Random", "T Rnd", 0, 1, 0.75, 1, "dial"),
     ("pitch_amt", "Pitch Random", "P Rnd", 0, 1, 0.5, 1, "dial"),
     ("size_amt", "Size Random", "S Rnd", 0, 1, 0.5, 1, "dial"),
     ("shape_amt", "Shape Random", "Sh Rnd", 0, 1, 0.5, 1, "dial"),
-    ("feedback", "Feedback", "Feedback", 0, 1, 0.0, 1, "dial"),
-    ("drywet", "Dry/Wet", "Dry/Wet", 0, 1, 0.5, 1, "dial"),
-    ("reverb", "Reverb", "Reverb", 0, 1, 0.2, 1, "dial"),
+    ("feedback", "Feedback", "Feedback", 0, 1, 0.1, 1, "dial"),
+    ("drywet", "Dry/Wet", "Dry/Wet", 0, 1, 0.7, 1, "dial"),
+    ("reverb", "Reverb", "Reverb", 0, 1, 0.35, 1, "dial"),
     ("freeze", "Freeze", "Freeze", 0, 1, 0, 0, "toggle"),
     ("seed", "Seed", "Seed", 0, 1, 0, 0, "toggle"),
     ("seedlatch", "Latch", "Latch", 0, 1, 1, 0, "toggle"),
     ("input", "Input Gain", "Input", -12, 32, 0, 4, "dial"),
     ("output", "Output Gain", "Output", -24, 12, 0, 4, "dial"),
+    ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 1, 0, "toggle"),
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]
 DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"]
@@ -57,6 +58,7 @@ PARAMS += [
     ("fb_amt", "Mod Feedback Amount", "M FB Amt", 0, 1, 1, 1, "dial"),
     ("dw_amt", "Mod Dry/Wet Amount", "M DW Amt", 0, 1, 1, 1, "dial"),
     ("rv_amt", "Mod Reverb Amount", "M Rv Amt", 0, 1, 1, 1, "dial"),
+    ("dn_amt", "Mod Density Amount", "M Dn Amt", 0, 1, 0.5, 1, "dial"),
 ]
 for i, (rate, shp) in enumerate([(0.4, 0), (0.25, 1)]):
     n = str(i + 1)
@@ -162,6 +164,11 @@ def build():
     names = [p[0] for p in PARAMS]
     rt = P.obj("route " + " ".join(names), 2, len(names) + 1, x=400, y=80, w=700)
     P.connect(ui, 0, rt, 0)
+    # messages that are not Live parameters (LEARN = restart the auto gain) go straight to gen~
+    rt2 = P.obj("route agc_restart", 2, 2, x=1200, y=110, w=140)
+    P.connect(rt, len(names), rt2, 0)
+    plearn = P.obj("prepend agc_restart", 1, 1, x=1200, y=140, w=140)
+    P.connect(rt2, 0, plearn, 0); P.connect(plearn, 0, gen, 0)
     for i, spec in enumerate(PARAMS):
         name = spec[0]
         x = 20 + (i % 13) * 100
@@ -202,6 +209,14 @@ def build():
     P.connect(lb, 0, dsp, 0)
     psr = P.obj("prepend sr", 1, 1, x=900, y=110)
     P.connect(dsp, 1, psr, 0); P.connect(psr, 0, ui, 0)
+    # input gain (auto) + learning flag → panel
+    s_g = P.obj("snapshot~ 100", 2, 1, ["float"], x=900, y=980)
+    s_l = P.obj("snapshot~ 100", 2, 1, ["float"], x=1000, y=980)
+    P.connect(gen, 9, s_g, 0); P.connect(gen, 10, s_l, 0)
+    pag = P.obj("pack 0. 0", 2, 1, x=940, y=1010)
+    P.connect(s_g, 0, pag, 0); P.connect(s_l, 0, pag, 1)
+    pagi = P.obj("prepend agcinfo", 1, 1, x=940, y=1040)
+    P.connect(pag, 0, pagi, 0); P.connect(pagi, 0, ui, 0)
     # sequencer position + transport state → panel (MOD tab)
     s_sq = P.obj("snapshot~ 40", 2, 1, ["float"], x=700, y=980)
     s_run = P.obj("snapshot~ 40", 2, 1, ["float"], x=800, y=980)

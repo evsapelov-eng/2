@@ -9,8 +9,9 @@ const { GenPatch } = require("../tools/genexpr");
 const { Ref, fromKnobs, BLOCK } = require("../tools/beads_ref");
 const SR = 48000;
 const SRC = fs.readFileSync(path.join(__dirname, "..", "gen", "flock.genexpr"), "utf8");
+// these scenarios were written for the v0.1 defaults; they set them explicitly (manual unity gain, DENSITY CV depth 1 = Beads)
 const BASE = { time: 0.5, density: 0.3, pitch: 0.5, size: 0.45, shape: 0.5, time_amt: 0.5, pitch_amt: 0.5, size_amt: 0.5,
-  shape_amt: 0.5, feedback: 0, drywet: 0.5, reverb: 0.2, freeze: 0, seed: 0, seedlatch: 1 };
+  shape_amt: 0.5, feedback: 0, drywet: 0.5, reverb: 0.2, freeze: 0, seed: 0, seedlatch: 1, agc: 0, ingain: 1, dn_amt: 1 };
 
 function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
 function source(n, seed) {
@@ -53,6 +54,8 @@ const CASES = [
   ["very dense, 32-voice stealing", { density: 0.0, size: 0.9, shape: 0.7, time: 0.05, drywet: 1 }],
   ["sorted voice stealing: 4 s grains at 30 grains/s (all 32 voices busy, the 5 ms fades act)", { density: 0.1328, size: 0.98, shape: 0.6, time: 0.05, drywet: 1 }],
   ["TIME turned slowly in small steps (pot low-pass + 0.001 hysteresis)", [{ sec: 0.5, knobs: { density: 0.05, time: 0.05, size: 0.5, drywet: 1 } }, { sec: 0.3, knobs: { time: 0.0512 } }, { sec: 0.3, knobs: { time: 0.0505 } }, { sec: 0.3, knobs: { time: 0.0531 } }, { sec: 0.3, knobs: { time: 0.0524 } }]],
+  ["R5 AUTO gain on a quiet, swelling source (learning, then slow tracking)", [{ sec: 3, knobs: { agc: 1, density: 0.1, time: 0.05, size: 0.6, drywet: 0.6 } }, { sec: 4, knobs: {} }]],
+  ["R5 manual gain ×3 with clipping at ±1", { agc: 0, ingain: 3, density: 0.1, time: 0.05, drywet: 0.6 }],
   ["knobs moving between phases (interpolators)", [{ sec: 0.7, knobs: { density: 0.1, time: 0.05, drywet: 0.3, reverb: 0.1 } }, { sec: 0.7, knobs: { drywet: 0.9, reverb: 0.7, feedback: 0.5, pitch: 0.7 } }, { sec: 0.7, knobs: { drywet: 0.2, reverb: 0.3, feedback: 0 } }]],
 ];
 for (const [name, k] of CASES) {

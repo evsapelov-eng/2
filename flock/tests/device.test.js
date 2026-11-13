@@ -14,7 +14,7 @@ const decl = parse(fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf
 
 test("every Live parameter reaches an existing gen~ Param and the panel; panel outputs route to the parameters", () => {
   const params = boxes.filter((b) => b.parameter_enable);
-  assert.strictEqual(params.length, 65);
+  assert.strictEqual(params.length, 67);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const outsOf = (id) => patch.lines.filter((l) => l.patchline.source[0] === id).map((l) => byId[l.patchline.destination[0]]);
   for (const p of params) {
@@ -39,7 +39,7 @@ test("gen~ box embeds the engine code with matching inlet/outlet counts; device 
   const g = boxes.find((b) => b.text === "gen~");
   const cb = g.patcher.boxes.map((b) => b.box).find((b) => b.maxclass === "codebox");
   assert.ok(cb.code.includes("Param time(") && g.patcher.classnamespace === "dsp.gen");
-  assert.strictEqual(g.numinlets, 11); assert.strictEqual(g.numoutlets, 9);
+  assert.strictEqual(g.numinlets, 11); assert.strictEqual(g.numoutlets, 11);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const ph = boxes.find((b) => b.text === "phasor~ 1n @lock 1");
   assert.ok(patch.lines.some((l) => l.patchline.source[0] === ph.id && byId[l.patchline.destination[0]].text === "gen~" && l.patchline.destination[1] === 6), "bar phase → gen~ in7");
@@ -93,7 +93,7 @@ test("panel: knobs send their parameter, toggles toggle, SEED is momentary, doub
   b.ctx.p("seedlatch", 0);   // gated mode: SEED is a plain momentary button
   const sd = hitFor("seed"); b.out.length = 0; b.ctx.onclick(sd.x + 5, sd.y + 5, 1); b.ctx.ondrag(sd.x + 5, sd.y + 5, 0);
   assert.deepStrictEqual(b.out.map((m) => m.slice(1)), [["seed", 1], ["seed", 0]]);
-  const t = hitFor("time"); b.out.length = 0; b.ctx.ondblclick(t.x + 10, t.y + 10); assert.deepStrictEqual(b.out.pop().slice(1), ["time", 0.5]);
+  const t = hitFor("time"); b.out.length = 0; b.ctx.ondblclick(t.x + 10, t.y + 10); assert.deepStrictEqual(b.out.pop().slice(1), ["time", 0.15]);
   b.ctx.tape(0.3, 12); b.ctx.grain(0.4, 2); b.ctx.grain(0.6, -1); b.ctx.onidle(t.x + 10, t.y + 10); b.draw();
   const svg = b.mg.svg();
   assert.ok(svg.includes("TIME: where the grains start"));

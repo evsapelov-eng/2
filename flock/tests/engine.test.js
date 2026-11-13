@@ -12,7 +12,9 @@ const SR = 48000;
 const sine = (hz, n, a = 0.5) => Float64Array.from({ length: n }, (_, i) => a * Math.sin(2 * Math.PI * hz * i / SR));
 function engine(params = {}, seed = 7) {
   const g = new GenPatch(SRC, { sr: SR, seed });
-  const base = { reverb: 0, drywet: 1, time: 0.02, time_amt: 0.5, size_amt: 0.5, shape_amt: 0.5, pitch_amt: 0.5 };
+  // behaviour tests use manual unity gain and the v0.1 knob defaults unless they set their own
+  const base = { reverb: 0, drywet: 1, time: 0.02, time_amt: 0.5, size_amt: 0.5, shape_amt: 0.5, pitch_amt: 0.5,
+    agc: 0, ingain: 1, density: 0.3, size: 0.45, shape: 0.5, feedback: 0, dn_amt: 1 };
   for (const [k, v] of Object.entries(Object.assign(base, params))) g.set(k, v);
   return g;
 }
@@ -344,4 +346,31 @@ test("ENV → SEED (LATCH off): grains only while the input is loud", () => {
   const r = modRun({ seedlatch: 0, density: 0.2, dst_seed: 4, env_gain: 0.5, time: 0.02 }, 1, x);
   const t = grainStarts(r.o);
   assert.ok(t.length > 5 && t.every((i) => i < n / 2 + 0.2 * SR), "grains in the loud half only: " + t.length);
+});
+
+// ---- R5 auto input gain (Beads GainControl)
+test("R5 AUTO gain: learns for 1 + 5 s, then gain = 0.9 / peak (max ×40); LEARN restarts; manual = IN with ±1 clipping", () => {
+  const run = (amp, extra = {}, sec = 8) => {
+    const g = engine(Object.assign({ agc: 1, drywet: 0, density: 0.5 }, extra)), n = sec * SR, x = sine(300, n, amp), z = new Float64Array(n);
+    const o = g.run(n, [x, x, z, z, z, z, z]);
+    return { g, o, n };
+  };
+  const loud = run(0.3), quiet = run(0.01), silentish = run(0.001);
+  const gainAt = (r, s) => r.o[9][Math.round(s * SR)];
+  assert.ok(Math.abs(gainAt(loud, 7.9) - 0.9 / 0.3) / 3 < 0.05, "loud: ×" + gainAt(loud, 7.9).toFixed(2));
+  assert.ok(Math.abs(gainAt(quiet, 7.9) - 40) < 1, "quiet (-40 dB): ×" + gainAt(quiet, 7.9).toFixed(1) + " (capped at 40)");
+  // first second: agc_peak is held at 0.5 → gain 0.9 / 0.5 = ×1.8 (GainControl), whatever the input
+  assert.ok(Math.abs(gainAt(loud, 0.5) - 1.8) < 1e-9 && Math.abs(gainAt(quiet, 0.9) - 1.8) < 1e-9, "×1.8 during the first second");
+  assert.ok(loud.o[10][Math.round(3 * SR)] === 1 && loud.o[10][Math.round(7 * SR)] === 0, "learning flag 1 → 0 after 6 s");
+  // dry output of the quiet source after learning ≈ 0.9 × 0.75 (dry gain) — loud enough to work with
+  let pk = 0; for (let i = 7 * SR; i < 8 * SR; i++) pk = Math.max(pk, Math.abs(quiet.o[0][i]));
+  assert.ok(pk > 0.25, "quiet source raised: peak " + pk.toFixed(3));
+  // LEARN: a new agc_restart value skips the 1 s wait and learns again
+  const r = run(0.3, {}, 7); r.g.set("agc_restart", 1);
+  const z = new Float64Array(SR), x = sine(300, SR, 0.05);
+  const o2 = r.g.run(SR, [x, x, z, z, z, z, z]);
+  assert.ok(o2[10][100] === 1, "learning again");
+  // manual
+  const m = run(0.3, { agc: 0, ingain: 2 }, 1);
+  assert.ok(Math.abs(m.o[9][SR - 1] - 2) < 1e-9 && silentish.o[9].length);
 });

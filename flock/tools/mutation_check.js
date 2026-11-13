@@ -28,6 +28,8 @@ const MUTATIONS = [
   ["block size sr/4000 → sr/3000", "BLK = floor(FS / 4000 + 0.5);", "BLK = floor(FS / 3000 + 0.5);"],
   ["synced sources not ahead of the SEED delay", "dph * floor(FS / 4000 + 0.5) * 10", "dph * floor(FS / 4000 + 0.5) * 9"],
   ["ENV release 0.15 → 0.2 s", "1 - exp(-1 / (0.15 * FS))", "1 - exp(-1 / (0.2 * FS))"],
+  ["auto gain ceiling ×40 → ×35", "min(0.9 / min(gagc, 0.9), 40)", "min(0.9 / min(gagc, 0.9), 35)"],
+  ["auto gain learning speed 10 → 8", "(gerr > 0 ? 10 * ghz : 2 * ghz)", "(gerr > 0 ? 8 * ghz : 2 * ghz)"],
   ["LFO free rate law", "l1f = fract(l1_ph + 0.02 * pow(1000, l1_rate) / FS);", "l1f = fract(l1_ph + 0.021 * pow(1000, l1_rate) / FS);"],
 ];
 const good = fs.readFileSync(FILE, "utf8");

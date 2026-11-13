@@ -23,9 +23,9 @@ var C = {
 };
 // name, default, label, caption
 var P = {
-  time: { v: 0.5, d: 0.5 }, density: { v: 0.3, d: 0.3 }, pitch: { v: 0.5, d: 0.5 }, size: { v: 0.45, d: 0.45 }, shape: { v: 0.5, d: 0.5 },
-  time_amt: { v: 0.5, d: 0.5 }, pitch_amt: { v: 0.5, d: 0.5 }, size_amt: { v: 0.5, d: 0.5 }, shape_amt: { v: 0.5, d: 0.5 },
-  feedback: { v: 0, d: 0 }, drywet: { v: 0.5, d: 0.5 }, reverb: { v: 0.2, d: 0.2 },
+  time: { v: 0.15, d: 0.15 }, density: { v: 0.12, d: 0.12 }, pitch: { v: 0.5, d: 0.5 }, size: { v: 0.6, d: 0.6 }, shape: { v: 0.6, d: 0.6 },
+  time_amt: { v: 0.75, d: 0.75 }, pitch_amt: { v: 0.5, d: 0.5 }, size_amt: { v: 0.5, d: 0.5 }, shape_amt: { v: 0.5, d: 0.5 },
+  feedback: { v: 0.1, d: 0.1 }, drywet: { v: 0.7, d: 0.7 }, reverb: { v: 0.35, d: 0.35 }, agc: { v: 1, d: 1 },
   freeze: { v: 0, d: 0 }, seed: { v: 0, d: 0 }, seedlatch: { v: 1, d: 1 },
   input: { v: 0, d: 0, lo: -12, hi: 32 }, output: { v: 0, d: 0, lo: -24, hi: 12 }
 };
@@ -39,7 +39,7 @@ var SHAPES = ["sine", "tri", "saw", "square"];
 (function () {
   var i, d = function (v, extra) { var o = { v: v, d: v }; if (extra) for (var k in extra) o[k] = extra[k]; return o; };
   for (i = 0; i < DST.length; i++) P["dst_" + DST[i][0]] = d(0, { lo: 0, hi: 6, int: 1 });
-  P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1);
+  P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1); P.dn_amt = d(0.5);
   P.l1_rate = d(0.4); P.l1_sync = d(0); P.l1_shape = d(0, { lo: 0, hi: 3, int: 1 }); P.l1_reset = d(0); P.l1_amt = d(1);
   P.l2_rate = d(0.25); P.l2_sync = d(0); P.l2_shape = d(1, { lo: 0, hi: 3, int: 1 }); P.l2_reset = d(0); P.l2_amt = d(1);
   P.rn_rate = d(0.4); P.rn_sync = d(0); P.rn_smooth = d(1); P.rn_amt = d(1);
@@ -50,6 +50,8 @@ var SHAPES = ["sine", "tri", "saw", "square"];
   for (i = 0; i < 16; i++) P["sq" + i] = d(SQ[i], { lo: -1, hi: 1 });
 })();
 var tab = "SOUND", maxCables = 3, seqPos = -1, running = 0;
+var agcGain = 1, agcLearning = 0, learnCount = 0;
+function agcinfo(g, l) { agcGain = +g; agcLearning = +l; dirty = true; }   // from the engine
 function seq(stepIndex, run) { seqPos = +stepIndex; running = +run; dirty = true; }   // from the engine
 // a sequencer step: value 0..1 when on; off = -(v + 0.01) / 1.01 (keeps the value while off)
 function stepOn(i) { return P["sq" + i].v >= 0; }
@@ -133,6 +135,7 @@ function valueText(name) {
   if (name === "env_gain") return "x" + (Math.round(0.25 * Math.pow(64, v) * 10) / 10);
   if (name === "sq_div") return DIVS[Math.round(v)];
   if (name === "sq_len") return String(Math.round(v));
+  if (name === "input" && P.agc.v > 0.5) { var gdb = 20 * Math.log(Math.max(agcGain, 1e-6)) / Math.LN10; return "AUTO " + (gdb > 0 ? "+" : "") + Math.round(gdb) + " dB"; }
   if (name === "input" || name === "output") return (v > 0 ? "+" : "") + (Math.round(v * 10) / 10) + " dB";
   return pct(v);
 }
@@ -205,7 +208,12 @@ function paint() {
   rect(lx, ly, 126, 16, C.ink, P.seedlatch.v > 0.5, 1);
   textC(P.seedlatch.v > 0.5 ? "LATCH  ON  (continuous)" : "LATCH  OFF  (hold SEED)", lx + 63, ly + 11, 7, P.seedlatch.v > 0.5 ? C.panel : C.ink, true);
   hit({ x: lx, y: ly, w: 126, h: 16, kind: "toggle", name: "seedlatch" });
-  text("grains " + tapeSt.active + " / 32", 15, 156, 7.5, C.mid);
+  rect(14, 141, 84, 17, C.accent, true);
+  textC("DICE  new sound", 56, 153, 7.5, C.panel, true);
+  hit({ x: 14, y: 141, w: 84, h: 17, kind: "dice", name: "dice" });
+  rect(102, 141, 38, 17, C.ink, false, 1, history.length ? 1 : 0.3);
+  textC("BACK", 121, 153, 7, history.length ? C.ink : C.line, true);
+  if (history.length) hit({ x: 102, y: 141, w: 38, h: 17, kind: "back", name: "back" });
   line(152, 12, 152, H0 - 12, C.line);
   if (tab === "MOD") { paintMod(); return; }
   // ---- big knobs
@@ -233,8 +241,10 @@ function paint() {
     knob(mx, 44, 15, MIX[m][0], false);
     textC(valueText(MIX[m][0]), mx, 76, 8, C.ink, true);
   }
-  gainBox(812, 22, "input", "IN");
-  gainBox(812, 52, "output", "OUT");
+  gainBox(812, 18, "input", "IN");
+  pill(836, 37, 26, "AUTO", P.agc.v > 0.5, "toggle", "agc");
+  pill(864, 37, 30, agcLearning ? "..." : "LEARN", agcLearning > 0, "cmd", "learn");
+  gainBox(812, 58, "output", "OUT");
   // ---- tape: record head + where the grains start
   drawTape(598, 90, 290, 58);
   text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
@@ -319,7 +329,7 @@ function paintMod() {
     if (si) circle(JD_X, dy, 1.8, SRC_COL[si - 1], true);
     text(DST[j][1], 800, dy + 3, 7, C.ink, si > 0);
     hit({ x: JD_X - 8, y: dy - 7, w: 60, h: 14, kind: "jack_dst", name: dn, dst: j });
-    var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt" }[DST[j][0]];
+    var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt", density: "dn_amt" }[DST[j][0]];
     if (an) amountBar(852, dy, 30, an);
   }
   // cables (drawn last, on top)
@@ -358,11 +368,94 @@ function fitHelp(x, y, w) {
   while (tw(s, fs, !!hover) > w && s.length > 8) s = s.substring(0, s.length - 2);
   text(s, x, y, fs, hover ? C.ink : C.mid, !!hover);
 }
+// ---------- making sound quickly: DICE (recipes), BACK, smart RANDOM, CV amounts ----------
+var history = [];
+function rr(a, b) { return a + Math.random() * (b - a); }
+function pickOne(a) { return a[Math.floor(Math.random() * a.length)]; }
+function pitchKnob(st) { var iv = [0, 1, 3, 4, 7, 12, 24], k = iv.indexOf(Math.abs(st)); return Math.round((((st < 0 ? -1 : 1) * (k + 0.15) / 6) + 1) / 2 * 1000) / 1000; }
+var CV_AMOUNT = { time: 0.85, size: 0.8, shape: 0.8, pitch: 0.8 };   // RND knob → CV amount when a cable is patched
+var SAFE_KEYS = null;
+function soundKeys() {   // everything DICE may set (not IN / OUT / AUTO)
+  if (SAFE_KEYS) return SAFE_KEYS;
+  SAFE_KEYS = [];
+  for (var k in P) if (k !== "input" && k !== "output" && k !== "agc" && k !== "seed") SAFE_KEYS.push(k);
+  return SAFE_KEYS;
+}
+function snapshot() { var o = {}, keys = soundKeys(); for (var i = 0; i < keys.length; i++) o[keys[i]] = P[keys[i]].v; return o; }
+function applySet(set) { for (var k in set) send(k, Math.round(set[k] * 1000) / 1000); }
+// each recipe = a known-good region of the knobs + a matching patch; values random inside it
+var RECIPES = {
+  CLOUD: function () { return { density: rr(0.08, 0.18), size: rr(0.58, 0.7), shape: rr(0.5, 0.75), time: rr(0.05, 0.35), time_amt: rr(0.75, 0.9), pitch: pitchKnob(pickOne([0, 0, 12, -12])), pitch_amt: rr(0.55, 0.62), reverb: rr(0.3, 0.55), drywet: rr(0.7, 0.9), feedback: rr(0, 0.25) }; },
+  SHIMMER: function () { return { density: rr(0.06, 0.12), size: rr(0.62, 0.75), shape: rr(0.6, 0.8), time: rr(0.02, 0.12), time_amt: rr(0.6, 0.75), pitch: pitchKnob(pickOne([12, 7, 24])), pitch_amt: rr(0.5, 0.55), feedback: rr(0.35, 0.6), reverb: rr(0.6, 0.85), drywet: rr(0.75, 0.9) }; },
+  "REVERSE SWELLS": function () { return { density: rr(0.68, 0.8), size: rr(0.04, 0.12), shape: rr(0.85, 1), time: rr(0.1, 0.6), time_amt: rr(0.8, 1), pitch: pitchKnob(pickOne([0, -12, 12])), pitch_amt: rr(0.5, 0.6), reverb: rr(0.4, 0.7), drywet: rr(0.8, 1) }; },
+  STUTTER: function () { return { seedlatch: 0, density: 0.5, dst_seed: 5, ck_sync: 1, ck_rate: pickOne([10, 12, 11, 13]) / 14, size: rr(0.42, 0.52), shape: rr(0, 0.25), time: rr(0.01, 0.08), pitch: pitchKnob(pickOne([0, 0, 12])), reverb: rr(0.15, 0.35), drywet: rr(0.85, 1) }; },
+  SLICER: function () {
+    var o = { seedlatch: 0, density: 0.5, dst_seed: 6, dst_time: 6, time: 0, time_amt: 1, sq_div: pickOne([12, 12, 10, 13]), sq_len: pickOne([16, 16, 12, 8, 7, 5]), size: rr(0.62, 0.7), shape: rr(0.0, 0.2), reverb: rr(0.1, 0.3), drywet: rr(0.9, 1) };
+    // slices from the last ~1.6 s (the material that is playing now), on 1 + ~60 % of the steps
+    for (var i = 0; i < 16; i++) { var v = Math.round(rr(0, 0.4) * 32) / 32; o["sq" + i] = (i % 4 === 0 || Math.random() < 0.5) ? v : stepCode(false, v); }
+    return o;
+  },
+  RAIN: function () { return { density: rr(0.75, 0.9), size: rr(0.4, 0.5), shape: rr(0.3, 0.5), time: rr(0.05, 0.4), time_amt: rr(0.85, 1), pitch: pitchKnob(pickOne([0, 12])), pitch_amt: rr(0.75, 0.95), reverb: rr(0.35, 0.6), drywet: rr(0.8, 1) }; },
+  DRONE: function () { return { density: rr(0.02, 0.07), size: rr(0.78, 0.88), shape: rr(0.55, 0.7), time: rr(0.2, 0.6), time_amt: rr(0.6, 0.75), pitch: pitchKnob(pickOne([0, -12, -12, 7])), pitch_amt: rr(0.5, 0.55), feedback: rr(0.2, 0.45), reverb: rr(0.55, 0.8), drywet: rr(0.85, 1) }; },
+  WOBBLE: function () { return { density: rr(0.08, 0.15), size: rr(0.55, 0.65), shape: rr(0.55, 0.7), time: rr(0.05, 0.3), time_amt: 0.75, dst_pitch: 1, l1_sync: 1, l1_rate: pickOne([2, 3, 4]) / 14, l1_shape: pickOne([0, 1]), pitch_amt: CV_AMOUNT.pitch, dst_size: 3, size_amt: CV_AMOUNT.size, rn_rate: rr(0.4, 0.6), reverb: rr(0.3, 0.5), drywet: rr(0.8, 0.95) }; }
+};
+var RECIPE_NAMES = []; (function () { for (var k in RECIPES) RECIPE_NAMES.push(k); })();
+var lastRecipe = "";
+function dice(name) {
+  history.push(snapshot()); if (history.length > 16) history.shift();
+  var r = name && RECIPES[name] ? name : pickOne(RECIPE_NAMES);
+  lastRecipe = r;
+  // start from the defaults (no cables, no freeze, LATCH on), then the recipe
+  var set = {}, keys = soundKeys();
+  for (var i = 0; i < keys.length; i++) set[keys[i]] = P[keys[i]].d;
+  var o = RECIPES[r]();
+  for (var k in o) set[k] = o[k];
+  applySet(set);
+  dirty = true;
+  return r;
+}
+function back() { if (history.length) { applySet(history.pop()); lastRecipe = ""; dirty = true; } }
+// plugging a cable into TIME / SIZE / SHAPE / PITCH: Beads turns the RND knob into the CV amount;
+// a knob left at the centre would mean "no effect" → set a working amount
+// LATCH off + nothing in SEED = no grains at all (the module waits for SEED). After a change of the
+// SEED cable, if that would be the result, switch LATCH back on and leave the 12 o'clock dead zone.
+function ensureGrains(seedSrc) {
+  if (seedSrc > 0) return;
+  if (P.seedlatch.v < 0.5) send("seedlatch", 1);
+  if (P.density.v > 0.46 && P.density.v < 0.54) send("density", P.density.d);
+}
+function patchCable(dst, src) {
+  send(dst, src);
+  if (dst === "dst_seed") ensureGrains(src);
+  var base = dst.replace("dst_", "");
+  if (src > 0 && CV_AMOUNT[base] !== undefined && Math.abs(P[base + "_amt"].v - 0.5) < 0.08) send(base + "_amt", CV_AMOUNT[base]);
+}
+// RANDOM: musical rules — rhythm (CLOCK / SEQ) is the only thing that goes into SEED (and then LATCH
+// off, DENSITY 12h: one grain per pulse); FREEZE is never patched at random; continuous sources go
+// to TIME / PITCH / SIZE / SHAPE (with a working CV amount), DENSITY (limited depth) and the mix.
 function randomPatch() {
-  var i, n = 1 + Math.floor(Math.random() * maxCables), order = [];
-  for (i = 0; i < DST.length; i++) { order.push(i); send("dst_" + DST[i][0], 0); }
-  for (i = order.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = order[i]; order[i] = order[j]; order[j] = t; }
-  for (i = 0; i < Math.min(n, DST.length); i++) send("dst_" + DST[order[i]][0], 1 + Math.floor(Math.random() * 6));
+  var i, n = 1 + Math.floor(Math.random() * maxCables), dests = ["time", "pitch", "size", "shape", "density", "feedback", "reverb", "drywet", "seed"];
+  for (i = 0; i < DST.length; i++) send("dst_" + DST[i][0], 0);
+  ensureGrains(0);   // a fresh patch starts from running grains; SEED (if chosen below) changes that
+  for (i = dests.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = dests[i]; dests[i] = dests[j]; dests[j] = t; }
+  for (i = 0; i < Math.min(n, dests.length); i++) {
+    var dname = dests[i], dkey = "dst_" + dname;
+    if (dname === "seed") {
+      var src = pickOne([5, 6]);
+      send(dkey, src); send("seedlatch", 0); send("density", 0.5);
+      if (src === 5) send("ck_sync", 1);
+      var on = 0; for (var q = 0; q < Math.round(P.sq_len.v); q++) if (stepOn(q)) on++;
+      if (src === 6 && on < 3) for (q = 0; q < 16; q++) send("sq" + q, stepCode(q % 4 === 0 || Math.random() < 0.35, rr(0, 0.8)));
+    } else {
+      var s2 = pickOne([1, 2, 3, 3, 4, 6]);
+      send(dkey, s2);
+      if (CV_AMOUNT[dname] !== undefined) send(dname + "_amt", CV_AMOUNT[dname]);
+      if (dname === "density") send("dn_amt", rr(0.15, 0.35));
+      if (dname === "feedback") send("fb_amt", rr(0.2, 0.5));
+      if (dname === "reverb") send("rv_amt", rr(0.3, 0.6));
+      if (dname === "drywet") send("dw_amt", rr(0.2, 0.4));
+    }
+  }
 }
 var t0 = new Date().getTime();
 function pulseOn() { return Math.floor((new Date().getTime() - t0) / 600) % 2 === 0; }
@@ -375,7 +468,7 @@ function gainBox(x, y, name, label) {
 function drawTape(x, y, w, h) {
   rect(x, y, w, h, C.panel, true);
   rect(x, y, w, h, C.line, false, 1);
-  text("TAPE  (now  >  " + BUF_S + " s ago)", x + 4, y + 10, 6, C.mid, true);
+  text("TAPE  (now  >  " + BUF_S + " s ago)   grains " + tapeSt.active + " / 32", x + 4, y + 10, 6, C.mid, true);
   // record head at the left edge: "now"; older material to the right
   line(x + 2, y + 14, x + 2, y + h - 3, C.accent, 2);
   if (P.freeze.v > 0.5) textC("FROZEN", x + w / 2, y + h - 6, 7, C.accent, true);
@@ -405,11 +498,15 @@ var HELP = {
   feedback: "FEEDBACK: output fed back into the recording (limited)",
   drywet: "DRY/WET: input vs grains",
   reverb: "REVERB: amount and length of the reverb",
-  input: "IN: input gain (drag) - the grains record what they hear",
+  input: "IN: input gain - AUTO or drag for manual (the grains record what they hear)",
   output: "OUT: output gain",
   freeze: "FREEZE: stop recording - the grains keep playing what is in the buffer",
   seed: "SEED: hold = grains (LATCH off) · tap = 1 grain at 12h · tap while latched = LATCH off · hold 4 s = LATCH on",
   seedlatch: "LATCH: grains are generated continuously at the DENSITY rate",
+  dice: "DICE: a new sound from a recipe (cloud, shimmer, reverse swells, stutter, slicer, rain, drone, wobble)",
+  back: "BACK: the sound before the last DICE",
+  agc: "AUTO: input gain learns the level (6 s) and lifts quiet sources up to +32 dB (like the original)",
+  learn: "LEARN: learn the input level again (play the source)", dn_amt: "DENSITY CV amount",
   tab_SOUND: "SOUND: the sound controls", tab_MOD: "MOD: modulators and the patch matrix",
   l1_rate: "LFO 1 RATE: Hz, or a tempo division when SYNC is on", l2_rate: "LFO 2 RATE: Hz, or a tempo division when SYNC is on",
   l1_sync: "SYNC: lock to Live's tempo and bar", l2_sync: "SYNC: lock to Live's tempo and bar", rn_sync: "SYNC: lock to Live's tempo and bar", ck_sync: "SYNC: clock divisions of Live's tempo (else Hz)",
@@ -454,16 +551,28 @@ function onclick(x, y, but, cmd, shift) {
     send(h.name, 1);
     drag = { kind: "momentary", name: h.name, t0: now() };
   }
-  else if (h.kind === "knob") drag = { kind: "knob", name: h.name, y0: y, n0: norm(h.name, P[h.name].v) };
+  else if (h.kind === "knob") {
+    if (h.name === "input" && P.agc.v > 0.5) {   // like Beads: turning the gain by hand = manual gain from the current value
+      send("agc", 0);
+      P.input.v = Math.max(-12, Math.min(32, 20 * Math.log(Math.max(agcGain, 1e-6)) / Math.LN10));
+    }
+    drag = { kind: "knob", name: h.name, y0: y, n0: norm(h.name, P[h.name].v) };
+  }
   else if (h.kind === "tab") { tab = h.tab; dirty = true; }
   else if (h.kind === "cycle") send(h.name, (Math.round(P[h.name].v) + 1) % h.n);
-  else if (h.kind === "cmd") { if (h.name === "random") randomPatch(); else for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); }
+  else if (h.kind === "cmd") {
+    if (h.name === "random") randomPatch();
+    else if (h.name === "learn") { learnCount++; outlet(0, "agc_restart", learnCount); if (P.agc.v < 0.5) send("agc", 1); }
+    else { for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); ensureGrains(0); }
+  }
+  else if (h.kind === "dice") dice();
+  else if (h.kind === "back") back();
   else if (h.kind === "max") drag = { kind: "max", y0: y, m0: maxCables };
   else if (h.kind === "step") drag = { kind: "step", name: h.name, step: h.step, top: h.top, h2: h.h2, y0: y, moved: false };
   else if (h.kind === "jack_src") drag = { kind: "cable", src: h.src, x0: JS_X, y0: srcY(h.src - 1), x: x, y: y };
   else if (h.kind === "jack_dst") {
     var cur = Math.round(P[h.name].v);
-    if (cur > 0) { send(h.name, 0); drag = { kind: "cable", src: cur, x0: JS_X, y0: srcY(cur - 1), x: x, y: y, fromDst: h.name }; }  // pick up the cable
+    if (cur > 0) { patchCable(h.name, 0); drag = { kind: "cable", src: cur, x0: JS_X, y0: srcY(cur - 1), x: x, y: y, fromDst: h.name }; }  // pick up the cable
     else drag = { kind: "cable", dst: h.name, x0: JD_X, y0: dstY(h.dst), x: x, y: y };
   }
 }
@@ -490,8 +599,8 @@ function ondrag(x, y, but, cmd, shift) {
 }
 function dropCable(x, y) {
   var h = find(x, y);
-  if (drag.src && h && h.kind === "jack_dst") send(h.name, drag.src);          // source → destination
-  else if (drag.dst && h && h.kind === "jack_src") send(drag.dst, h.src);       // destination → source
+  if (drag.src && h && h.kind === "jack_dst") patchCable(h.name, drag.src);          // source → destination
+  else if (drag.dst && h && h.kind === "jack_src") patchCable(drag.dst, h.src);       // destination → source
   // dropped anywhere else: no cable (a picked-up cable is removed)
 }
 function ondblclick(x, y) {

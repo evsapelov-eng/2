@@ -88,11 +88,11 @@ wrapi(x, n) {
 	return x - floor(x / n) * n;
 }
 
-Param time(0.5, min=0, max=1);
-Param size(0.45, min=0, max=1);
-Param shape(0.5, min=0, max=1);
+Param time(0.15, min=0, max=1);
+Param size(0.6, min=0, max=1);
+Param shape(0.6, min=0, max=1);
 Param pitch(0.5, min=0, max=1);
-Param time_amt(0.5, min=0, max=1);
+Param time_amt(0.75, min=0, max=1);
 Param size_amt(0.5, min=0, max=1);
 Param shape_amt(0.5, min=0, max=1);
 Param pitch_amt(0.5, min=0, max=1);
@@ -100,15 +100,21 @@ Param time_cv(0, min=0, max=1);
 Param size_cv(0, min=0, max=1);
 Param shape_cv(0, min=0, max=1);
 Param pitch_cv(0, min=0, max=1);
-Param density(0.3, min=0, max=1);
-Param feedback(0, min=0, max=1);
-Param drywet(0.5, min=0, max=1);
-Param reverb(0.2, min=0, max=1);
+Param density(0.12, min=0, max=1);
+Param feedback(0.1, min=0, max=1);
+Param drywet(0.7, min=0, max=1);
+Param reverb(0.35, min=0, max=1);
 Param freeze(0, min=0, max=1);
 Param seed(0, min=0, max=1);
 Param seedlatch(1, min=0, max=1);
 Param ingain(1, min=0, max=40);
 Param outgain(1, min=0, max=4);
+// Beads GainControl: automatic input gain (learns 1 s + 5 s, then follows slowly), ×1 … ×40;
+// agc = 0 → manual gain `ingain`. agc_restart: any new value restarts the learning (LEARN).
+Param agc(1, min=0, max=1);
+Param agc_restart(0, min=0, max=1000000);
+// DENSITY CV depth (FLØCK; Beads has none = 1)
+Param dn_amt(0.5, min=0, max=1);
 // ---- modulation (MOD tab). Destinations take a source index: 0 none, 1 LFO1, 2 LFO2, 3 RANDOM,
 // 4 ENV, 5 CLOCK, 6 SEQ, 7 external inlet (in8..in11, tests / future)
 Param dst_freeze(0, min=0, max=7);
@@ -258,6 +264,13 @@ History tg_quant(0);
 History tg_div(1);
 History prev_ext(0);
 History sdw(0);
+History g_peak(0.5);
+History g_agc(0.5);
+History g_stable(0.5);
+History g_gain(1);
+History g_inc(0);
+History g_time(0);
+History g_rst(0);
 History lastpos(0);
 History lastspd(1);
 
@@ -308,6 +321,36 @@ started = running && was_run < 0.5;
 // CV-settling it gives) then lands their gates exactly on Live's grid
 dph = running ? bp - prev_bp + (bp < prev_bp - 0.5 ? 1 : 0) : 0;
 pos = nbars + bp + dph * floor(FS / 4000 + 0.5) * 10 + 0.000000001;   // + 1e-9 bar: exact grid points round up, not down
+// ---- input gain (GainControl::Process): block rate for the learning, sample rate for the peak
+g_ign = trunc(FS * 1);
+g_act = trunc(FS * 6);
+gtime = init < 0.5 ? 0 : (agc_restart != g_rst ? g_ign : g_time);
+gagc = g_agc;
+gstb = g_stable;
+ginc = g_inc;
+if (newblk) {
+	ghz = BLK / FS;
+	gerr = g_peak - gagc;
+	if (gtime < g_ign) {
+		gagc = 0.5;
+	} else if (gtime < g_act) {
+		gagc = gagc + (gerr > 0 ? 10 * ghz : 2 * ghz) * gerr;
+		gstb = gagc;
+	} else {
+		gagc = gagc + (gerr > 0 ? 5 * ghz : (g_peak > gstb ? 0.5 : 0.01) * ghz) * gerr;
+	}
+	gtime = (gtime > g_ign || g_peak > 0.001) ? min(gtime + BLK, g_act) : gtime;
+	gtarget = agc > 0.5 ? min(0.9 / min(gagc, 0.9), 40) : ingain;
+	ginc = (gtarget - g_gain) / BLK;
+}
+ggain = g_gain + ginc;
+gpk = max(abs(in1), abs(in2));
+gpe = gpk - g_peak;
+npeak = g_peak + (gpe > 0 ? 0.1 : 2 / FS) * gpe;
+inl = agc > 0.5 ? in1 * ggain : clamp(in1 * ggain, -1, 1);
+inr = agc > 0.5 ? in2 * ggain : clamp(in2 * ggain, -1, 1);
+learning = agc > 0.5 && gtime < g_act;
+
 // ---- sources (MOD tab)
 l1d = divper(floor(l1_rate * 14 + 0.5));
 l1f = fract(l1_ph + 0.02 * pow(1000, l1_rate) / FS);
@@ -325,7 +368,7 @@ nfrom = rnwrap ? rn_to : rn_from;
 nto = rnwrap ? nseed / 4294967296 * 2 - 1 : rn_to;
 s3 = (rn_smooth > 0.5 ? nfrom + (nto - nfrom) * sstep(rnf) : nto) * rn_amt;
 // ENV: follower of the input, gain ×0.25 … ×16
-ein = max(abs(in1 * ingain), abs(in2 * ingain));
+ein = max(abs(inl), abs(inr));
 nenv = env_st + (ein - env_st) * (ein > env_st ? 1 - exp(-1 / (0.003 * FS)) : 1 - exp(-1 / (0.15 * FS)));
 s4 = clamp(nenv * 0.25 * pow(64, env_gain), 0, 1);
 // CLOCK: tempo division (sync) or 0.1 … 40 Hz
@@ -352,7 +395,7 @@ rt_ = dst_time > 0.5 ? pick(dst_time, s1, s2, s3, s4, s5, s6, in3) : in3;
 rs_ = dst_size > 0.5 ? pick(dst_size, s1, s2, s3, s4, s5, s6, in4) : in4;
 rh_ = dst_shape > 0.5 ? pick(dst_shape, s1, s2, s3, s4, s5, s6, in5) : in5;
 rp_ = dst_pitch > 0.5 ? pick(dst_pitch, s1, s2, s3, s4, s5, s6, in6 / 12) * 12 : in6;
-rd_ = pick(dst_density, s1, s2, s3, s4, s5, s6, in10);
+rd_ = pick(dst_density, s1, s2, s3, s4, s5, s6, in10) * dn_amt;
 ra1 = pick(dst_feedback, s1, s2, s3, s4, s5, s6, in11);
 ra2 = pick(dst_drywet, s1, s2, s3, s4, s5, s6, in11);
 ra3 = pick(dst_reverb, s1, s2, s3, s4, s5, s6, in11);
@@ -497,8 +540,6 @@ if (divmode) {
 }
 
 // ---- feedback into the recording (GranularProcessor::ProcessInternal, 16-bit: brickwall)
-inl = in1 * ingain;
-inr = in2 * ingain;
 inc_fb = newblk ? (clamp(st_fbk * 1.005 + (dst_feedback > 0.5 ? cv_a1 * fb_amt : 0), 0, 1) - s_fb) / BLK : i_fb;
 fbk = s_fb + inc_fb;
 sl = inl + prev_l * fbk * fbk * 3;
@@ -935,6 +976,8 @@ out6 = lpos;
 out7 = lspd;
 out8 = sstp;
 out9 = running;
+out10 = ggain;
+out11 = learning;
 
 // ---- state write-back (all History writes at the end of the pass)
 init = 1;
@@ -961,6 +1004,13 @@ tg_freq = tapf;
 tg_elapsed = tg_el;
 prev_gate = npg;
 prev_ext = egate;
+g_peak = npeak;
+g_agc = gagc;
+g_stable = gstb;
+g_gain = ggain;
+g_inc = ginc;
+g_time = gtime;
+g_rst = agc_restart;
 sdw = nsdw;
 interval = gint;
 lastpos = lpos;

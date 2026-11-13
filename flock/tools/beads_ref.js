@@ -48,6 +48,8 @@ class Ref {
       defaultReset: Math.trunc(sr * 4), resetInt: Math.trunc(sr * 4), audioInt: Math.trunc(sr / 48), one_hertz: 1 / sr };
     this.tg.frequency = this.tg.target = 1 / this.tg.elapsed;
     this.cv = null;
+    // GainControl::Init(reset = true)
+    this.gc = { peak: 0.5, agc: 0.5, stable: 0.5, gain: 1, time: 0, ignore: Math.trunc(sr * 1), active: Math.trunc(sr * 6) };
     // ---- granular processor
     this.feedback = 0; this.prev = [0, 0];
     this.dc = [this.svf(40 / sr, 0.5), this.svf(40 / sr, 0.5)];
@@ -377,12 +379,37 @@ class Ref {
     q.feedback = Math.min(1, q.fbk * 1.005); q.dry_wet = Math.min(1, q.dwk * 1.005); q.reverb = Math.min(1, q.rvk * 1.005);
     return q;
   }
-  processBlock(Praw, inL, inR, outL, outR, at, n, X) {
+  // GainControl::Process (auto gain: learning 1 s + 5 s; manual: hard clip at ±1)
+  gainBlock(inL, inR, at, n, auto, manual) {
+    const gc = this.gc, hz = n / this.sr, L = new Float64Array(n), R = new Float64Array(n);
+    const slope = (out, inp, pos, neg) => { const e = inp - out; return out + (e > 0 ? pos : neg) * e; };
+    if (gc.time < gc.ignore) gc.agc = 0.5;
+    else if (gc.time < gc.active) { gc.agc = slope(gc.agc, gc.peak, 10 * hz, 2 * hz); gc.stable = gc.agc; }
+    else gc.agc = slope(gc.agc, gc.peak, 5 * hz, (gc.peak > gc.stable ? 0.5 : 0.01) * hz);
+    if (gc.time > gc.ignore || gc.peak > 0.001) gc.time += n;
+    if (gc.time >= gc.active) gc.time = gc.active;
+    const optimal = Math.min(0.9 / Math.min(gc.agc, 0.9), 40), target = auto ? optimal : manual;
+    const inc = (target - gc.gain) / n;
+    for (let i = 0; i < n; i++) {
+      let l = inL[at + i], r = inR[at + i];
+      gc.peak = slope(gc.peak, Math.max(Math.abs(l), Math.abs(r)), 0.1, 2 / this.sr);
+      gc.gain += inc;
+      l *= gc.gain; r *= gc.gain;
+      if (!auto) { l = Math.min(1, Math.max(-1, l)); r = Math.min(1, Math.max(-1, r)); }
+      L[i] = l; R[i] = r;
+    }
+    return [L, R];
+  }
+  processBlock(Praw, inL0, inR0, outL, outR, at0, n, X) {
+    // the input goes through the gain control first (beads.cc: gain_control before the processor)
+    const [gL, gR] = this.gainBlock(inL0, inR0, at0, n, !!Praw.agc, Praw.ingain === undefined ? 1 : Praw.ingain);
+    const inL = gL, inR = gR, at = 0, Xat = at0;
     const P = this.pots(Praw);
     X = X || {};
     // CvReader: CV channels read once per block with their low-pass (TIME/SIZE/SHAPE 0.5, PITCH/DENSITY 1, ASSIGN 0.1)
     const lpc = { time: 0.5, size: 0.5, shape: 0.5, pitch: 1, density: 1, fb: 0.1, dw: 0.1, rv: 0.1 };
-    const raw = (k) => (X[k] ? X[k][at] : 0);
+    // FLØCK: the DENSITY CV is scaled by dn_amt before the CV low-pass (1 = Beads)
+    const raw = (k) => (X[k] ? X[k][Xat] * (k === "density" ? (Praw.dn_amt === undefined ? 1 : Praw.dn_amt) : 1) : 0);
     if (!this.cv) { this.cv = {}; for (const k in lpc) this.cv[k] = raw(k); }
     else for (const k in lpc) this.cv[k] = ONE_POLE(this.cv[k], raw(k), lpc[k]);
     for (const k of ["time", "size", "shape", "pitch"]) if (X[k]) { P[k].has_cv = true; P[k].cv = this.cv[k]; }
@@ -395,7 +422,7 @@ class Ref {
     const expo = Math.min(1, Math.max(0, 20 * (Math.abs(P.density - 0.5) - 0.225)));
     const dcv = X.density ? this.cv.density : 0;
     // beads.cc: the SEED input is delayed by 10 blocks (event_delay.Read(size * 10), 2.5 ms)
-    const ext = X.seed ? Array.from({ length: n }, (_, i) => { const j = at + i - 10 * BLOCK; return j >= 0 && X.seed[j] > 0.5; }) : null;
+    const ext = X.seed ? Array.from({ length: n }, (_, i) => { const j = Xat + i - 10 * BLOCK; return j >= 0 && X.seed[j] > 0.5; }) : null;
     const trig = this.triggers(P.seedState, P.density, n, ext, (1 - expo) * dcv, expo * dcv);
     const fbInc = (P.feedback - this.feedback) / n;
     const wet_out = [];
@@ -406,7 +433,7 @@ class Ref {
       const s = [input[0] + this.prev[0] * fb * fb * 3, input[1] + this.prev[1] * fb * fb * 3];
       this.limiter(this.lim_in, s);
       const out = [0, 0];
-      this.writeFrame(s, P.freeze || (X.freeze ? X.freeze[at + i] > 0.5 : false));
+      this.writeFrame(s, P.freeze || (X.freeze ? X.freeze[Xat + i] > 0.5 : false));
       this.playerRender(trig[i], P, out);
       this.prev[0] = ONE_POLE(this.prev[0], this.svfHP(this.dc[0], out[0]), 0.999);
       this.prev[1] = ONE_POLE(this.prev[1], this.svfHP(this.dc[1], out[1]), 0.999);
@@ -422,7 +449,7 @@ class Ref {
       block.push(fr);
     }
     this.reverb(block, P.reverb);
-    for (let i = 0; i < n; i++) { this.limiter(this.lim_out, block[i]); outL[at + i] = block[i][0]; outR[at + i] = block[i][1]; }
+    for (let i = 0; i < n; i++) { this.limiter(this.lim_out, block[i]); outL[at0 + i] = block[i][0]; outR[at0 + i] = block[i][1]; }
   }
   run(P, inL, inR) {
     const n = inL.length, outL = new Float64Array(n), outR = new Float64Array(n);
@@ -437,6 +464,7 @@ function fromKnobs(k) {
   return {
     time: rp(k.time, k.time_amt), size: rp(k.size, k.size_amt), shape: rp(k.shape, k.shape_amt),
     pitch: rp(detuneLaw(k.pitch), k.pitch_amt),
+    agc: k.agc > 0.5, ingain: k.ingain === undefined ? 1 : k.ingain, dn_amt: k.dn_amt === undefined ? 1 : k.dn_amt,
     density: k.density, fbk: k.feedback, dwk: k.drywet, rvk: k.reverb, freeze: k.freeze > 0.5, seedState: k.seedlatch > 0.5 ? 2 : k.seed > 0.5 ? 1 : 0,
   };
 }
