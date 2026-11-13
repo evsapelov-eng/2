@@ -51,6 +51,8 @@ const CASES = [
   ["heavy feedback (soft-clipped feedback path) + reverb", { density: 0.08, size: 0.7, feedback: 0.85, reverb: 0.8, time: 0.02, drywet: 0.9 }],
   ["freeze, then unfreeze", [{ sec: 1, knobs: { density: 0.1, size: 0.6, time: 0.03, drywet: 1 } }, { sec: 0.5, knobs: { freeze: 1 } }, { sec: 0.5, knobs: { freeze: 0 } }]],
   ["manual gain ×4 (soft clipping ON / DYNAMIC on the tapes)", { agc: 0, ingain: 4, density: 0.1, time: 0.05, drywet: 0.4 }],
+  // DYNAMIC soft clip (Sunny tape) in its middle range: manual ×2 vs optimal ×1.8 (first second) → amount ≈ 0.72
+  ["manual gain ×2 (soft clipping amount between 0 and 1)", [{ sec: 0.75, knobs: { agc: 0, ingain: 2, density: 0.1, time: 0.05, drywet: 0.3 } }]],
   ["auto gain learning", [{ sec: 2, knobs: { agc: 1, density: 0.1, time: 0.05, drywet: 0.6 } }, { sec: 1, knobs: {} }]],
   ["reversed short grains, TIME further back", [{ sec: 2.5, knobs: { density: 0.2, size: 0.15, shape: 0, drywet: 1, time: 0.12 } }]],
 ];
