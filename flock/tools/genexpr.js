@@ -104,7 +104,12 @@ function lint(body, decl, where) {
     const isCall = next === "(";
     if (KEYWORDS.has(t) || BUILTINS.has(t) || isCall || decl.params[t] || decl.data[t] || /^(in|out)\d+$/.test(t)) continue;
     if (hist.hasOwnProperty(t)) {
-      if (isAssign && next === "=") written.add(t);
+      if (isAssign && next === "=") {
+        written.add(t);
+        // v0.3.0–0.3.3 wrote History inside if-blocks and were silent in Max; every version that
+        // sounded wrote all History unconditionally at the end of the pass
+        if (depth > 0) errors.push(`${where}: History '${t}' written inside a block — write it at the top level (end of the pass)`);
+      }
       else if (written.has(t)) errors.push(`${where}: History '${t}' read after it was written in the same pass`);
       continue;
     }

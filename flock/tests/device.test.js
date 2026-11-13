@@ -39,6 +39,14 @@ test("gen~ box embeds the engine code with matching inlet/outlet counts; device 
   const g = boxes.find((b) => b.text === "gen~");
   const cb = g.patcher.boxes.map((b) => b.box).find((b) => b.maxclass === "codebox");
   assert.ok(cb.code.includes("Param time(") && g.patcher.classnamespace === "dsp.gen");
+  // the embedded text: ASCII, no comments, passes the lint (incl. "no History written inside a
+  // block") and runs exactly like the commented source
+  assert.ok(!/[^\x00-\x7f]/.test(cb.code) && !cb.code.includes("//"), "ASCII, no comments");
+  const { GenPatch } = require("../tools/genexpr");
+  const src = fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf8");
+  const n = 4800, x = Float64Array.from({ length: n }, (_, i) => 0.3 * Math.sin(i * 0.05));
+  const a = new GenPatch(cb.code, { sr: 48000, seed: 1 }).run(n, [x, x]), b = new GenPatch(src, { sr: 48000, seed: 1 }).run(n, [x, x]);
+  assert.deepStrictEqual(Array.from(a[0]), Array.from(b[0]));
   assert.strictEqual(g.numinlets, 11); assert.strictEqual(g.numoutlets, 11);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const ph = boxes.find((b) => b.text === "phasor~ 1n @lock 1");

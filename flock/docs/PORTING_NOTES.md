@@ -121,3 +121,17 @@ SOUNDED, so gen~ compiles. B sounded right to the user; C and D "screamed". Two 
   fine. The file names now carry the version: FLØCK_<v>.amxd, flock_ui_<v>.js.
 
 Playability tests: the level must be near the INPUT's level (−20 … +12 dB), no longer "above −40 dBFS".
+
+## v0.3.4 — correction: only B (v0.2.0) sounded
+I misread the report on the diagnostic kit: only B sounded, and D (v0.3.1) was silent too, so the v0.3
+engine does not run in Max. The structural novelty against every version that sounded: v0.3 wrote
+almost all History inside big if-blocks (the codec / core stages). v0.1–v0.2 always wrote History
+unconditionally at the end of the pass. Changes:
+- All 117 History writes go through `nh_*` locals and are written back at the top level at the end.
+  The behaviour is unchanged (all 108 tests, the differential tests included, are identical).
+- The linter now rejects History written inside a block (it rejects v0.3.0 with 120 errors).
+- The codebox gets the code without comments and ASCII only (the source keeps its comments).
+- Second diagnostic kit: A pass-through, B v0.2.0, M = v0.3.4, X = v0.3.4 with the two big blocks
+  opened (the qualities run at the wrong rate; it only tells whether the blocks themselves are the
+  problem).
+Not confirmed in Max until the user tests it.

@@ -1,4 +1,4 @@
-FLØCK v0.3.3 — ТЕСТОВАЯ СБОРКА для Ableton Live 12 (Max for Live Audio Effect)
+FLØCK v0.3.4 — ТЕСТОВАЯ СБОРКА для Ableton Live 12 (Max for Live Audio Effect)
 =============================================================================
 
 СТАТУС: собрано скриптом, в Ableton Live НЕ проверялось. Это не релиз.

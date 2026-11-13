@@ -20,8 +20,25 @@ def git_show(rev):
 
 PASS = "out1 = in1;\nout2 = in2;\n" + "".join("out%d = 0;\n" % i for i in range(3, 12)) + "x = in3 + in4 + in5 + in6 + in7 + in8 + in9 + in10 + in11;\n"
 v020 = git_show("e4c01d4") + "\nout10 = 1;\nout11 = 0;\n"
-VARIANTS = [("A_passthrough", PASS), ("B_engine_v020", v020), ("C_engine_v02x", git_show("7c2551c")),
-            ("D_engine_v031", open(os.path.join(ROOT, "gen", "flock.genexpr"), encoding="utf-8").read())]
+CUR = open(os.path.join(ROOT, "gen", "flock.genexpr"), encoding="utf-8").read()
+
+
+def flatten(code):
+    """X: the same engine with the two big conditional blocks opened (codec / core stage run on
+    every sample: Cold digital / Scorched lose their rate, Sunny tape its half rate) — tells whether
+    the large if-blocks themselves are the problem."""
+    for head in ("if (ctk) {", "if (gtick) {"):
+        i = code.index("\n" + head + "\n") + 1
+        j, depth = i + len(head), 1
+        while depth:
+            depth += {"{": 1, "}": -1}.get(code[j], 0)
+            j += 1
+        code = code[:i] + "// (opened)\n" + code[i + len(head) + 1:j - 1] + code[j:]
+    return code
+
+
+VARIANTS = [("A_passthrough", PASS), ("B_engine_v020", v020), ("M_main_v%s" % bd.VERSION.replace(".", "_"), CUR),
+            ("X_main_without_blocks", flatten(CUR))]
 
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
@@ -53,11 +70,11 @@ shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(OUT, "flock_ui
 open(os.path.join(OUT, "README_DIAG.txt"), "w", encoding="utf-8").write(
     "ДИАГНОСТИКА FLØCK — четыре одинаковых устройства с разными звуковыми движками.\n"
     "Положите каждое на свою аудиодорожку со звуком (или по очереди на одну), DRY/WET поверните влево.\n"
-    "Напишите, какие из A / B / C / D звучат:\n"
+    "Напишите, какие из A / B / M / X звучат:\n"
     "  A — просто пропускает звук (проверка самого устройства и Live)\n"
     "  B — движок v0.2.0 (у вас звучал)\n"
-    "  C — движок с авто-усилением и DICE (в Live ещё не проверялся)\n"
-    "  D — текущий движок v0.3.1 с качествами записи\n"
+    "  M — новая версия (все записи состояния перенесены в конец кода)\n"
+    "  X — то же, но без больших условных блоков (качества записи работают неправильно, только проверка)\n"
     "Если можно — Max Console (Edit → Window → Max Console): текст красных строк.\n")
 zp = os.path.join(ROOT, "dist", "FLOCK_DIAG.zip")
 with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:

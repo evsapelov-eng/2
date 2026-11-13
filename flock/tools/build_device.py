@@ -31,6 +31,21 @@ JSNAME = "flock_ui_%s.js" % VERSION.replace(".", "_")
 # byte-identical FLØCK*.amxd did not → no "Ø" in file names
 AMXDNAME = "FLOCK_%s.amxd" % VERSION.replace(".", "_")
 CODE = open(os.path.join(ROOT, "gen", "flock.genexpr"), encoding="utf-8").read()
+
+
+def embed_code(code):
+    """The text that goes into the gen~ codebox: no // comments, no blank lines, ASCII only
+    (smaller, and nothing for Max's parser to trip over; the commented source stays in gen/)."""
+    out = []
+    for line in code.split("\n"):
+        line = re.sub(r"//.*$", "", line).rstrip()
+        if line.strip():
+            out.append(line)
+    text = "\n".join(out) + "\n"
+    bad = [c for c in text if ord(c) > 127]
+    if bad:
+        raise SystemExit("non-ASCII outside comments in the engine: " + "".join(sorted(set(bad))))
+    return text
 W, H = 900, 169
 SIG = "signal"
 
@@ -119,7 +134,7 @@ def gen_box(P, x, y):
     n_out = max(int(m) for m in re.findall(r"\bout(\d+)\b", CODE))
     g = Patcher()
     ins = [g.obj("in %d" % (i + 1), 0, 1, [""], x=20 + 60 * i, y=20) for i in range(n_in)]
-    cb = g.add({"maxclass": "codebox", "code": CODE, "numinlets": n_in, "numoutlets": n_out,
+    cb = g.add({"maxclass": "codebox", "code": embed_code(CODE), "numinlets": n_in, "numoutlets": n_out,
                 "outlettype": [""] * n_out, "fontface": 0, "fontname": "<Monospaced>", "fontsize": 12.0,
                 "patching_rect": [20, 60, 700, 600]})
     outs = [g.obj("out %d" % (i + 1), 1, 0, [], x=20 + 60 * i, y=680) for i in range(n_out)]
