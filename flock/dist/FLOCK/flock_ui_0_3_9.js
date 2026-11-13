@@ -37,7 +37,9 @@ var QUAL = [["PRISTINE", "PRISTINE: 48 kHz 16-bit, 4 s buffer, clean feedback, b
   ["SCORCHED", "SCORCHED CASSETTE: 24 kHz 8-bit mu-law, 16 s buffer, wow & flutter, hiss, crushed feedback"]];
 // ---- MOD tab: sources, destinations (a destination takes one source, like a jack), modulators
 var SRC = ["LFO 1", "LFO 2", "RANDOM", "ENV", "CLOCK", "SEQ"];
-var SRC_COL = [[0.17, 0.30, 0.61, 1], [0.13, 0.52, 0.50, 1], [0.76, 0.22, 0.38, 1], [0.84, 0.55, 0.13, 1], [0.35, 0.35, 0.33, 1], [0.45, 0.30, 0.62, 1]];
+var SRC_LIGHT = [[0.17, 0.30, 0.61, 1], [0.13, 0.52, 0.50, 1], [0.76, 0.22, 0.38, 1], [0.84, 0.55, 0.13, 1], [0.35, 0.35, 0.33, 1], [0.45, 0.30, 0.62, 1]];
+var SRC_DARK = [[0.36, 0.82, 0.84, 1], [0.55, 0.85, 0.45, 1], [0.95, 0.50, 0.66, 1], [0.98, 0.70, 0.30, 1], [0.75, 0.75, 0.75, 1], [0.70, 0.58, 0.95, 1]];
+var SRC_COL = SRC_LIGHT.slice();
 var DST = [["freeze", "Freeze"], ["seed", "Seed"], ["time", "Time"], ["pitch", "Pitch"], ["size", "Size"], ["shape", "Shape"],
   ["density", "Density"], ["feedback", "Feedback"], ["reverb", "Reverb"], ["drywet", "Dry/Wet"]];
 var DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"];
@@ -158,7 +160,12 @@ function rect(x, y, w, h, c, fill, lw, a) {
   col(c, a); mgraphics.set_line_width(lw || 1);
   if (fill) { mgraphics.rectangle(x, y, w, h); mgraphics.fill(); } else { mgraphics.rectangle(x + 0.5, y + 0.5, w - 1, h - 1); mgraphics.stroke(); }
 }
-function font(s, b) { mgraphics.select_font_face(b ? "Arial Bold" : "Arial"); mgraphics.set_font_size(s); }
+function font(s, b) {
+  // Live's own typeface (installed with Live) for the Ableton style
+  if (STYLE === "ableton") mgraphics.select_font_face(b ? "Ableton Sans Bold" : "Ableton Sans Medium");
+  else mgraphics.select_font_face(b ? "Arial Bold" : "Arial");
+  mgraphics.set_font_size(s);
+}
 function text(s, x, y, size, c, b) { font(size, b); col(c); mgraphics.move_to(x, y); mgraphics.show_text(s); }
 function tw(s, size, b) { font(size, b); return mgraphics.text_measure(s)[0]; }
 function textC(s, cx, y, size, c, b) { text(s, cx - tw(s, size, b) / 2, y, size, c, b); }
@@ -175,9 +182,25 @@ function hit(o) { hits.push(o); }
 // mgraphics radial gradients if available (Max jsui); a flat colour otherwise — never throws
 var HAS_GRAD = typeof mgraphics.pattern_create_radial === "function";
 // panel style: "live" (soft light, like real hardware) or "toon" (cel-shaded cartoon / anime look)
-var STYLE = "live";
+// "ableton": dark, flat, like Live's own devices (default)
+var STYLE = "ableton";
 var OUTLINE = [0.08, 0.07, 0.1, 1];
-function style(name) { STYLE = name === "toon" ? "toon" : "live"; dirty = true; }
+var PAL = {
+  light: { bg: [0.925, 0.918, 0.890, 1], panel: [0.965, 0.960, 0.940, 1], ink: [0.106, 0.106, 0.102, 1], mid: [0.50, 0.49, 0.47, 1],
+    line: [0.78, 0.765, 0.73, 1], accent: [0.17, 0.30, 0.61, 1], on: [0.17, 0.30, 0.61, 1] },
+  ableton: { bg: [0.105, 0.105, 0.105, 1], panel: [0.155, 0.155, 0.155, 1], ink: [0.84, 0.84, 0.84, 1], mid: [0.56, 0.56, 0.56, 1],
+    line: [0.30, 0.30, 0.30, 1], accent: [0.36, 0.82, 0.84, 1], on: [0.36, 0.82, 0.84, 1] }
+};
+var PINK = [0.95, 0.50, 0.66, 1];
+function style(name) {
+  STYLE = name === "toon" || name === "live" ? name : "ableton";
+  var p = PAL[STYLE === "ableton" ? "ableton" : "light"];
+  for (var k in p) C[k] = p[k].slice();
+  var sc = STYLE === "ableton" ? SRC_DARK : SRC_LIGHT;
+  for (var i = 0; i < sc.length; i++) SRC_COL[i] = sc[i].slice();
+  dirty = true;
+}
+function nextStyle() { style(STYLE === "ableton" ? "live" : STYLE === "live" ? "toon" : "ableton"); }
 // cel shading: base colour with a hard shadow crescent (bottom-right) and a bold outline
 function celCircle(cx, cy, r, base, shade, ow) {
   circle(cx, cy, r, shade, true);
@@ -215,6 +238,12 @@ var TEX = (function () {
   return o;
 })();
 function panelTexture() {
+  if (STYLE === "ableton") {   // section boxes like Live's devices
+    rect(8, 6, 140, H0 - 12, C.panel, true);
+    if (tab === "MOD") rect(156, 6, W0 - 164, H0 - 12, C.panel, true);
+    else { rect(156, 6, 426, H0 - 12, C.panel, true); rect(590, 6, W0 - 598, H0 - 12, C.panel, true); }
+    return;
+  }
   if (STYLE === "toon") {   // manga screentone in two corners, dots growing towards the edge
     for (var gx = 0; gx < 22; gx++) for (var gy = 0; gy < 21; gy++) {
       var x = 8 + gx * 7 + (gy % 2) * 3.5, y = 8 + gy * 7.6, k = 1 - (gx / 22 + gy / 21) / 1.2;
@@ -250,6 +279,11 @@ function lace(cx, cy, r) {
 }
 // a jack: metal nut, dark hole, coloured ring (source colour / patched cable)
 function jack(x, y, c, patched) {
+  if (STYLE === "ableton") {   // patch points like Live's modulation devices: ring + lit dot
+    circle(x, y, 5, C.mid, false, 1.2);
+    if (c) circle(x, y, patched ? 3.2 : 2, c, true);
+    return;
+  }
   if (STYLE === "toon") {
     circle(x + 1.5, y + 2, 6.5, OUTLINE, true, 1, 0.18);
     celCircle(x, y, 6.2, [0.9, 0.9, 0.94, 1], [0.62, 0.63, 0.72, 1], 1.6);
@@ -298,6 +332,16 @@ function knobBody(cx, cy, r, a, capR) {
 var A0 = Math.PI * 0.75, A1 = Math.PI * 2.25;   // 270° knob travel, 0 at 7:30
 function knob(cx, cy, r, name, bipolar) {
   var v = P[name].v, a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
+  if (STYLE === "ableton") {   // live.dial look: grey track, coloured value arc, needle
+    var rr = r * 0.82, lw = Math.max(2.5, r * 0.13);
+    arc(cx, cy, rr, A0, A1, C.line, lw);
+    if (bipolar) { var am0 = (A0 + A1) / 2; arc(cx, cy, rr, Math.min(am0, a), Math.max(am0, a), C.accent, lw); }
+    else arc(cx, cy, rr, A0, a, C.accent, lw);
+    line(cx, cy, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, C.ink, Math.max(1.5, r * 0.07));
+    if (act) circle(cx, cy, rr + lw + 1.5, C.accent, false, 1, 0.45);
+    hit({ x: cx - r - 6, y: cy - r - 6, w: 2 * r + 12, h: 2 * r + 12, kind: "knob", name: name });
+    return;
+  }
   if (r > 14) lace(cx, cy, r + 8);
   arc(cx, cy, r + 4, A0, A1, C.line, 2.5);
   if (bipolar) { var am = (A0 + A1) / 2; arc(cx, cy, r + 4, Math.min(am, a), Math.max(am, a), C.accent, 2.5); }
@@ -317,6 +361,14 @@ function drawLogo(x, y, s) {
   text("CK", ox + ow + 1, y, s, C.ink, true);
 }
 function roundButton(cx, cy, r, label, on, name, momentary) {
+  if (STYLE === "ableton") {   // Live's toggle buttons: flat rounded box, lit when on
+    rect(cx - r - 4, cy - r * 0.75, 2 * r + 8, r * 1.5, on ? C.accent : C.panel, true);
+    rect(cx - r - 4, cy - r * 0.75, 2 * r + 8, r * 1.5, on ? C.accent : C.line, false, 1);
+    circle(cx, cy, 3, on ? C.bg : C.mid, true);
+    textC(label, cx, cy + r + 12, 8, C.ink, true);
+    hit({ x: cx - r - 4, y: cy - r - 2, w: 2 * r + 8, h: 2 * r + 4, kind: momentary ? "momentary" : "toggle", name: name });
+    return;
+  }
   if (STYLE === "toon") {
     if (on) for (var q = 0; q < 7; q++) {   // "pop" burst lines when on (upper half only: the label is below)
       var tq = Math.PI * (1.08 + q * 0.14);
@@ -347,22 +399,25 @@ function paint() {
   hits = [];
   rect(0, 0, W0, H0, C.bg, true);
   panelTexture();
-  rect(3, 3, W0 - 6, H0 - 6, C.line, false, 1);
-  rect(4, 4, W0 - 8, H0 - 8, [1, 1, 1, 1], false, 1, 0.55);   // engraved edge: dark line + light line
+  if (STYLE !== "ableton") {
+    rect(3, 3, W0 - 6, H0 - 6, C.line, false, 1);
+    rect(4, 4, W0 - 8, H0 - 8, [1, 1, 1, 1], false, 1, 0.55);
+  }   // engraved edge: dark line + light line
   // ---- left: logo, FREEZE / SEED, LATCH
   drawLogo(14, 30, 22);
   hit({ x: 10, y: 8, w: 130, h: 26, kind: "style", name: "style" });
   text("granular texture", 15, 42, 7, C.mid);
   for (var ti = 0; ti < 2; ti++) {
     var tn = ti ? "MOD" : "SOUND", tx0 = 14 + ti * 64, on = tab === tn;
-    rect(tx0, 49, 60, 13, C.ink, on, 1);
-    textC(tn, tx0 + 30, 59, 7, on ? C.panel : C.ink, true);
+    var tabFill = STYLE === "ableton" ? C.line : C.ink;
+    rect(tx0, 49, 60, 13, tabFill, on, 1);
+    textC(tn, tx0 + 30, 59, 7, on ? (STYLE === "ableton" ? C.ink : C.panel) : C.ink, true);
     hit({ x: tx0, y: 49, w: 60, h: 13, kind: "tab", name: "tab_" + tn, tab: tn });
   }
   roundButton(42, 82, 15, "FREEZE", P.freeze.v > 0.5, "freeze", false);
   roundButton(110, 82, 15, "SEED", P.seed.v > 0.5 || (P.seedlatch.v > 0.5 && pulseOn()), "seed", true);
   var lx = 14, ly = 120;
-  rect(lx, ly, 126, 16, C.ink, P.seedlatch.v > 0.5, 1);
+  rect(lx, ly, 126, 16, STYLE === "ableton" ? C.accent : C.ink, P.seedlatch.v > 0.5, 1);
   textC(P.seedlatch.v > 0.5 ? "LATCH  ON  (continuous)" : "LATCH  OFF  (hold SEED)", lx + 63, ly + 11, 7, P.seedlatch.v > 0.5 ? C.panel : C.ink, true);
   hit({ x: lx, y: ly, w: 126, h: 16, kind: "toggle", name: "seedlatch" });
   rect(14, 141, 84, 17, C.accent, true);
@@ -424,6 +479,12 @@ function smallKnob(cx, cy, name) {
   var v = norm(name, P[name].v), a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
   arc(cx, cy, 6.5, A0, A1, C.line, 1.6);
   arc(cx, cy, 6.5, A0, a, C.accent, 1.6);
+  if (STYLE === "ableton") {
+    line(cx, cy, cx + Math.cos(a) * 6.5, cy + Math.sin(a) * 6.5, C.ink, 1.3);
+    if (act) circle(cx, cy, 8.5, C.accent, false, 1, 0.5);
+    hit({ x: cx - 8, y: cy - 8, w: 16, h: 16, kind: "knob", name: name });
+    return;
+  }
   knobBody(cx, cy, 4.6, a, 0);
   line(cx + Math.cos(a) * 1.2, cy + Math.sin(a) * 1.2, cx + Math.cos(a) * 4.4, cy + Math.sin(a) * 4.4, [0.98, 0.98, 0.96, 1], 1.2);
   if (act) circle(cx, cy, 8.5, C.accent, false, 1, 0.5);
@@ -436,7 +497,8 @@ function amountBar(x, y, w, name) {
   hit({ x: x - 2, y: y - 6, w: w + 4, h: 12, kind: "knob", name: name });
 }
 function pill(x, y, w, label, on, kind, name, extra) {
-  rect(x, y, w, 12, C.ink, on, 1);
+  if (STYLE === "ableton") { rect(x, y, w, 12, on ? C.accent : C.line, on, 1); if (!on) rect(x, y, w, 12, C.bg, true, 1, 0.35); }
+  else rect(x, y, w, 12, C.ink, on, 1);
   textC(label, x + w / 2, y + 9, 6.5, on ? C.panel : C.ink, true);
   var o = { x: x, y: y, w: w, h: 12, kind: kind, name: name };
   if (extra) for (var k in extra) o[k] = extra[k];
@@ -684,7 +746,7 @@ var HELP = {
   ck_rate: "CLOCK: pulses at a tempo division (SYNC) or in Hz - into SEED for rhythmic grains",
   sq_div: "SEQ RATE: step length (drag) - 1/16 = sixteenth notes", sq_len: "SEQ LENGTH: 1 ... 16 steps (drag)",
   step: "STEP: click = on/off, drag up/down = value (into TIME = which slice, into PITCH = transposition)",
-  style: "click the logo: switch the panel look (live hardware / cartoon)",
+  style: "click the logo: switch the panel look (Ableton / live hardware / cartoon)",
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK CV amount (Beads assignable CV)", dw_amt: "DRY/WET CV amount (Beads assignable CV)", rv_amt: "REVERB CV amount (Beads assignable CV)",
@@ -734,7 +796,7 @@ function onclick(x, y, but, cmd, shift) {
     else { for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); ensureGrains(0); }
   }
   else if (h.kind === "quality") { if (P.freeze.v < 0.5) send("quality", h.val); }
-  else if (h.kind === "style") style(STYLE === "toon" ? "live" : "toon");
+  else if (h.kind === "style") nextStyle();
   else if (h.kind === "dice") dice();
   else if (h.kind === "back") back();
   else if (h.kind === "max") drag = { kind: "max", y0: y, m0: maxCables };
@@ -780,3 +842,4 @@ function ondblclick(x, y) {
 function onidle(x, y) { var h = find(x / scaleF, y / scaleF), k = h ? h.name : null; if (k !== hover) { hover = k; dirty = true; } }
 function onidleout() { if (hover) { hover = null; dirty = true; } }
 function onresize() { dirty = true; }
+style(STYLE);

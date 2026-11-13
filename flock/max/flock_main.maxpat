@@ -807,7 +807,7 @@
    {
     "box": {
      "maxclass": "jsui",
-     "filename": "flock_ui_0_3_8.js",
+     "filename": "flock_ui_0_3_9.js",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
