@@ -440,6 +440,7 @@ class Ref {
   }
   // GainControl::Process (auto gain: learning 1 s + 5 s; manual: hard clip at ±1)
   gainBlock(inL, inR, at, n, auto, manual) {
+    this.gainTrace = new Float64Array(n);
     const gc = this.gc, hz = n / this.codec_sr, L = new Float64Array(n), R = new Float64Array(n);
     const slope = (out, inp, pos, neg) => { const e = inp - out; return out + (e > 0 ? pos : neg) * e; };
     if (gc.time < gc.ignore) gc.agc = 0.5;
@@ -467,7 +468,7 @@ class Ref {
           l = l + (sl - l) * amount; r = r + (sr - r) * amount;
         }
       }
-      L[i] = l; R[i] = r;
+      L[i] = l; R[i] = r; this.gainTrace[i] = gc.gain;
     }
     return [L, R];
   }
@@ -542,7 +543,12 @@ class Ref {
     if (this.q === 3) this.wowAndFlutter(block);
     for (const fr of block) this.limiter(this.lim_pre, fr);
     this.reverb(block, P.reverb);
-    for (let i = 0; i < n; i++) { this.limiter(this.lim_out, block[i]); outL[at0 + i] = block[i][0]; outR[at0 + i] = block[i][1]; }
+    // FLØCK output stage (not Beads): with AUTO gain the output is divided by the input gain
+    for (let i = 0; i < n; i++) {
+      this.limiter(this.lim_out, block[i]);
+      const comp = Praw.agc ? 1 / this.gainTrace[i] : 1;
+      outL[at0 + i] = block[i][0] * comp; outR[at0 + i] = block[i][1] * comp;
+    }
   }
   // GranularProcessor::ProcessInternal (granular mode) for one block of core samples
   coreBlock(P, trig, input, freeze, wet_out) {

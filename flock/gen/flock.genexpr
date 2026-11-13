@@ -171,8 +171,9 @@ Param seedlatch(1, min=0, max=1);
 Param ingain(1, min=0, max=40);
 Param outgain(1, min=0, max=4);
 // Beads GainControl: automatic input gain (learns 1 s + 5 s, then follows slowly), ×1 … ×40;
-// agc = 0 → manual gain `ingain`. agc_restart: any new value restarts the learning (LEARN).
-Param agc(1, min=0, max=1);
+// agc = 0 → manual gain `ingain` (default: a DAW signal is already at line level).
+// FLØCK: with agc = 1 the output is divided by the same gain → level back to the input level. agc_restart: any new value restarts the learning (LEARN).
+Param agc(0, min=0, max=1);
 Param agc_restart(0, min=0, max=1000000);
 // DENSITY CV depth (FLØCK; Beads has none = 1)
 Param dn_amt(0.5, min=0, max=1);
@@ -1336,8 +1337,10 @@ lo_p = lop0 + (e1 > 0 ? 0.1 : 1 / (FS * 6)) * e1;
 e2 = lo_p - lolp0;
 lo_lp = lolp0 + (e2 > 0 ? 0.5 : 1 / (FS * 6)) * e2;
 lg = lo_lp <= 0.9 ? 1 : 0.9 / lo_lp;
-poke(cx, ml * lg * outgain, 0, 0);
-poke(cx, mr * lg * outgain, 1, 0);
+// FLØCK (not Beads): AUTO gain normalises what the engine hears; the output returns to the input level
+ocomp = agc > 0.5 ? 1 / ggain : 1;
+poke(cx, ml * lg * outgain * ocomp, 0, 0);
+poke(cx, mr * lg * outgain * ocomp, 1, 0);
 poke(cx, trig, 2, 0);
 poke(cx, sstp, 7, 0);
 poke(cx, running, 8, 0);

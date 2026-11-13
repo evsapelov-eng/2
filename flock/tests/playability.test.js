@@ -1,6 +1,8 @@
-// PLAYABILITY (the user's complaint as a measurement): a quiet field recording (≈ −52 dBFS rms,
+// PLAYABILITY (the user's complaints as measurements): a quiet field recording (≈ −52 dBFS rms,
 // like a dictaphone) runs through the real gen~ engine while the real panel code presses DICE /
-// RANDOM. Every result must be audible, and the recipes must sound different from each other.
+// RANDOM. Every result must have grains and sit near the INPUT's level (not silent, and not
+// "screaming": v0.3.0 with AUTO on by default was far louder than the source), and the recipes
+// must sound different from each other.
 // One engine keeps running the whole time, like the device on a track in Live.
 "use strict";
 const test = require("node:test");
@@ -50,6 +52,9 @@ function rig(seed = 1) {
   };
   return { g, ui, play, inDb: rmsDb(L, 0, N) };
 }
+// near the input level: at most 20 dB quieter (the test foley swells down to almost nothing every
+// 9 s, and grains read seconds into the past), at most 12 dB louder ("screaming" = v0.3.0 with AUTO on)
+const OK_LO = 20, OK_HI = 12;
 function measure(o) {
   const n = o[0].length, from = Math.round(n / 3);
   const db = rmsDb(o[0], from, n);
@@ -63,33 +68,43 @@ test("the source really is quiet (dictaphone level)", () => {
   assert.ok(r.inDb < -45, "input " + r.inDb.toFixed(1) + " dBFS");
 });
 
-test("default sound after loading: AUTO gain lifts the quiet source and a grain cloud is audible within seconds", () => {
+test("default sound after loading: grains from the start, output at the input's level (AUTO off)", () => {
   const r = rig();
+  assert.strictEqual(r.g.P.agc, 0, "AUTO off by default");
   const first = measure(r.play(3));
   const later = measure(r.play(5));
   assert.ok(first.grains > 50, "grains from the start: " + first.grains);
-  assert.ok(later.db > -35, "audible after the gain learned: " + later.db.toFixed(1) + " dBFS (input " + r.inDb.toFixed(1) + ")");
+  assert.ok(later.db > r.inDb - OK_LO && later.db < r.inDb + OK_HI, "level " + later.db.toFixed(1) + " dBFS (input " + r.inDb.toFixed(1) + ")");
 });
 
-test("RANDOM, pressed 20 times in a row while playing: every patch is audible", () => {
+test("AUTO on: the engine works on the raised signal but the output stays near the input level (no screaming)", () => {
+  const r = rig(17);
+  r.ui.outlet(0, "agc", 1);
+  r.play(7);
+  const m = measure(r.play(3));
+  assert.ok(r.g.P.agc === 1 && m.grains > 20, "grains " + m.grains);
+  assert.ok(m.db > r.inDb - OK_LO && m.db < r.inDb + OK_HI, "level " + m.db.toFixed(1) + " dBFS (input " + r.inDb.toFixed(1) + ")");
+});
+
+test("RANDOM, pressed 20 times in a row while playing: every patch has grains, near the input level", () => {
   const r = rig(3); r.play(7);   // the device has been running (gain learned)
   const bad = [];
   for (let k = 0; k < 20; k++) {
     r.ui.randomPatch();
     const m = measure(r.play(3));
-    if (m.db < -40 || m.grains < 3) bad.push(`#${k}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
+    if (m.db < r.inDb - OK_LO || m.db > r.inDb + OK_HI || m.grains < 3) bad.push(`#${k}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
   }
   assert.deepStrictEqual(bad, []);
 });
 
-test("DICE: every recipe (3 times each) is audible, and the recipes sound different from each other", () => {
+test("DICE: every recipe (3 times each) has grains near the input level, and the recipes sound different", () => {
   const r = rig(5); r.play(7);
   const byRecipe = {}, bad = [];
   for (const name of r.ui.RECIPE_NAMES) for (let k = 0; k < 3; k++) {
     r.ui.dice(name);
     const m = measure(r.play(4));
     (byRecipe[name] = byRecipe[name] || []).push(m);
-    if (m.db < -40 || m.grains < 3) bad.push(`${name} #${k}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
+    if (m.db < r.inDb - OK_LO || m.db > r.inDb + OK_HI || m.grains < 3) bad.push(`${name} #${k}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
   }
   assert.deepStrictEqual(bad, []);
   // difference: grain rate and brightness spread across recipes
@@ -118,14 +133,14 @@ test("a cable into TIME / PITCH / SIZE / SHAPE has an audible effect at once (CV
   assert.ok(spread > 0.1, "grain positions follow the LFO: spread " + spread.toFixed(3));
 });
 
-test("R6 every recording quality is audible on the quiet foley within seconds of switching to it (from the panel)", () => {
+test("R6 every recording quality has grains near the input level within seconds of switching to it (from the panel)", () => {
   const r = rig(13); r.play(7);
   const bad = [];
   for (const q of [1, 2, 3, 0]) {
     r.ui.onclick(0, 0, 0, 0, 0);   // no-op click (nothing there) — the panel must not throw
     r.ui.outlet(0, "quality", q);
     const m = measure(r.play(4));
-    if (m.db < -40 || m.grains < 3) bad.push(`quality ${q}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
+    if (m.db < r.inDb - OK_LO || m.db > r.inDb + OK_HI || m.grains < 3) bad.push(`quality ${q}: ${m.db.toFixed(1)} dB, ${m.grains} grains`);
   }
   assert.deepStrictEqual(bad, []);
 });

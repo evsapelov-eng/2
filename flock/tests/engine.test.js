@@ -363,9 +363,10 @@ test("R5 AUTO gain: learns for 1 + 5 s, then gain = 0.9 / peak (max ×40); LEARN
   // first second: agc_peak is held at 0.5 → gain 0.9 / 0.5 = ×1.8 (GainControl), whatever the input
   assert.ok(Math.abs(gainAt(loud, 0.5) - 1.8) < 1e-9 && Math.abs(gainAt(quiet, 0.9) - 1.8) < 1e-9, "×1.8 during the first second");
   assert.ok(loud.o[10][Math.round(3 * SR)] === 1 && loud.o[10][Math.round(7 * SR)] === 0, "learning flag 1 → 0 after 6 s");
-  // dry output of the quiet source after learning ≈ 0.9 × 0.75 (dry gain) — loud enough to work with
+  // FLØCK: the engine works on the raised signal, the output is divided by the gain → the dry
+  // output of the quiet source is back at its own level (0.01 × 0.75 dry gain), not +32 dB louder
   let pk = 0; for (let i = 7 * SR; i < 8 * SR; i++) pk = Math.max(pk, Math.abs(quiet.o[0][i]));
-  assert.ok(pk > 0.25, "quiet source raised: peak " + pk.toFixed(3));
+  assert.ok(Math.abs(pk - 0.0075) < 0.0005, "output back at the input level: peak " + pk.toFixed(4));
   // LEARN: a new agc_restart value skips the 1 s wait and learns again
   const r = run(0.3, {}, 7); r.g.set("agc_restart", 1);
   const z = new Float64Array(SR), x = sine(300, SR, 0.05);

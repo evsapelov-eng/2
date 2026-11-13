@@ -3,7 +3,9 @@
 
   gen/flock.genexpr  → embedded in a [gen~] codebox (no external .gendsp needed)
   js/flock_ui.js     → the panel ([jsui], copied next to the device)
-Writes max/flock_main.maxpat and dist/FLOCK/FLØCK.amxd (+ zip).
+Writes max/flock_main.maxpat and dist/FLOCK/FLØCK_<version>.amxd + flock_ui_<version>.js (+ zip).
+The version is in the file names: Max/Live resolve a device or a jsui file by NAME, and an old
+FLØCK.amxd / flock_ui.js elsewhere in the search path (or already loaded) can win over the new one.
 
 HONEST STATUS: the .amxd is written by this script (container 'ampf', type 'aaaa' =
 audio effect), NOT saved by Max inside Live, and NOT frozen. Test build: open it in Live,
@@ -23,6 +25,9 @@ MAXDIR = os.path.join(ROOT, "max")
 DIST = os.path.join(ROOT, "dist")
 PKG = os.path.join(DIST, "FLOCK")
 VERSION = json.load(open(os.path.join(ROOT, "package.json")))["version"]
+# versioned file names (see the docstring)
+JSNAME = "flock_ui_%s.js" % VERSION.replace(".", "_")
+AMXDNAME = "FLØCK_%s.amxd" % VERSION
 CODE = open(os.path.join(ROOT, "gen", "flock.genexpr"), encoding="utf-8").read()
 W, H = 900, 169
 SIG = "signal"
@@ -47,7 +52,7 @@ PARAMS = [
     ("seedlatch", "Latch", "Latch", 0, 1, 1, 0, "toggle"),
     ("input", "Input Gain", "Input", -12, 32, 0, 4, "dial"),
     ("output", "Output Gain", "Output", -24, 12, 0, 4, "dial"),
-    ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 1, 0, "toggle"),
+    ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 0, 0, "toggle"),
     ("quality", "Quality", "Quality", 0, 3, 0, 0, ("enum", ["Pristine", "Cold digital", "Sunny tape", "Scorched cassette"])),
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]
@@ -158,7 +163,7 @@ def build():
     pout = P.obj("plugout~", 2, 0, [], x=20, y=1000)
     P.connect(pin, 0, gen, 0); P.connect(pin, 1, gen, 1)
     P.connect(gen, 0, pout, 0); P.connect(gen, 1, pout, 1)
-    ui = P.add({"maxclass": "jsui", "filename": "flock_ui.js", "numinlets": 1, "numoutlets": 1, "outlettype": [""],
+    ui = P.add({"maxclass": "jsui", "filename": JSNAME, "numinlets": 1, "numoutlets": 1, "outlettype": [""],
                 "parameter_enable": 0, "border": 0, "patching_rect": [400, 600, W, H],
                 "presentation": 1, "presentation_rect": [0, 0, W, H], "varname": "flock_ui"})
     lb = P.obj("loadbang", 1, 1, ["bang"], x=900, y=40)
@@ -252,14 +257,14 @@ def package(path):
             params[box["id"]] = [va["parameter_longname"], va["parameter_shortname"], 0]
     params["inherited_shortname"] = 1
     p["parameters"] = params
-    p["dependency_cache"] = [{"name": "flock_ui.js", "type": "TEXT", "implicit": 1}]
+    p["dependency_cache"] = [{"name": JSNAME, "type": "TEXT", "implicit": 1}]
     p["autosave"] = 0
     if os.path.exists(PKG):
         shutil.rmtree(PKG)
     os.makedirs(PKG)
-    with open(os.path.join(PKG, "FLØCK.amxd"), "wb") as f:
+    with open(os.path.join(PKG, AMXDNAME), "wb") as f:
         f.write(amxd_bytes(pj))
-    shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(PKG, "flock_ui.js"))
+    shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(PKG, JSNAME))
     shutil.copy(os.path.join(ROOT, "dist_README.txt"), os.path.join(PKG, "README_FIRST.txt"))
     shutil.copy(os.path.join(ROOT, "LICENSE-BEADS.txt"), os.path.join(PKG, "LICENSE-BEADS.txt"))
     zpath = os.path.join(DIST, "FLOCK_v%s_test_build.zip" % VERSION)

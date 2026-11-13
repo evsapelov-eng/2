@@ -106,3 +106,18 @@ Both were re-checked one at a time (caught). All 37 are now caught.
 
 ## v0.3.1 — silent in Live again (v0.3.0)
 v0.3.0 gave no sound at all in Live, not even the dry signal, which points to gen~ not compiling. The new code used names that are gen~ operators in Max: `rmod` (reverse modulo), `r` and `s` (receive / send). The linter's reserved list did not know them. Renamed (`wrm`, `rk`, `sk`, and the other short locals of the new functions); `History qc(-1)` → `qc(0)` (a negative initial value is not needed). The linter now also knows rsub / rdiv / rmod / r / s, fast math and the *p comparisons. Not confirmed in Max until the user tests it.
+
+## v0.3.2 — the Live test of the diagnostic kit
+The kit had four devices: A pass-through, B engine v0.2.0, C v0.2.x (auto gain), D v0.3.1. All four
+SOUNDED, so gen~ compiles. B sounded right to the user; C and D "screamed". Two causes:
+- **Loudness**: AUTO was on by default. Like the module it raises a quiet source to near full scale
+  (up to +32 dB). On a Eurorack module that makes sense, but on a DAW track it is far louder than the
+  source. Now AUTO is off by default. When it is on, the output is divided by the gain: the engine
+  (limiters, soft clip, 12-bit, µ-law) works on the normalised signal, and the level comes back to
+  the input's. This is a deviation (R5).
+- **"No sound" with the normal build** (v0.3.0 / v0.3.1): probably a name clash. Max resolves an
+  .amxd and a jsui file by name, so an old FLØCK.amxd / flock_ui.js (still loaded, or elsewhere in
+  the search path) can win over the new one. The diagnostic devices had other names and loaded
+  fine. The file names now carry the version: FLØCK_<v>.amxd, flock_ui_<v>.js.
+
+Playability tests: the level must be near the INPUT's level (−20 … +12 dB), no longer "above −40 dBFS".

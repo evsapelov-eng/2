@@ -25,7 +25,7 @@ var C = {
 var P = {
   time: { v: 0.15, d: 0.15 }, density: { v: 0.12, d: 0.12 }, pitch: { v: 0.5, d: 0.5 }, size: { v: 0.6, d: 0.6 }, shape: { v: 0.6, d: 0.6 },
   time_amt: { v: 0.75, d: 0.75 }, pitch_amt: { v: 0.5, d: 0.5 }, size_amt: { v: 0.5, d: 0.5 }, shape_amt: { v: 0.5, d: 0.5 },
-  feedback: { v: 0.1, d: 0.1 }, drywet: { v: 0.7, d: 0.7 }, reverb: { v: 0.35, d: 0.35 }, agc: { v: 1, d: 1 },
+  feedback: { v: 0.1, d: 0.1 }, drywet: { v: 0.7, d: 0.7 }, reverb: { v: 0.35, d: 0.35 }, agc: { v: 0, d: 0 },
   freeze: { v: 0, d: 0 }, seed: { v: 0, d: 0 }, seedlatch: { v: 1, d: 1 },
   input: { v: 0, d: 0, lo: -12, hi: 32 }, output: { v: 0, d: 0, lo: -24, hi: 12 },
   quality: { v: 0, d: 0, lo: 0, hi: 3, int: true }
@@ -417,7 +417,7 @@ var RECIPES = {
     for (var i = 0; i < 16; i++) { var v = Math.round(rr(0, 0.4) * 32) / 32; o["sq" + i] = (i % 4 === 0 || Math.random() < 0.5) ? v : stepCode(false, v); }
     return o;
   },
-  RAIN: function () { return { density: rr(0.75, 0.9), size: rr(0.4, 0.5), shape: rr(0.3, 0.5), time: rr(0.05, 0.4), time_amt: rr(0.85, 1), pitch: pitchKnob(pickOne([0, 12])), pitch_amt: rr(0.75, 0.95), reverb: rr(0.35, 0.6), drywet: rr(0.8, 1) }; },
+  RAIN: function () { return { density: rr(0.75, 0.9), size: rr(0.45, 0.55), shape: rr(0.3, 0.5), time: rr(0.05, 0.4), time_amt: rr(0.85, 1), pitch: pitchKnob(pickOne([0, 12])), pitch_amt: rr(0.75, 0.95), reverb: rr(0.35, 0.6), drywet: rr(0.6, 0.8) }; },
   DRONE: function () { return { density: rr(0.02, 0.07), size: rr(0.78, 0.88), shape: rr(0.55, 0.7), time: rr(0.2, 0.6), time_amt: rr(0.6, 0.75), pitch: pitchKnob(pickOne([0, -12, -12, 7])), pitch_amt: rr(0.5, 0.55), feedback: rr(0.2, 0.45), reverb: rr(0.55, 0.8), drywet: rr(0.85, 1) }; },
   WOBBLE: function () { return { density: rr(0.08, 0.15), size: rr(0.55, 0.65), shape: rr(0.55, 0.7), time: rr(0.05, 0.3), time_amt: 0.75, dst_pitch: 1, l1_sync: 1, l1_rate: pickOne([2, 3, 4]) / 14, l1_shape: pickOne([0, 1]), pitch_amt: CV_AMOUNT.pitch, dst_size: 3, size_amt: CV_AMOUNT.size, rn_rate: rr(0.4, 0.6), reverb: rr(0.3, 0.5), drywet: rr(0.8, 0.95) }; }
 };
@@ -527,7 +527,7 @@ var HELP = {
   seedlatch: "LATCH: grains are generated continuously at the DENSITY rate",
   dice: "DICE: a new sound from a recipe (cloud, shimmer, reverse swells, stutter, slicer, rain, drone, wobble)",
   back: "BACK: the sound before the last DICE",
-  agc: "AUTO: input gain learns the level (6 s) and lifts quiet sources up to +32 dB (like the original)",
+  agc: "AUTO: the engine hears a level-matched input (up to +32 dB, like the original); the output comes back to the input level",
   learn: "LEARN: learn the input level again (play the source)", dn_amt: "DENSITY CV amount",
   tab_SOUND: "SOUND: the sound controls", tab_MOD: "MOD: modulators and the patch matrix",
   l1_rate: "LFO 1 RATE: Hz, or a tempo division when SYNC is on", l2_rate: "LFO 2 RATE: Hz, or a tempo division when SYNC is on",
@@ -577,7 +577,7 @@ function onclick(x, y, but, cmd, shift) {
   else if (h.kind === "knob") {
     if (h.name === "input" && P.agc.v > 0.5) {   // like Beads: turning the gain by hand = manual gain from the current value
       send("agc", 0);
-      P.input.v = Math.max(-12, Math.min(32, 20 * Math.log(Math.max(agcGain, 1e-6)) / Math.LN10));
+      P.input.v = 0;   // manual from 0 dB (AUTO compensates its gain at the output; manual does not)
     }
     drag = { kind: "knob", name: h.name, y0: y, n0: norm(h.name, P[h.name].v) };
   }
