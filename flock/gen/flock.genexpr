@@ -541,7 +541,7 @@ if (newblk) {
 	}
 	gtime = (gtime > g_ign || g_peak > 0.001) ? min(gtime + BLK, g_act) : gtime;
 	gopt = min(0.9 / min(gagc, 0.9), 40);
-	gtarget = agc > 0.5 ? min(0.9 / min(gagc, 0.9), 40) : ingain;
+	gtarget = agc > 0.5 ? gopt : ingain;
 	ginc = (gtarget - g_gain) / BLK;
 	// soft clipping of the manual gain: Scorched cassette ON, Sunny tape DYNAMIC, digital OFF
 	isca = ((qi > 2.5 ? 1 : qi > 1.5 ? clamp(2 * (ingain / gopt - 0.75), 0, 1) : 0) - s_sca) / BLK;
