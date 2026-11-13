@@ -47,7 +47,7 @@ test("gen~ box embeds the engine code with matching inlet/outlet counts; device 
   const n = 4800, x = Float64Array.from({ length: n }, (_, i) => 0.3 * Math.sin(i * 0.05));
   const a = new GenPatch(cb.code, { sr: 48000, seed: 1 }).run(n, [x, x]), b = new GenPatch(src, { sr: 48000, seed: 1 }).run(n, [x, x]);
   assert.deepStrictEqual(Array.from(a[0]), Array.from(b[0]));
-  assert.strictEqual(g.numinlets, 11); assert.strictEqual(g.numoutlets, 11);
+  assert.strictEqual(g.numinlets, 11); assert.strictEqual(g.numoutlets, 13);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const ph = boxes.find((b) => b.text === "phasor~ 1n @lock 1");
   assert.ok(patch.lines.some((l) => l.patchline.source[0] === ph.id && byId[l.patchline.destination[0]].text === "gen~" && l.patchline.destination[1] === 6), "bar phase → gen~ in7");
@@ -252,6 +252,12 @@ test("native device: Live's own live.dial / live.text / live.tab on the SOUND pa
   const ui = bx.findIndex((b) => b.maxclass === "jsui");
   for (const b of shown) assert.ok(bx.indexOf(b) > ui, b.varname + " above the panel");
   assert.ok(bx.some((b) => b.maxclass === "message" && b.text === "native 1") && bx.some((b) => b.text === "thispatcher"));
+  // the tape: Max's waveform~ of a buffer~ that poke~ fills from gen~ out12 / out13
+  const wf = bx.find((b) => b.maxclass === "waveform~");
+  assert.ok(wf && wf.presentation && wf.buffername === "---flock_tape");
+  const pk = bx.find((b) => b.text === "poke~ ---flock_tape"), gen = bx.find((b) => b.text === "gen~");
+  const into = (dst, inlet) => pj.lines.map((l) => l.patchline).filter((l) => l.destination[0] === dst.id && l.destination[1] === inlet).map((l) => [l.source[0], l.source[1]]);
+  assert.deepStrictEqual(into(pk, 0), [[gen.id, 11]]); assert.deepStrictEqual(into(pk, 1), [[gen.id, 12]]);
   // the panel in native mode: no own control where Live's objects sit; tab switch hides / shows them
   const b2 = boot();
   b2.ctx.native(1);

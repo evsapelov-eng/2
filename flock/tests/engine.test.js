@@ -376,3 +376,17 @@ test("R5 AUTO gain: learns for 1 + 5 s, then gain = 0.9 / peak (max ×40); LEARN
   const m = run(0.3, { agc: 0, ingain: 2 }, 1);
   assert.ok(Math.abs(m.o[9][SR - 1] - 2) < 1e-9 && silentish.o[9].length);
 });
+
+test("display copy of the recording (out12 / out13): the value and index of the frame written now; -1 while frozen", () => {
+  const g = engine({ density: 0.5 }), n = 2000, x = sine(300, n, 0.3), y = sine(450, n, 0.2);
+  const o = g.run(n, [x, y]);
+  const len = g.D.buf.a.length / 2;
+  for (const i of [10, 500, 1999]) {
+    const idx = o[12][i];
+    assert.ok(idx >= 0, "index at " + i);
+    assert.strictEqual(o[11][i], (g.D.buf.a[idx] + g.D.buf.a[len + idx]) * 0.5);
+  }
+  g.set("freeze", 1);
+  const f = g.run(100, [x.subarray(0, 100), y.subarray(0, 100)]);
+  assert.ok(f[12].every((v) => v === -1), "nothing written while frozen");
+});

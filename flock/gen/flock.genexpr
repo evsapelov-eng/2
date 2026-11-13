@@ -25,7 +25,7 @@
 // Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,
 //          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed),
 //          out8 sequencer step, out9 Live transport running (bar phase moving), out10 input gain,
-//          out11 auto gain learning
+//          out11 auto gain learning, out12 / out13 the frame written now (value, index; -1 = none)
 //          in7 bar phase from Live (phasor~ 1n @lock 1); in8..in11 external SEED / FREEZE / DENSITY / assign
 //          (destination index 7, used by the tests)
 //
@@ -487,6 +487,9 @@ nhw = wrapi(hw + 1, 512);
 // every History written by the codec / core stages goes through nh_* and is written back
 // unconditionally at the very end (like v0.2, which compiled in Max)
 nh_wp = wp;
+// display copy of the recording (native device: buffer~ + waveform~): value and index of the frame written now
+tapev = 0;
+tapei = -1;
 nh_nwr = nwr;
 nh_sdn = sdn;
 nh_interval = interval;
@@ -1000,6 +1003,8 @@ if (cfrz) {
 	}
 	ql = qi < 0.5 ? q16(sl) : qi < 2.5 ? q12(sl) : mulaw(sl);
 	qr = qi < 0.5 ? q16(sr) : qi < 2.5 ? q12(sr) : mulaw(sr);
+	tapev = (ql + qr) * 0.5;
+	tapei = w;
 	poke(buf, ql, w, 0);
 	poke(buf, qr, w, 1);
 	if (w < 4) {
@@ -1636,6 +1641,8 @@ out8 = peek(cx, 7, 0);
 out9 = peek(cx, 8, 0);
 out10 = peek(cx, 9, 0);
 out11 = peek(cx, 10, 0);
+out12 = tapev;
+out13 = ctk ? tapei : -1;
 hinit = 1;
 ckn = nckn;
 qc = qi;

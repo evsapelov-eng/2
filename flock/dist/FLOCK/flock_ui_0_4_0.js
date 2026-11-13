@@ -519,8 +519,10 @@ function paintNativeSound() {
   // IN / OUT dials [808,10,42,52] [852,10,42,52]; AUTO live.text [808,66,42,13]; LEARN here
   pill(852, 66, 40, agcLearning ? "..." : "LEARN", agcLearning > 0, "cmd", "learn");
   if (P.agc.v > 0.5) { var gdb = 20 * Math.log(Math.max(agcGain, 1e-6)) / Math.LN10; textC("auto gain " + (gdb > 0 ? "+" : "") + Math.round(gdb) + " dB", 850, 85, 6, C.mid); }
-  // quality: live.tab [598,88,290,13]; tape below
-  drawTape(598, 106, 290, 42);
+  // quality: live.tab [598,88,290,13]; the tape is Max's waveform~ [598,118,290,30] (the recording itself,
+  // record head = pink selection); here only its caption
+  text("TAPE  " + bufSeconds() + " s  ·  record head = pink  ·  grains " + tapeSt.active + " / 32", 600, 113, 6, C.mid, true);
+  if (engineStopped()) textC("ENGINE NOT RUNNING - see Max Console", 743, 136, 7, PINK, true);
   text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
 }
 // ================= MOD tab =================
