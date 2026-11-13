@@ -27,7 +27,9 @@ PKG = os.path.join(DIST, "FLOCK")
 VERSION = json.load(open(os.path.join(ROOT, "package.json")))["version"]
 # versioned file names (see the docstring)
 JSNAME = "flock_ui_%s.js" % VERSION.replace(".", "_")
-AMXDNAME = "FLØCK_%s.amxd" % VERSION
+# ASCII only: the diagnostic devices (FLOCK_*.amxd) loaded and sounded in Live while the
+# byte-identical FLØCK*.amxd did not → no "Ø" in file names
+AMXDNAME = "FLOCK_%s.amxd" % VERSION.replace(".", "_")
 CODE = open(os.path.join(ROOT, "gen", "flock.genexpr"), encoding="utf-8").read()
 W, H = 900, 169
 SIG = "signal"
