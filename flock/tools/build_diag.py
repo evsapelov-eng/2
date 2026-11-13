@@ -81,10 +81,26 @@ def minified(code):              # M2: the new engine without indentation and sp
     return "\n".join(out)
 
 
-VARIANTS = [("A_passthrough", PASS), ("B_engine_v020", v020), ("C_engine_v02x", git_show("7c2551c")),
-            ("Y1_small_buffer", small_buffer(CUR)), ("Y2_no_init", no_init(CUR)), ("Y3_no_new_functions", no_new_functions(CUR)),
-            ("Y4_all_three", no_new_functions(no_init(small_buffer(CUR)))),
-            ("Z_v020_padded_to_43k", padded(v020)), ("M3_new_engine_short_30k", CUR)]
+def no_loops(code):              # N1: no init loop, no clearing loops, constant converter bound
+    code = no_init(code)
+    i = code.index("\nif (qchg) {\n\tfor (k = 0; k < MAXD + 4; k += 1) {")
+    j, depth = code.index("{", i) + 1, 1
+    while depth:
+        depth += {"{": 1, "}": -1}.get(code[j], 0)
+        j += 1
+    code = code[:i + 1] + code[j:]
+    return code.replace("for (k = 0; k < nj; k += 1) {", "for (k = 0; k < 66; k += 1) {")
+
+
+def param_and_buffer(code):      # N3: Param "quality" renamed, recording buffer at the v0.2 size
+    code = small_buffer(code)
+    return code.replace("Param quality(0, min=0, max=3);", "Param qmode(0, min=0, max=3);").replace("floor(quality + 0.5)", "floor(qmode + 0.5)")
+
+
+VARIANTS = [("B_engine_v020", v020), ("C_engine_v02x", git_show("7c2551c")),
+            ("N1_no_loops", no_loops(CUR)), ("N2_no_new_functions", no_new_functions(CUR)),
+            ("N3_param_and_buffer", param_and_buffer(CUR)),
+            ("N4_all_three", param_and_buffer(no_new_functions(no_loops(CUR))))]
 
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
@@ -92,7 +108,7 @@ os.makedirs(OUT)
 good = bd.CODE
 for name, code in VARIANTS:
     bd.CODE = code
-    bd.EMBED = bd.compact_code if name.startswith("M3") else bd.embed_code
+    bd.EMBED = bd.embed_code if name.startswith(("B_", "C_")) else bd.compact_code
     path, patcher = bd.build()
     errs = bd.validate(patcher)
     if errs:
@@ -116,13 +132,7 @@ bd.EMBED = bd.compact_code
 bd.build()   # restore max/flock_main.maxpat
 shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(OUT, bd.JSNAME))   # the name the patch asks for
 open(os.path.join(OUT, "README_DIAG.txt"), "w", encoding="utf-8").write(
-    "ДИАГНОСТИКА FLØCK №3 — одинаковые устройства с разными звуковыми движками.\n"
-    "Положите каждое на аудиодорожку со звуком, DRY/WET влево. Напишите, какие звучат:\n"
-    "  A  — просто пропускает звук\n  B  — движок v0.2.0\n  C  — движок с авто-усилением (до качеств записи)\n"
-    "  Y1 — новый движок с маленьким буфером\n  Y2 — новый движок без начальной таблицы\n"
-    "  Y3 — новый движок без новых функций\n  Y4 — новый движок без всех трёх\n"
-    "  Z  — движок v0.2.0, искусственно удлинённый до размера нового (проверка лимита длины кода)\n"
-    "  M3 — новый движок, записанный коротко (30 КБ вместо 43 КБ; та же программа)\n")
+    "Положите на дорожки со звуком B, C, N1, N2, N3, N4 и напишите, какие звучат.\n")
 zp = os.path.join(ROOT, "dist", "FLOCK_DIAG.zip")
 with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
     for f in sorted(os.listdir(OUT)):
