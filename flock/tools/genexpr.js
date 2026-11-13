@@ -72,6 +72,12 @@ function evalConst(x) { return Function("return (" + x + ");")(); }
 function lint(body, decl, where) {
   const errors = [];
   if (/\+\+|--/.test(body)) errors.push(where + ": ++/-- are not allowed");
+  // Max (diagnostic kit 6): a 4097-step loop made the whole device silent, 66 steps were fine
+  for (const m of body.matchAll(/for\s*\(\s*\w+\s*=\s*0\s*;\s*\w+\s*<\s*([^;]+);/g)) {
+    const lim = Number(m[1].trim());
+    if (!Number.isFinite(lim) && /[A-Z]/.test(m[1])) errors.push(where + ": loop bound '" + m[1].trim() + "' may be large — Max does not run big loops");
+    if (Number.isFinite(lim) && lim > 128) errors.push(where + ": loop of " + lim + " steps — Max does not run big loops (keep ≤ 128)");
+  }
   if (/\b(let|var|const|function|=>|===|!==)\b|=>|===|!==/.test(body)) errors.push(where + ": JS-only syntax");
   // tokens with block depth
   const toks = body.match(/[A-Za-z_]\w*|[{}]|[+\-*/]?=(?!=)|==|;|\S/g) || [];

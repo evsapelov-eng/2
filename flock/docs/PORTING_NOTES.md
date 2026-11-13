@@ -148,3 +148,25 @@ program, 30.4 KB, and the device test checks that it gives the same output as th
 
 Kit 3 tests this directly: Z = the working v0.2.0 engine padded to 44 KB (silent if the limit is
 real), M3 = the new engine compacted to 30 KB.
+
+## v0.3.6 — found: big loops (diagnostic kits 4–6)
+- Kit 4: B and C sounded; every v0.3 variant N1–N4 was silent.
+- Kit 5: C plus one v0.3 construct each. Only K4 (the host-stage converter) was silent.
+- Kit 6: K4 split into four parts. Only K4c was silent: the converter kernel table filled by a
+  4097-step loop on the first sample. The converter loop alone (66 steps), the input ring and the
+  functions called once per sample all sounded.
+
+So Max does not run big loops. Probably gen~ unrolls loops with constant bounds and the compile
+fails, but I have no confirmation. The working engines only had loops ≤ 32 steps.
+
+Fix:
+- The kernel table is filled progressively, 8 entries per host sample. The codec qualities are
+  silent for the first 512 host samples (the reference does the same).
+- The Sunny tape filter mirror is written out line by line.
+- A quality change no longer loops over the buffer (384004 steps) or the SEED delay line. The
+  frames written since the change are counted, and everything older reads as 0 (`bvalid`) — the
+  same as a cleared buffer. Stale converter / SRC rings are not cleared, which gives a sub-ms
+  transient on a change; the module's codec restart is silent instead.
+
+The linter now rejects loops > 128 steps and loop bounds that look large (it rejects v0.3.5 with
+four errors).

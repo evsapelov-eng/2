@@ -133,18 +133,20 @@ test("R6 Cold digital: the dry signal is truncated to 12 bits — a signal below
 
 test("R6 changing the quality clears the buffer and restarts the grains; held while FREEZE is on (R7)", () => {
   const g = new GenPatch(SRC, { sr: SR, seed: 4 });
-  for (const [k, v] of Object.entries(Object.assign({}, BASE, { quality: 0, density: 0.1, drywet: 1 }))) g.set(k, v);
-  const n = SR, [L, R] = source(n, 3);
+  for (const [k, v] of Object.entries(Object.assign({}, BASE, { quality: 0, density: 0.1, drywet: 1, reverb: 0, time: 0.3, size: 0.5 }))) g.set(k, v);
+  const n = SR, [L, R] = source(n, 3), z = new Float64Array(SR);
+  const rms = (o) => { let e = 0; for (const v of o[0]) e += v * v; return Math.sqrt(e / o[0].length); };
   g.run(n, [L, R]);
-  let nz = 0; for (let i = 0; i < 192000; i++) if (g.D.buf.a[i] !== 0) nz++;
-  assert.ok(nz > 40000, "recorded");
-  g.set("freeze", 1); g.run(100, [L.subarray(0, 100), R.subarray(0, 100)]);
-  g.set("quality", 3); g.run(1000, [L.subarray(0, 1000), R.subarray(0, 1000)]);
+  assert.ok(rms(g.run(SR / 2, [z, z])) > 0.01, "grains play the recording (silent input now)");
+  g.set("freeze", 1); g.run(100, [z, z]);
+  g.set("quality", 2); g.run(1000, [z, z]);
   assert.strictEqual(g.H.qc, 0, "held while frozen");
-  g.set("freeze", 0); g.run(10, [L.subarray(0, 10), R.subarray(0, 10)]);
-  assert.strictEqual(g.H.qc, 3, "applied after unfreeze");
-  nz = 0; for (let i = 0; i < 384000; i++) if (g.D.buf.a[i] !== 0) nz++;
-  assert.ok(nz < 20, "cleared (only the newest frames): " + nz);
+  g.set("freeze", 0); g.run(10, [z, z]);
+  assert.strictEqual(g.H.qc, 2, "applied after unfreeze");
+  // FLØCK clears by counting the frames written since the change (no loop over the buffer):
+  // everything recorded before reads as silence → with a silent input the grains are silent
+  assert.ok(g.H.nwr <= 10, "frames since the change: " + g.H.nwr);
+  assert.ok(rms(g.run(SR / 2, [z, z])) < 1e-9, "old recording gone");
 });
 
 test("X3 caveman reverb (every quality but Pristine): darker tail than Pristine (lp 0.4 vs 0.6 in the loop)", () => {

@@ -632,6 +632,9 @@ function kaiserSinc(x) {
 }
 const KTAB = Float64Array.from({ length: 4098 }, (_, k) => (k < 4097 ? kaiserSinc(k / 256) : 0));
 function kern(x) { const ka = Math.abs(x) * 256, ki = Math.floor(ka); return ki < 4096 ? { w: KTAB[ki] + (KTAB[ki + 1] - KTAB[ki]) * (ka - ki) } : null; }
+// gen~ fills the kernel table 8 entries per host sample (no big loops in Max): the codec qualities
+// are silent for the first 512 host samples
+const KREADY = 512;
 // The whole device at the host rate: codec clock, down-converter, the processor in codec blocks,
 // up-converter. phases: [{ hostSamples, P }] (param changes on host samples, like gen~).
 function runHost(hostSr, quality, random, phases, inL, inR) {
@@ -650,6 +653,7 @@ function runHost(hostSr, quality, random, phases, inL, inR) {
   for (let m = 0; m < M; m++) {
     const n = ticks[m];
     if (!rsm) { cL[m] = inL[n]; cR[m] = inR[n]; continue; }
+    if (n < KREADY) { cL[m] = 0; cR[m] = 0; continue; }   // FLØCK: kernel table not complete yet
     let L = 0, R = 0, W = 0; const nj = Math.floor(33 / rr);
     for (let k = 0; k < nj; k++) {
       const kk = kern(rr * k - dlts[n] - 16); if (!kk) continue;
@@ -679,7 +683,7 @@ function runHost(hostSr, quality, random, phases, inL, inR) {
       const j = last - k;
       a += (j >= 0 ? oL[j] : 0) * kk.w; b += (j >= 0 ? oR[j] : 0) * kk.w; W += kk.w;
     }
-    L[n] = a / W; R[n] = b / W;
+    L[n] = n < KREADY ? 0 : a / W; R[n] = n < KREADY ? 0 : b / W;
   }
   return [L, R, ref];
 }

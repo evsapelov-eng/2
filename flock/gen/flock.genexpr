@@ -149,6 +149,13 @@ csinc(x) {
 	return 0.94 * sk * wv;
 }
 
+// FLØCK: has buffer index i been written since the last reset? (n frames written, head starting
+// at 0 and moving down from m - 1; indices m..m+3 are the interpolation tail copies of 0..3)
+bvalid(i, n, m) {
+	ii = i >= m ? i - m : i;
+	return n > m ? 1 : ii < 0.5 ? n >= 1 : n - 1 >= m - ii;
+}
+
 Param time(0.15, min=0, max=1);
 Param size(0.6, min=0, max=1);
 Param shape(0.6, min=0, max=1);
@@ -349,6 +356,9 @@ History g_rst(0);
 History lastpos(0);
 History lastspd(1);
 History hinit(0);
+History ckn(0);
+History nwr(0);
+History sdn(0);
 History qc(0);
 History cacc(0);
 History hw(0);
@@ -389,9 +399,6 @@ RC = min(qi > 0.5 && qi < 1.5 ? 32000 : qi > 2.5 ? 24000 : FSH, FSH);
 rsm = RC < FSH;
 rr = RC / FSH;
 if (hinit < 0.5) {
-	for (k = 0; k < 4097; k += 1) {
-		poke(ck, csinc(k / 256), k, 0);
-	}
 	// sample_rate_conversion_filters.h SRC_FIR<SRC_DOWN, 2, 48> / <SRC_UP, 2, 48> (24 + mirror)
 	poke(srcf, -0.0002143728787, 0, 0); poke(srcf, -0.0004113243578, 1, 0); poke(srcf, 0.0003550026182, 2, 0); poke(srcf, 0.001123588805, 3, 0);
 	poke(srcf, 0.0002013790146, 4, 0); poke(srcf, -0.002135889966, 5, 0); poke(srcf, -0.001946536068, 6, 0); poke(srcf, 0.002421957824, 7, 0);
@@ -405,11 +412,46 @@ if (hinit < 0.5) {
 	poke(srcf, 0.02001194882, 12, 1); poke(srcf, 0.02929003471, 13, 1); poke(srcf, -0.01083867877, 14, 1); poke(srcf, -0.05164495731, 15, 1);
 	poke(srcf, -0.01821391107, 16, 1); poke(srcf, 0.06671043028, 17, 1); poke(srcf, 0.07404344683, 18, 1); poke(srcf, -0.05604828388, 19, 1);
 	poke(srcf, -0.1683376729, 20, 1); poke(srcf, -0.02385313356, 21, 1); poke(srcf, 0.3910061488, 22, 1); poke(srcf, 0.7674091912, 23, 1);
-	for (k = 0; k < 24; k += 1) {
-		poke(srcf, peek(srcf, k, 0), 47 - k, 0);
-		poke(srcf, peek(srcf, k, 1), 47 - k, 1);
-	}
+	poke(srcf, peek(srcf, 0, 0), 47, 0); poke(srcf, peek(srcf, 0, 1), 47, 1);
+	poke(srcf, peek(srcf, 1, 0), 46, 0); poke(srcf, peek(srcf, 1, 1), 46, 1);
+	poke(srcf, peek(srcf, 2, 0), 45, 0); poke(srcf, peek(srcf, 2, 1), 45, 1);
+	poke(srcf, peek(srcf, 3, 0), 44, 0); poke(srcf, peek(srcf, 3, 1), 44, 1);
+	poke(srcf, peek(srcf, 4, 0), 43, 0); poke(srcf, peek(srcf, 4, 1), 43, 1);
+	poke(srcf, peek(srcf, 5, 0), 42, 0); poke(srcf, peek(srcf, 5, 1), 42, 1);
+	poke(srcf, peek(srcf, 6, 0), 41, 0); poke(srcf, peek(srcf, 6, 1), 41, 1);
+	poke(srcf, peek(srcf, 7, 0), 40, 0); poke(srcf, peek(srcf, 7, 1), 40, 1);
+	poke(srcf, peek(srcf, 8, 0), 39, 0); poke(srcf, peek(srcf, 8, 1), 39, 1);
+	poke(srcf, peek(srcf, 9, 0), 38, 0); poke(srcf, peek(srcf, 9, 1), 38, 1);
+	poke(srcf, peek(srcf, 10, 0), 37, 0); poke(srcf, peek(srcf, 10, 1), 37, 1);
+	poke(srcf, peek(srcf, 11, 0), 36, 0); poke(srcf, peek(srcf, 11, 1), 36, 1);
+	poke(srcf, peek(srcf, 12, 0), 35, 0); poke(srcf, peek(srcf, 12, 1), 35, 1);
+	poke(srcf, peek(srcf, 13, 0), 34, 0); poke(srcf, peek(srcf, 13, 1), 34, 1);
+	poke(srcf, peek(srcf, 14, 0), 33, 0); poke(srcf, peek(srcf, 14, 1), 33, 1);
+	poke(srcf, peek(srcf, 15, 0), 32, 0); poke(srcf, peek(srcf, 15, 1), 32, 1);
+	poke(srcf, peek(srcf, 16, 0), 31, 0); poke(srcf, peek(srcf, 16, 1), 31, 1);
+	poke(srcf, peek(srcf, 17, 0), 30, 0); poke(srcf, peek(srcf, 17, 1), 30, 1);
+	poke(srcf, peek(srcf, 18, 0), 29, 0); poke(srcf, peek(srcf, 18, 1), 29, 1);
+	poke(srcf, peek(srcf, 19, 0), 28, 0); poke(srcf, peek(srcf, 19, 1), 28, 1);
+	poke(srcf, peek(srcf, 20, 0), 27, 0); poke(srcf, peek(srcf, 20, 1), 27, 1);
+	poke(srcf, peek(srcf, 21, 0), 26, 0); poke(srcf, peek(srcf, 21, 1), 26, 1);
+	poke(srcf, peek(srcf, 22, 0), 25, 0); poke(srcf, peek(srcf, 22, 1), 25, 1);
+	poke(srcf, peek(srcf, 23, 0), 24, 0); poke(srcf, peek(srcf, 23, 1), 24, 1);
 }
+// Max does not run big loops (a 4097-step loop on the first sample made the device silent):
+// the converter kernel table is filled progressively, 8 entries per host sample (513 samples);
+// the codec qualities stay silent until it is complete
+if (ckn < 4096.5) {
+	poke(ck, csinc(ckn / 256), ckn, 0);
+	poke(ck, csinc((ckn + 1) / 256), ckn + 1, 0);
+	poke(ck, csinc((ckn + 2) / 256), ckn + 2, 0);
+	poke(ck, csinc((ckn + 3) / 256), ckn + 3, 0);
+	poke(ck, csinc((ckn + 4) / 256), ckn + 4, 0);
+	poke(ck, csinc((ckn + 5) / 256), ckn + 5, 0);
+	poke(ck, csinc((ckn + 6) / 256), ckn + 6, 0);
+	poke(ck, csinc((ckn + 7) / 256), ckn + 7, 0);
+}
+nckn = min(ckn + 8, 4097);
+ckok = nckn > 4096.5;
 poke(hin, in1, hw, 0);
 poke(hin, in2, hw, 1);
 // codec clock: integer accumulator (RC per host sample), a ctk when it passes the host rate
@@ -417,9 +459,9 @@ nacc = (qchg || !rsm) ? 0 : cacc + RC;
 ctk = qchg || !rsm || nacc >= FSH;
 nacc = nacc >= FSH ? nacc - FSH : nacc;
 dlt = nacc / RC;   // time since this codec sample, in codec samples
-ein1 = in1;
-ein2 = in2;
-if (rsm && ctk) {
+ein1 = rsm ? 0 : in1;
+ein2 = rsm ? 0 : in2;
+if (rsm && ctk && ckok) {
 	// down-converter: kernel centred 16 codec samples back (latency), weights normalised
 	poke(acs, 0, 0, 0);
 	poke(acs, 0, 1, 0);
@@ -445,6 +487,8 @@ nhw = wrapi(hw + 1, 512);
 // every History written by the codec / core stages goes through nh_* and is written back
 // unconditionally at the very end (like v0.2, which compiled in Max)
 nh_wp = wp;
+nh_nwr = nwr;
+nh_sdn = sdn;
 nh_interval = interval;
 nh_lastpos = lastpos;
 nh_lastspd = lastspd;
@@ -578,30 +622,9 @@ if (fresh) {
 		poke(gr, 0, k, 14);
 	}
 }
-if (qchg) {
-	for (k = 0; k < MAXD + 4; k += 1) {
-		poke(buf, 0, k, 0);
-		poke(buf, 0, k, 1);
-	}
-	for (k = 0; k < 256; k += 1) {
-		poke(ftail, 0, k, 0);
-		poke(ftail, 0, k, 1);
-	}
-	for (k = 0; k < 1024; k += 1) {
-		poke(sdl, 0, k, 0);
-	}
-	for (k = 0; k < 64; k += 1) {
-		poke(gdn, 0, k, 0);
-		poke(gdn, 0, k, 1);
-		poke(eo, 0, k, 0);
-		poke(eo, 0, k, 1);
-	}
-	for (k = 0; k < 32; k += 1) {
-		poke(gup, 0, k, 0);
-		poke(gup, 0, k, 1);
-	}
-}
-
+// Configure (quality change): the module clears the buffer. FLØCK does not loop over it (Max does
+// not run big loops); the frames written since the change are counted (nwr) and everything older
+// reads as 0 — the same result. The SEED delay line likewise (sdn).
 // ---- controls (pot laws + smoothing like the module's ADC low-pass; no glide on load)
 // Like the module: pots are read once per block of sr/4000 samples (cv_reader.Read in the audio
 // callback): law → one-pole 0.05 → hysteresis (TIME 0.001). On load: no glide from zero.
@@ -747,7 +770,9 @@ egate_now = ext && pick(dst_seed, g1, g2, g3, g4, s5, g6, in8) > 0.5;
 // beads.cc: "Delay the seed input by 2.5ms" (event_delay.Read(size * 10)) — lets a CV
 // sent together with the gate (e.g. SEQ → TIME and SEQ → SEED) settle first
 poke(sdl, egate_now, sdw, 0);
-egate = ext && peek(sdl, wrapi(sdw - BLK * 10, 1024), 0) > 0.5;
+sdn0 = qchg ? 0 : sdn;
+egate = ext && sdn0 >= BLK * 10 && peek(sdl, wrapi(sdw - BLK * 10, 1024), 0) > 0.5;
+nsdn = min(sdn0 + 1, 2000);
 nsdw = wrapi(sdw + 1, 1024);
 
 // ---- trigger generator (Processor::Process + TriggerGenerator::Render)
@@ -951,6 +976,8 @@ w = cfresh ? 0 : wp;
 twp = cfresh ? 0 : tail_wp;
 txf = cfresh ? 0 : tail_xf;
 wfz = cfresh ? 0 : was_frozen;
+nwr0 = cfresh ? 0 : nwr;
+nwr1 = nwr0;
 if (cfrz) {
 	if (wfz < 0.5) {
 		twp = 0;
@@ -980,6 +1007,7 @@ if (cfrz) {
 		poke(buf, qr, w + MAXD, 1);
 	}
 	w = w == 0 ? MAXD - 1 : w - 1;
+	nwr1 = min(nwr0 + 1, MAXD + 1);
 }
 
 // ---- grain start (DelayGranularPlayer::Render + DelayGrain::Start)
@@ -1152,14 +1180,14 @@ for (k = 0; k < 32; k += 1) {
 		di = floor(dl);
 		df = dl - di;
 		idx = wrapi(w + di + MAXD - 1, MAXD);
-		xl0 = peek(buf, idx, 0);
-		xl1 = peek(buf, idx + 1, 0);
-		xl2 = peek(buf, idx + 2, 0);
-		xl3 = peek(buf, idx + 3, 0);
-		xr0 = peek(buf, idx, 1);
-		xr1 = peek(buf, idx + 1, 1);
-		xr2 = peek(buf, idx + 2, 1);
-		xr3 = peek(buf, idx + 3, 1);
+		xl0 = bvalid(idx, nwr1, MAXD) > 0.5 ? peek(buf, idx, 0) : 0;
+		xl1 = bvalid(idx + 1, nwr1, MAXD) > 0.5 ? peek(buf, idx + 1, 0) : 0;
+		xl2 = bvalid(idx + 2, nwr1, MAXD) > 0.5 ? peek(buf, idx + 2, 0) : 0;
+		xl3 = bvalid(idx + 3, nwr1, MAXD) > 0.5 ? peek(buf, idx + 3, 0) : 0;
+		xr0 = bvalid(idx, nwr1, MAXD) > 0.5 ? peek(buf, idx, 1) : 0;
+		xr1 = bvalid(idx + 1, nwr1, MAXD) > 0.5 ? peek(buf, idx + 1, 1) : 0;
+		xr2 = bvalid(idx + 2, nwr1, MAXD) > 0.5 ? peek(buf, idx + 2, 1) : 0;
+		xr3 = bvalid(idx + 3, nwr1, MAXD) > 0.5 ? peek(buf, idx + 3, 1) : 0;
 		cl = (xl2 - xl0) * 0.5;
 		vl = xl1 - xl2;
 		wl = cl + vl;
@@ -1241,6 +1269,7 @@ poke(cx, lpos, 5, 0);
 poke(cx, lspd, 6, 0);
 // core state write-back
 nh_wp = w;
+nh_nwr = nwr1;
 nh_interval = gint;
 nh_lastpos = lpos;
 nh_lastspd = lspd;
@@ -1497,6 +1526,7 @@ nh_g_inc = ginc;
 nh_g_time = gtime;
 nh_g_rst = agc_restart;
 nh_sdw = nsdw;
+nh_sdn = nsdn;
 nh_lim_pre_p = lp_p;
 nh_lim_pre_lp = lp_lp;
 nh_lim_out_p = lo_p;
@@ -1592,8 +1622,8 @@ if (rsm) {
 			poke(acs, peek(acs, 2, 0) + wk, 2, 0);
 		}
 	}
-	o1 = peek(acs, 0, 0) / peek(acs, 2, 0);
-	o2 = peek(acs, 1, 0) / peek(acs, 2, 0);
+	o1 = ckok ? peek(acs, 0, 0) / peek(acs, 2, 0) : 0;
+	o2 = ckok ? peek(acs, 1, 0) / peek(acs, 2, 0) : 0;
 }
 out1 = o1;
 out2 = o2;
@@ -1607,11 +1637,14 @@ out9 = peek(cx, 8, 0);
 out10 = peek(cx, 9, 0);
 out11 = peek(cx, 10, 0);
 hinit = 1;
+ckn = nckn;
 qc = qi;
 cacc = nacc;
 hw = nhw;
 ew = new_;
 wp = nh_wp;
+nwr = nh_nwr;
+sdn = nh_sdn;
 interval = nh_interval;
 lastpos = nh_lastpos;
 lastspd = nh_lastspd;
