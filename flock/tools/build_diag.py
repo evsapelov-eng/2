@@ -6,7 +6,7 @@ Live which change stops the sound when Max's error text is not available.
   C  engine v0.2.x (auto gain, DICE, …; never tried in Live)
   D  engine v0.3.1 (recording qualities)
 Writes dist/FLOCK_DIAG/*.amxd + flock_ui.js and dist/FLOCK_DIAG.zip."""
-import json, os, shutil, subprocess, sys, zipfile
+import json, os, re, shutil, subprocess, sys, zipfile
 sys.path.insert(0, os.path.dirname(__file__))
 import build_device as bd
 
@@ -37,8 +37,54 @@ def flatten(code):
     return code
 
 
-VARIANTS = [("A_passthrough", PASS), ("B_engine_v020", v020), ("M_main_v%s" % bd.VERSION.replace(".", "_"), CUR),
-            ("X_main_without_blocks", flatten(CUR))]
+def cut(code, start, end):
+    i = code.index(start)
+    j = code.index(end, i)
+    return code[:i] + code[j:]
+
+
+def small_buffer(code):          # Y1: the recording buffer back to the v0.2 size
+    return code.replace("Data buf(384004, 2);", "Data buf(192004, 2);").replace("qi > 2.5 ? 384000 : 256000", "qi > 2.5 ? 192000 : 192000")
+
+
+def no_init(code):               # Y2: no table init on the first sample (no function calls inside a loop)
+    return cut(code, "if (hinit < 0.5) {\n\tfor (k = 0; k < 4097; k += 1) {", "poke(hin, in1, hw, 0);")
+
+
+def no_new_functions(code):      # Y3: no new helper functions (calls replaced by simple expressions)
+    for name in ["q12", "mulaw", "soft_limit", "sclip", "lsin", "bessel_i0", "csinc"]:
+        code = cut(code, "\n" + name + "(", "\n}\n") .replace("\n\n}\n", "\n", 1) if False else code
+    out, i = [], 0
+    for name in ["q12", "mulaw", "soft_limit", "sclip", "lsin", "bessel_i0", "csinc"]:
+        a = code.index("\n" + name + "(")
+        b = code.index("\n}\n", a) + 3
+        code = code[:a + 1] + code[b:]
+    for a, b in [("q12(", "q16("), ("mulaw(", "q16("), ("sclip(", "tanh("), ("lsin(", "sin(twopi * ")]:
+        code = re.sub(r"\b" + re.escape(a), b, code)
+    code = code.replace("poke(ck, csinc(k / 256), k, 0);", "poke(ck, 0, k, 0);")
+    return code
+
+
+def padded(code, size=43000):     # Z: the working v0.2.0 engine made as long as the new one (harmless lines)
+    body = bd.embed_code(code)
+    pad = "".join("zpad%d = 0;\n" % i for i in range((size - len(body)) // 12 + 1))
+    return code + "\n" + pad
+
+
+def minified(code):              # M2: the new engine without indentation and spaces (same program)
+    out = []
+    for line in bd.embed_code(code).split("\n"):
+        line = line.strip()
+        line = re.sub(r"\s*([=+\-*/<>!?:,;(){}&|])\s*", r"\1", line)
+        line = line.replace("Param", "Param ").replace("History", "History ").replace("Data", "Data ")
+        out.append(line)
+    return "\n".join(out)
+
+
+VARIANTS = [("A_passthrough", PASS), ("B_engine_v020", v020), ("C_engine_v02x", git_show("7c2551c")),
+            ("Y1_small_buffer", small_buffer(CUR)), ("Y2_no_init", no_init(CUR)), ("Y3_no_new_functions", no_new_functions(CUR)),
+            ("Y4_all_three", no_new_functions(no_init(small_buffer(CUR)))),
+            ("Z_v020_padded_to_43k", padded(v020)), ("M3_new_engine_short_30k", CUR)]
 
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
@@ -46,6 +92,7 @@ os.makedirs(OUT)
 good = bd.CODE
 for name, code in VARIANTS:
     bd.CODE = code
+    bd.EMBED = bd.compact_code if name.startswith("M3") else bd.embed_code
     path, patcher = bd.build()
     errs = bd.validate(patcher)
     if errs:
@@ -60,22 +107,22 @@ for name, code in VARIANTS:
             params[box["id"]] = [va["parameter_longname"], va["parameter_shortname"], 0]
     params["inherited_shortname"] = 1
     p["parameters"] = params
-    p["dependency_cache"] = [{"name": "flock_ui.js", "type": "TEXT", "implicit": 1}]
+    p["dependency_cache"] = [{"name": bd.JSNAME, "type": "TEXT", "implicit": 1}]
     p["autosave"] = 0
     with open(os.path.join(OUT, "FLOCK_%s.amxd" % name), "wb") as f:
         f.write(bd.amxd_bytes(pj))
 bd.CODE = good
+bd.EMBED = bd.compact_code
 bd.build()   # restore max/flock_main.maxpat
-shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(OUT, "flock_ui.js"))
+shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(OUT, bd.JSNAME))   # the name the patch asks for
 open(os.path.join(OUT, "README_DIAG.txt"), "w", encoding="utf-8").write(
-    "ДИАГНОСТИКА FLØCK — четыре одинаковых устройства с разными звуковыми движками.\n"
-    "Положите каждое на свою аудиодорожку со звуком (или по очереди на одну), DRY/WET поверните влево.\n"
-    "Напишите, какие из A / B / M / X звучат:\n"
-    "  A — просто пропускает звук (проверка самого устройства и Live)\n"
-    "  B — движок v0.2.0 (у вас звучал)\n"
-    "  M — новая версия (все записи состояния перенесены в конец кода)\n"
-    "  X — то же, но без больших условных блоков (качества записи работают неправильно, только проверка)\n"
-    "Если можно — Max Console (Edit → Window → Max Console): текст красных строк.\n")
+    "ДИАГНОСТИКА FLØCK №3 — одинаковые устройства с разными звуковыми движками.\n"
+    "Положите каждое на аудиодорожку со звуком, DRY/WET влево. Напишите, какие звучат:\n"
+    "  A  — просто пропускает звук\n  B  — движок v0.2.0\n  C  — движок с авто-усилением (до качеств записи)\n"
+    "  Y1 — новый движок с маленьким буфером\n  Y2 — новый движок без начальной таблицы\n"
+    "  Y3 — новый движок без новых функций\n  Y4 — новый движок без всех трёх\n"
+    "  Z  — движок v0.2.0, искусственно удлинённый до размера нового (проверка лимита длины кода)\n"
+    "  M3 — новый движок, записанный коротко (30 КБ вместо 43 КБ; та же программа)\n")
 zp = os.path.join(ROOT, "dist", "FLOCK_DIAG.zip")
 with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
     for f in sorted(os.listdir(OUT)):

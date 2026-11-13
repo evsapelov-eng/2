@@ -135,3 +135,16 @@ unconditionally at the end of the pass. Changes:
   opened (the qualities run at the wrong rate; it only tells whether the blocks themselves are the
   problem).
 Not confirmed in Max until the user tests it.
+
+## v0.3.5 — size of the codebox text (main suspect after diagnostic kit 2)
+Kit 2 had a bug of its own: the panel file had the old name, so every device showed a grey circle.
+Its sound result was still clear: A and B sounded, M and X did not. So the History in the blocks was
+not the cause (X has no blocks).
+
+Codebox text sizes: the engines that sounded are 26–32 KB, the silent ones 40–50 KB. Max's classic
+limit for one text/symbol is 32767 characters, and a cut-off code does not compile. The codebox now
+gets `compact_code()`: comments stripped, internal names shortened, no indentation. It is the same
+program, 30.4 KB, and the device test checks that it gives the same output as the source.
+
+Kit 3 tests this directly: Z = the working v0.2.0 engine padded to 44 KB (silent if the limit is
+real), M3 = the new engine compacted to 30 KB.

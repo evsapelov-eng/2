@@ -46,6 +46,55 @@ def embed_code(code):
     if bad:
         raise SystemExit("non-ASCII outside comments in the engine: " + "".join(sorted(set(bad))))
     return text
+
+
+KEEP = set("""if else for return while Param History Data min max clamp abs floor ceil trunc fract sqrt exp log
+pow sin cos tan atan tanh sign noise peek poke dim samplerate pi twopi""".split())
+
+
+def compact_code(code):
+    """The same program, short: internal names (locals, History, Data, functions) renamed to short
+    ones, no indentation, no spaces. Param names (the device's interface) and in/out stay."""
+    text = embed_code(code)
+    params = set(re.findall(r"^Param (\w+)\(", text, re.M))
+    ids = []
+    for m in re.finditer(r"[A-Za-z_]\w*", text):
+        t = m.group(0)
+        if t in KEEP or t in params or re.match(r"^(in|out)\d+$", t) or t in ids:
+            continue
+        ids.append(t)
+    used = set(re.findall(r"[A-Za-z_]\w*", text))
+    names, n = {}, 0
+    for t in sorted(ids, key=lambda t: -text.count(t)):
+        while True:
+            cand = "z" + _b36(n)
+            n += 1
+            if cand not in used:
+                break
+        names[t] = cand
+    text = re.sub(r"[A-Za-z_]\w*", lambda m: names.get(m.group(0), m.group(0)), text)
+    out = []
+    for line in text.split("\n"):
+        line = re.sub(r"\s*([=+\-*/<>!?:,;(){}&|])\s*", r"\1", line.strip())
+        line = re.sub(r"^(Param|History|Data)(?=\w)", r"\1 ", line)
+        line = re.sub(r"\breturn(?=\()", "return ", line)
+        if line:
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
+# what goes into the codebox (tools/build_diag.py switches it per variant)
+EMBED = compact_code
+
+
+def _b36(n):
+    d = "0123456789abcdefghijklmnopqrstuvwxyz"
+    s = ""
+    while True:
+        s = d[n % 36] + s
+        n //= 36
+        if not n:
+            return s
 W, H = 900, 169
 SIG = "signal"
 
@@ -134,7 +183,7 @@ def gen_box(P, x, y):
     n_out = max(int(m) for m in re.findall(r"\bout(\d+)\b", CODE))
     g = Patcher()
     ins = [g.obj("in %d" % (i + 1), 0, 1, [""], x=20 + 60 * i, y=20) for i in range(n_in)]
-    cb = g.add({"maxclass": "codebox", "code": embed_code(CODE), "numinlets": n_in, "numoutlets": n_out,
+    cb = g.add({"maxclass": "codebox", "code": EMBED(CODE), "numinlets": n_in, "numoutlets": n_out,
                 "outlettype": [""] * n_out, "fontface": 0, "fontname": "<Monospaced>", "fontsize": 12.0,
                 "patching_rect": [20, 60, 700, 600]})
     outs = [g.obj("out %d" % (i + 1), 1, 0, [], x=20 + 60 * i, y=680) for i in range(n_out)]
