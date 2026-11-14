@@ -48,7 +48,7 @@ var SHAPES = ["sine", "tri", "saw", "square"];
   var i, d = function (v, extra) { var o = { v: v, d: v }; if (extra) for (var k in extra) o[k] = extra[k]; return o; };
   for (i = 0; i < DST.length; i++) P["dst_" + DST[i][0]] = d(0, { lo: 0, hi: 6, int: 1 });
   P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1); P.dn_amt = d(0.5); P.ct_amt = d(0.5);
-  P.lp_cut = d(1); P.hp_cut = d(0); P.lp_slope = d(1); P.hp_slope = d(0.33); P.flt_all = d(0);
+  P.lp_cut = d(1); P.hp_cut = d(0); P.lp_slope = d(1); P.hp_slope = d(0.33); P.flt_all = d(0); P.flt_on = d(1);
   P.l1_rate = d(0.4); P.l1_sync = d(0); P.l1_shape = d(0, { lo: 0, hi: 3, int: 1 }); P.l1_reset = d(0); P.l1_amt = d(1);
   P.l2_rate = d(0.25); P.l2_sync = d(0); P.l2_shape = d(1, { lo: 0, hi: 3, int: 1 }); P.l2_reset = d(0); P.l2_amt = d(1);
   P.rn_rate = d(0.4); P.rn_sync = d(0); P.rn_smooth = d(1); P.rn_amt = d(1);
@@ -497,8 +497,10 @@ function paint() {
   line(586, 12, 586, H0 - 12, C.line);
   // ---- FILTER: two points like Live's Echo — left = cut the lows, right = cut the highs; across = frequency,
   // up = resonance. FLØCK's grains sound between them (ALL: the whole output).
-  textC("FILTER", 666, 18, 9.5, C.ink, true);
+  text("FILTER", 598, 18, 9.5, C.ink, true);
+  pill(692, 8, 44, P.flt_on.v > 0.5 ? "ON" : "OFF", P.flt_on.v > 0.5, "toggle", "flt_on");
   filterBox(FBX, FBY, FBW, FBH);
+  if (P.flt_on.v < 0.5) { rect(FBX, FBY, FBW, FBH, C.bg, true, 1, 0.6); textC("FILTER OFF", FBX + FBW / 2, FBY + FBH / 2 + 3, 8.5, C.mid, true); }
   text("LOW " + valueText("hp_cut") + (P.hp_cut.v < 0.001 ? "" : " " + slopeDb(P.hp_slope.v)), 596, 145, 7, PINK, true);
   text("HIGH " + valueText("lp_cut") + (P.lp_cut.v > 0.999 ? "" : " " + slopeDb(P.lp_slope.v)), 668, 145, 7, C.accent, true);
   pill(596, 150, 140, P.flt_all.v > 0.5 ? "FILTER ON: ALL OF THE OUTPUT" : "FILTER ON: THE GRAINS", P.flt_all.v > 0.5, "toggle", "flt_all");
@@ -973,6 +975,7 @@ var HELP = {
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK DEPTH: how far the cable moves FEEDBACK (drag)", dw_amt: "DRY/WET DEPTH: how far the cable moves DRY/WET (drag)", rv_amt: "REVERB DEPTH: how far the cable moves REVERB (drag)",
+  flt_on: "FILTER ON / OFF: off = no filter at all (the points keep their places)",
   fbox: "FILTER (like Echo): pink cuts the lows, blue the highs - across = frequency, up = a stronger cut (6 ... 24 dB/oct); FLØCK sounds between them · double-click = home",
   f_hp: "LOW CUT (pink): across = frequency, up = steeper (6 ... 24 dB/oct) · double-click = off", f_lp: "HIGH CUT (blue, Moog ladder): across = frequency, up = steeper (6 ... 24 dB/oct) · double-click = open",
   lp_cut: "LOW-PASS: Moog-style 24 dB ladder - cuts the highs (fully CW = open)",

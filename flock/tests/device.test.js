@@ -14,7 +14,7 @@ const decl = parse(fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf
 
 test("every Live parameter reaches an existing gen~ Param and the panel; panel outputs route to the parameters", () => {
   const params = boxes.filter((b) => b.parameter_enable);
-  assert.strictEqual(params.length, 75);
+  assert.strictEqual(params.length, 76);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const outsOf = (id) => patch.lines.filter((l) => l.patchline.source[0] === id).map((l) => byId[l.patchline.destination[0]]);
   for (const p of params) {
@@ -320,4 +320,13 @@ test("FILTER box (like Echo): across = frequency, up = cut strength; click picks
   b.out.length = 0; b.ctx.ondblclick(p2.x + 8, p2.y + 8);
   assert.ok(last("lp_cut") === 1 && last("lp_slope") === 1);
   assert.strictEqual(b.ctx.slopeDb(0), "6dB"); assert.strictEqual(b.ctx.slopeDb(1), "24dB");
+});
+
+test("FILTER ON / OFF button toggles flt_on and greys the box", () => {
+  const b = boot(); b.draw();
+  const h = b.ctx.hits.find((x) => x.name === "flt_on");
+  b.out.length = 0; b.ctx.onclick(h.x + 3, h.y + 3, 1);
+  assert.deepStrictEqual(b.out.pop().slice(1), ["flt_on", 0]);
+  b.ctx.p("flt_on", 0); b.draw();
+  assert.ok(b.mg.svg().includes(">FILTER OFF<") && b.mg.svg().includes(">OFF<"));
 });

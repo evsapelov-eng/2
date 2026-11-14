@@ -188,6 +188,8 @@ Param hp_cut(0, min=0, max=1);
 Param lp_slope(1, min=0, max=1);
 Param hp_slope(0.33, min=0, max=1);
 Param flt_all(0, min=0, max=1);
+// FILTER ON / OFF (the points keep their places when off)
+Param flt_on(1, min=0, max=1);
 Param dst_cutoff(0, min=0, max=7);
 Param ct_amt(0.5, min=0, max=1);
 Param l1_rate(0.4, min=0, max=1);
@@ -983,8 +985,8 @@ dryr = qi > 0.5 && qi < 1.5 ? trunc(inr * 4096) / 4096 : qi > 2.5 ? mulaw(inr) :
 // ---- FILTER (FLØCK): knobs smoothed per sample (≈10 ms), cutoff modulation in octaves (±5 × depth)
 fq_nc = init < 0.5 ? lp_cut : fl_c + (lp_cut - fl_c) * 0.002;
 fq_nh = init < 0.5 ? hp_cut : fl_h + (hp_cut - fl_h) * 0.002;
-fq_lpon = fq_nc < 0.999 || dst_cutoff > 0.5;
-fq_hpon = fq_nh > 0.001;
+fq_lpon = flt_on > 0.5 && (fq_nc < 0.999 || dst_cutoff > 0.5);
+fq_hpon = flt_on > 0.5 && fq_nh > 0.001;
 fq_xl = flt_all > 0.5 ? dry * dryl + wet * outl : outl;
 fq_xr = flt_all > 0.5 ? dry * dryr + wet * outr : outr;
 // ladder (Zavalishin TPT, linear solve for the feedback, tanh at the input = the transistor ladder's drive)

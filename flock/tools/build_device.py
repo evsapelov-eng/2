@@ -126,6 +126,7 @@ PARAMS = [
     ("lp_slope", "High Cut Strength", "HiCut Str", 0, 1, 1, 1, "dial"),
     ("hp_slope", "Low Cut Strength", "LoCut Str", 0, 1, 0.33, 1, "dial"),
     ("flt_all", "Filter All", "Filter All", 0, 1, 0, 0, "toggle"),
+    ("flt_on", "Filter On", "Filter On", 0, 1, 1, 0, "toggle"),
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]
 DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"]

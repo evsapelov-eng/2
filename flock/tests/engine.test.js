@@ -412,3 +412,10 @@ test("FILTER on the grains only by default: the dry signal is untouched", () => 
   const dryOnly = (k) => { const g = engine(Object.assign({ drywet: 0, reverb: 0, density: 0.5, seedlatch: 0 }, k)); const n = 4000, x = sine(3000, n, 0.3); return g.run(n, [x, x])[0]; };
   assert.deepStrictEqual(Array.from(dryOnly({ lp_cut: at(300) })), Array.from(dryOnly({})));
 });
+
+test("FILTER OFF: no filter at all, whatever the points say (bit-exact)", () => {
+  const n = 4000, x = sine(3000, n, 0.3);
+  const a = engine({ flt_all: 1 }).run(n, [x, x]), b = engine({ flt_all: 1, flt_on: 0, lp_cut: 0.3, hp_cut: 0.5, lp_slope: 1 }).run(n, [x, x]);
+  assert.deepStrictEqual(Array.from(a[0]), Array.from(b[0]));
+  assert.ok(filterGain(3000, { lp_cut: 0.3 }) < -20 && Math.abs(filterGain(3000, { lp_cut: 0.3, flt_on: 0 })) < 0.5);
+});
