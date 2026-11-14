@@ -383,12 +383,33 @@ function knob(cx, cy, r, name, bipolar) {
   if (act) circle(cx, cy, r + 7, C.accent, false, 1, 0.5);
   hit({ x: cx - r - 6, y: cy - r - 6, w: 2 * r + 12, h: 2 * r + 12, kind: "knob", name: name });
 }
+// logo: FLØCK = a flock. The Ø is a ring of grains with a flight path through it, and a small flock
+// leaves the K; it drifts while grains are playing and rests when they stop.
 function drawLogo(x, y, s) {
+  var t = (new Date().getTime() - t0) / 1000, live = Math.min(tapeSt.active, 16) / 16;
   text("FL", x, y, s, C.ink, true);
-  var ox = x + tw("FL", s, true) + 1, ow = tw("O", s, true);
-  text("O", ox, y, s, C.ink, true);
-  line(ox + 1, y + 1, ox + ow - 1, y - s * 0.75, C.ink, Math.max(1.6, s / 11));
-  text("CK", ox + ow + 1, y, s, C.ink, true);
+  var ox = x + tw("FL", s, true) + 1.5, ow = tw("O", s, true), cx = ox + ow / 2, cy = y - s * 0.36, rr = s * 0.34;
+  for (var i = 0; i < 16; i++) {   // the ring of grains
+    var a = i / 16 * Math.PI * 2 + t * 0.15 * live, big = (i * 7) % 5 / 4;
+    circle(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 1.08, 1.0 + big * 0.9, i % 5 === 0 ? C.accent : C.ink, true);
+  }
+  for (var k = 0; k < 7; k++) {   // the slash: a flight path, small to large, lower-left to upper-right
+    var f = k / 6;
+    circle(cx - rr * 1.15 + f * rr * 2.3, cy + rr * 1.15 - f * rr * 2.3, 0.7 + f * 1.3, C.accent, true);
+  }
+  var kx = ox + ow + 1.5;
+  text("CK", kx, y, s, C.ink, true);
+  // the flock leaving the K: a loose V of small birds and grains
+  var fx = kx + tw("CK", s, true) + 8, fy = y - s * 0.42, amp = 0.4 + live * 1.6;
+  var V = [[0, 0, 1], [7, -4, 1], [6, 4, 0], [14, -7, 1], [13, 6, 0], [21, -9, 1], [22, 1, 0]];
+  for (var b = 0; b < V.length; b++) {
+    var bx = fx + V[b][0] + Math.sin(t * 1.3 + b) * amp, by = fy + V[b][1] * 0.8 + Math.cos(t * 1.7 + b * 0.7) * amp, sz = 2.6 + (b % 3) * 0.5;
+    if (V[b][2]) {   // a bird: a small "v", wings beating a little
+      var w = sz * (0.8 + 0.25 * Math.sin(t * 6 + b * 1.9) * live);
+      col(C.ink, 0.9); mgraphics.set_line_width(1.4);
+      mgraphics.move_to(bx - sz, by - w); mgraphics.line_to(bx, by); mgraphics.line_to(bx + sz, by - w); mgraphics.stroke();
+    } else circle(bx, by, 1.4, C.accent, true);
+  }
 }
 function roundButton(cx, cy, r, label, on, name, momentary) {
   if (STYLE === "ableton") {   // Live's toggle buttons: flat rounded box, lit when on
