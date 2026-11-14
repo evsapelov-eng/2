@@ -387,22 +387,25 @@ function filterGain(f, k) {
   return 10 * Math.log10(e / ei) + 2.499;   // dry gain 0.75 removed
 }
 const at = (hz) => Math.log(hz / 20) / Math.log(1000);   // knob position for a frequency (20 Hz … 20 kHz)
-test("FILTER low-pass: 4-pole ladder (≈ −24 dB/oct, −12 dB at the cutoff), no resonance peak", () => {
+test("FILTER strength (the points' height, like Echo): 6 dB/oct at the bottom … 24 dB/oct at the top, both cuts, no peak", () => {
+  for (const [k, cut, f2, f4] of [["lp", "lp_cut", 4000, 8000], ["hp", "hp_cut", 250, 125]]) {   // an octave away from the knee
+    for (const [sl, want] of [[0, 6], [1, 24]]) {
+      const o = { [cut]: at(1000), [k + "_slope"]: sl };
+      const a = filterGain(f2, o), b = filterGain(f4, o), c = filterGain(1000, o);
+      assert.ok(Math.abs(a - b - want) < 2.5, `${k} strength ${sl}: ${(a - b).toFixed(1)} dB/oct`);
+      assert.ok(Math.abs(c + want / 2) < 1.5, `${k} at the cutoff: ${c.toFixed(1)} dB`);
+    }
+  }
   const lp = { lp_cut: at(1000) };
   const d = [250, 500, 700, 1000, 2000, 4000].map((f) => filterGain(f, lp));
-  assert.ok(Math.abs(d[0]) < 2.5 && Math.abs(d[3] + 12) < 1.5, "pass / cutoff: " + d.map((v) => v.toFixed(1)));
-  assert.ok(d[4] - d[5] > 18 && d[4] - d[5] < 28, "slope 2→4 kHz " + (d[4] - d[5]).toFixed(1) + " dB/oct");
-  assert.ok(d.every((v, k) => k === 0 || v <= d[k - 1] + 0.3), "falls monotonically (no bump): " + d.map((v) => v.toFixed(1)));
+  assert.ok(d.every((v, k) => k === 0 || v <= d[k - 1] + 0.3) && d[0] <= 0.3, "falls monotonically (no bump): " + d.map((v) => v.toFixed(1)));
 });
-test("FILTER high-pass: 12 dB/oct, Q 0.5 (no bump); together a smooth bell; defaults = fully open (bit-exact bypass)", () => {
-  const hp = { hp_cut: at(500) };
-  const a = filterGain(125, hp), b = filterGain(250, hp), m = filterGain(500, hp), c = filterGain(4000, hp);
-  assert.ok(b - a > 8 && b - a < 14 && Math.abs(c) < 1 && m < -4, `125 / 250 / 500 / 4k: ${a.toFixed(1)} ${b.toFixed(1)} ${m.toFixed(1)} ${c.toFixed(1)}`);
+test("FILTER: together a smooth bell; defaults = fully open (bit-exact bypass)", () => {
   const band = { hp_cut: at(300), lp_cut: at(3000) };
   const g = [100, 300, 1000, 3000, 9000].map((f) => filterGain(f, band));
   assert.ok(g[2] > g[1] && g[2] > g[3] && g[2] <= 0.5 && g[0] < g[1] && g[4] < g[3], "bell: " + g.map((v) => v.toFixed(1)));
   const n = 4000, x = sine(300, n, 0.3);
-  const o1 = engine({}).run(n, [x, x]), o2 = engine({ lp_cut: 1, hp_cut: 0 }).run(n, [x, x]);
+  const o1 = engine({}).run(n, [x, x]), o2 = engine({ lp_cut: 1, hp_cut: 0, lp_slope: 0.2, hp_slope: 0.9 }).run(n, [x, x]);
   assert.deepStrictEqual(Array.from(o1[0]), Array.from(o2[0]));
 });
 test("FILTER on the grains only by default: the dry signal is untouched", () => {

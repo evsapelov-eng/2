@@ -263,3 +263,10 @@ A box like Live's Echo with two points.
 - The points move left / right only and sit on the curve.
 - `lp_res` / `hp_res` are removed.
 - Tests check a monotonic fall and the bell (the maximum inside the band, ≤ 0 dB).
+
+## v0.6.2 — the points' height = cut strength (like Echo's points)
+Up = steeper: 6 → 24 dB/oct, with no resonance.
+- High cut: the ladder's stage outputs y1…y4 blended by 1 + 3·strength.
+- Low cut: four TPT one-pole high-pass stages blended the same way.
+- Measured: 6 / 12 / 18 / 24 dB/oct for both cuts, −3·order dB at the cutoff.
+- Live parameters `lp_slope` (default 24 dB) and `hp_slope` (default 12 dB).

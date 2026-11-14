@@ -48,7 +48,7 @@ var SHAPES = ["sine", "tri", "saw", "square"];
   var i, d = function (v, extra) { var o = { v: v, d: v }; if (extra) for (var k in extra) o[k] = extra[k]; return o; };
   for (i = 0; i < DST.length; i++) P["dst_" + DST[i][0]] = d(0, { lo: 0, hi: 6, int: 1 });
   P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1); P.dn_amt = d(0.5); P.ct_amt = d(0.5);
-  P.lp_cut = d(1); P.hp_cut = d(0); P.flt_all = d(0);
+  P.lp_cut = d(1); P.hp_cut = d(0); P.lp_slope = d(1); P.hp_slope = d(0.33); P.flt_all = d(0);
   P.l1_rate = d(0.4); P.l1_sync = d(0); P.l1_shape = d(0, { lo: 0, hi: 3, int: 1 }); P.l1_reset = d(0); P.l1_amt = d(1);
   P.l2_rate = d(0.25); P.l2_sync = d(0); P.l2_shape = d(1, { lo: 0, hi: 3, int: 1 }); P.l2_reset = d(0); P.l2_amt = d(1);
   P.rn_rate = d(0.4); P.rn_sync = d(0); P.rn_smooth = d(1); P.rn_amt = d(1);
@@ -499,8 +499,8 @@ function paint() {
   // up = resonance. FLØCK's grains sound between them (ALL: the whole output).
   textC("FILTER", 666, 18, 9.5, C.ink, true);
   filterBox(FBX, FBY, FBW, FBH);
-  text("LOW " + valueText("hp_cut"), 596, 145, 7.5, PINK, true);
-  text("HIGH " + valueText("lp_cut"), 668, 145, 7.5, C.accent, true);
+  text("LOW " + valueText("hp_cut") + (P.hp_cut.v < 0.001 ? "" : " " + slopeDb(P.hp_slope.v)), 596, 145, 7, PINK, true);
+  text("HIGH " + valueText("lp_cut") + (P.lp_cut.v > 0.999 ? "" : " " + slopeDb(P.lp_slope.v)), 668, 145, 7, C.accent, true);
   pill(596, 150, 140, P.flt_all.v > 0.5 ? "FILTER ON: ALL OF THE OUTPUT" : "FILTER ON: THE GRAINS", P.flt_all.v > 0.5, "toggle", "flt_all");
   line(746, 12, 746, H0 - 12, C.line);
   // ---- mix
@@ -528,18 +528,23 @@ function paint() {
   drawTape(758, 102, 290, 48);
   fitHelp(160, 163, 420);
 }
-// ---- the filter box: axis 20 Hz ... 20 kHz (log) across; no resonance — a smooth, bell-shaped band
+// ---- the filter box (like Live's Echo): across = frequency 20 Hz ... 20 kHz (log), up = a stronger cut
+// (6 → 24 dB/oct). No resonance: the band where FLØCK sounds stays smooth.
 var FBX = 596, FBY = 24, FBW = 140, FBH = 108;
-function fresp(f) {   // |H| of the band: 4-pole ladder (k = 0) × 2-pole high-pass (Q 0.5), in dB
-  var fc = 20 * Math.pow(1000, P.lp_cut.v), fh = 20 * Math.pow(1000, P.hp_cut.v), wl = f / fc, wh = f / fh;
-  var lp = P.lp_cut.v > 0.999 ? 1 : 1 / Math.pow(1 + wl * wl, 2);
-  var hp = P.hp_cut.v < 0.001 ? 1 : wh * wh / (1 + wh * wh);
-  return 20 * Math.log(Math.max(lp * hp, 1e-6)) / Math.LN10;
+function fstage(w, order, hp) {   // |H| of `order` (1..4, blended) one-pole stages, in dB
+  var one = hp ? 20 * Math.log(w / Math.sqrt(1 + w * w)) / Math.LN10 : -10 * Math.log(1 + w * w) / Math.LN10;
+  return one * order;
 }
-function fy(db) { return Math.max(FBY + 2, Math.min(FBY + FBH - 2, FBY + FBH * 0.3 - db / 36 * FBH * 0.7)); }
-function fpt(which) {   // a point sits on the curve at its frequency
-  var xf = which === "hp" ? P.hp_cut.v : P.lp_cut.v, f = 20 * Math.pow(1000, xf);
-  return [FBX + 6 + xf * (FBW - 12), fy(fresp(f))];
+function fresp(f) {
+  var fc = 20 * Math.pow(1000, P.lp_cut.v), fh = 20 * Math.pow(1000, P.hp_cut.v);
+  var lp = P.lp_cut.v > 0.999 ? 0 : fstage(f / fc, 1 + 3 * P.lp_slope.v, false);
+  var hp = P.hp_cut.v < 0.001 ? 0 : fstage(f / fh, 1 + 3 * P.hp_slope.v, true);
+  return Math.max(lp + hp, -120);
+}
+function fy(db) { return Math.max(FBY + 2, Math.min(FBY + FBH - 2, FBY + FBH * 0.25 - db / 40 * FBH * 0.75)); }
+function fpt(which) {   // a point: x = its frequency, y = its strength (up = steeper)
+  var xf = which === "hp" ? P.hp_cut.v : P.lp_cut.v, yf = which === "hp" ? P.hp_slope.v : P.lp_slope.v;
+  return [FBX + 6 + xf * (FBW - 12), FBY + FBH - 10 - yf * (FBH - 26)];
 }
 function filterBox(x, y, w, h) {
   rect(x, y, w, h, C.bg, true);
@@ -560,6 +565,9 @@ function filterBox(x, y, w, h) {
   for (p = 0; p < pts.length; p++) { if (p === 0) mgraphics.move_to(pts[p][0], pts[p][1]); else mgraphics.line_to(pts[p][0], pts[p][1]); }
   mgraphics.stroke();
   var ph = fpt("hp"), pl = fpt("lp");
+  // a thin stem from each point to the curve at its frequency
+  line(ph[0], ph[1], ph[0], fy(fresp(20 * Math.pow(1000, P.hp_cut.v))), PINK, 1, 0.5);
+  line(pl[0], pl[1], pl[0], fy(fresp(20 * Math.pow(1000, P.lp_cut.v))), C.accent, 1, 0.5);
   var actH = (drag && drag.which === "hp") || hover === "f_hp", actL = (drag && drag.which === "lp") || hover === "f_lp";
   circle(ph[0], ph[1], actH ? 6.5 : 5, PINK, true); circle(ph[0], ph[1], actH ? 6.5 : 5, C.bg, false, 1.2);
   circle(pl[0], pl[1], actL ? 6.5 : 5, C.accent, true); circle(pl[0], pl[1], actL ? 6.5 : 5, C.bg, false, 1.2);
@@ -567,14 +575,16 @@ function filterBox(x, y, w, h) {
   hit({ x: ph[0] - 8, y: ph[1] - 8, w: 16, h: 16, kind: "fbox", name: "f_hp" });
   hit({ x: pl[0] - 8, y: pl[1] - 8, w: 16, h: 16, kind: "fbox", name: "f_lp" });
 }
+function slopeDb(v) { return Math.round(6 + 18 * v) + "dB"; }
 // move a point to (x, y) in the box
-function fmove(which, x, y) {   // across only: the frequency
-  var xf = Math.max(0, Math.min(1, (x - FBX - 6) / (FBW - 12)));
+function fmove(which, x, y) {   // across = frequency, up = strength
+  var xf = Math.max(0, Math.min(1, (x - FBX - 6) / (FBW - 12))), yf = Math.max(0, Math.min(1, (FBY + FBH - 10 - y) / (FBH - 26)));
   send(which === "hp" ? "hp_cut" : "lp_cut", Math.round(xf * 1000) / 1000);
+  send(which === "hp" ? "hp_slope" : "lp_slope", Math.round(yf * 1000) / 1000);
 }
 function fnearest(x, y) {
   var ph = fpt("hp"), pl = fpt("lp");
-  var dh = Math.abs(x - ph[0]), dl = Math.abs(x - pl[0]);
+  var dh = Math.abs(x - ph[0]) + Math.abs(y - ph[1]) * 0.3, dl = Math.abs(x - pl[0]) + Math.abs(y - pl[1]) * 0.3;
   return dh < dl ? "hp" : "lp";
 }
 // flat button like Live's toggles: label inside, lit when on
@@ -963,8 +973,8 @@ var HELP = {
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK DEPTH: how far the cable moves FEEDBACK (drag)", dw_amt: "DRY/WET DEPTH: how far the cable moves DRY/WET (drag)", rv_amt: "REVERB DEPTH: how far the cable moves REVERB (drag)",
-  fbox: "FILTER: drag the points left / right - pink cuts the lows, blue cuts the highs (smooth Moog ladder); FLØCK sounds between them · double-click = home",
-  f_hp: "LOW CUT (pink): drag left / right · double-click = off", f_lp: "HIGH CUT (blue, smooth Moog ladder): drag left / right · double-click = open",
+  fbox: "FILTER (like Echo): pink cuts the lows, blue the highs - across = frequency, up = a stronger cut (6 ... 24 dB/oct); FLØCK sounds between them · double-click = home",
+  f_hp: "LOW CUT (pink): across = frequency, up = steeper (6 ... 24 dB/oct) · double-click = off", f_lp: "HIGH CUT (blue, Moog ladder): across = frequency, up = steeper (6 ... 24 dB/oct) · double-click = open",
   lp_cut: "LOW-PASS: Moog-style 24 dB ladder - cuts the highs (fully CW = open)",
   hp_cut: "HIGH-PASS: 12 dB - cuts the lows (fully CCW = off)", flt_all: "FILTER on the GRAINS only (the dry signal stays clean) or on ALL of the output (click)",
   dst_cutoff: "Cutoff: moves the low-pass cutoff (up to +-5 octaves x DEPTH) - LFO here = wah / sweeps", ct_amt: "CUTOFF DEPTH: how far the cable moves the cutoff (drag)",
@@ -1074,7 +1084,7 @@ function ondblclick(x, y) {
   var h = find(x, y); if (h && h.kind === "knob") send(h.name, P[h.name].d);
   if (h && h.kind === "fbox") {   // double-click: the point goes home (low: off, high: open), no resonance
     var wh = h.name === "f_hp" ? "hp" : h.name === "f_lp" ? "lp" : fnearest(x, y);
-    if (wh === "hp") send("hp_cut", 0); else send("lp_cut", 1);
+    if (wh === "hp") { send("hp_cut", 0); send("hp_slope", 0.33); } else { send("lp_cut", 1); send("lp_slope", 1); }
     drag = null;
   }
 }
