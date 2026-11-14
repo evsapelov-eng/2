@@ -34,7 +34,7 @@ const LUT_ULAW = Array.from({ length: 256 }, (_, u) => {
 function MuLaw2Lin(u) { return LUT_ULAW[u]; }
 // lut_sine (1025+ points of sin 2πi/1024) read by stmlib::Interpolate
 function lutSine(phase) { const x = phase * 1024, i = Math.trunc(x); return Math.sin(2 * Math.PI * i / 1024) + (Math.sin(2 * Math.PI * (i + 1) / 1024) - Math.sin(2 * Math.PI * i / 1024)) * (x - i); }
-// sample_rate_conversion_filters.h: SRC_FIR<SRC_DOWN / SRC_UP, 2, 48> (first half; symmetric)
+// (v0.3 only, kept for reference) sample_rate_conversion_filters.h: SRC_FIR<SRC_DOWN / SRC_UP, 2, 48> (first half; symmetric)
 const SRC_DOWN_2 = [-2.143728787e-04, -4.113243578e-04, 3.550026182e-04, 1.123588805e-03, 2.013790146e-04, -2.135889966e-03, -1.946536068e-03, 2.421957824e-03,
   5.099674271e-03, -4.847193956e-04, -8.638296788e-03, -5.137744633e-03, 1.000597441e-02, 1.464501735e-02, -5.419339385e-03, -2.582247866e-02,
   -9.106955536e-03, 3.335521514e-02, 3.702172341e-02, -2.802414194e-02, -8.416883646e-02, -1.192656678e-02, 1.955030744e-01, 3.837045956e-01];
@@ -44,11 +44,14 @@ const SRC_UP_2 = [-4.287457573e-04, -8.226487157e-04, 7.100052364e-04, 2.2471776
 const mirror48 = (h, i) => (i >= 24 ? h[47 - i] : h[i]);   // Accumulator<…, mirror = 48>
 // Processor: codec rate per quality (ENABLE_HARDWARE_24K) and granular ratio
 // 0 MEDIA_DIGITAL, 1 MEDIA_VINTAGE_DIGITAL, 2 MEDIA_CLEAN_TAPE, 3 MEDIA_DIRTY_TAPE (FLØCK order)
+// FLØCK v0.4.1 ("lite"): every quality runs at the host rate; the buffer keeps the module's DURATION
+// (kDelayBufferSizeBits / (bits · 2) frames at 48 / 32 / 24 / 24 kHz = 4 / 8 / 10.67 / 16 s); the codec
+// rate shows as bandwidth (two one-poles at 14 kHz / 10 kHz on the input for Cold digital / Scorched)
 const QUALITY = [
-  { rate: 48000, ratio: 1, bits: 16, max: 192000 },   // kDelayBufferSizeBits / (16 · 2)
-  { rate: 32000, ratio: 1, bits: 12, max: 256000 },   // / (12 · 2)
-  { rate: 48000, ratio: 2, bits: 12, max: 256000 },
-  { rate: 24000, ratio: 1, bits: 8, max: 384000 },    // / (8 · 2)
+  { bits: 16, seconds: 0, band: 0 },            // 192000 frames, as before
+  { bits: 12, seconds: 8, band: 14000 },
+  { bits: 12, seconds: 10.6666667, band: 0 },
+  { bits: 8, seconds: 16, band: 10000 },
 ];
 
 // ---------------- cv_reader.h pot laws
@@ -69,14 +72,13 @@ class Ref {
   // sr = the codec rate this processor runs at (FLØCK: host rate for Pristine / Sunny tape)
   constructor(sr, random, quality = 0) {
     const Q = QUALITY[quality];
-    this.q = quality; this.bits = Q.bits; this.ratio = Q.ratio;
+    this.q = quality; this.bits = Q.bits; this.ratio = 1; this.band = Q.band;
     this.codec_sr = sr;
     this.R = random;   // () => [0,1)
-    this.MAX = Q.max;
-    // beads.cc: codec.Start(sr, sr / kBlockRate); FLØCK keeps the ratio-2 block even
-    this.BLK = this.ratio === 2 ? 2 * Math.floor(sr / 8000 + 0.5) : Math.floor(sr / 4000 + 0.5);
-    sr = sr / this.ratio;   // GranularProcessor::Init(sample_rate of the core)
+    this.MAX = Q.seconds ? Math.min(768000, Math.floor(Q.seconds * sr)) : 192000;
+    this.BLK = Math.floor(sr / 4000 + 0.5);   // beads.cc: codec.Start(sr, sr / kBlockRate)
     this.sr = sr;
+    this.bl = [0, 0, 0, 0];
     // ---- DelayLine<16 bit, 192000, 2>
     this.l = new Float64Array(this.MAX + 4); this.r = new Float64Array(this.MAX + 4);
     this.write_ptr = 0; this.frozen = false; this.tail = new Float64Array(512); this.tail_write_ptr = 0; this.tail_xfade_duration = 0;
@@ -110,9 +112,9 @@ class Ref {
     // ---- SampleRateConverter<…, 2, 48> states (Sunny tape) — streamed, see processBlock
     this.srcDown = [new Float64Array(48), new Float64Array(48)]; this.srcUp = [new Float64Array(24), new Float64Array(24)];
     this.pend = null;
-    // ---- WowAndFlutter::Init(24000), set_lp(0.95)
-    this.wf = { one_hertz: 1 / 24000, rf: 0.125 / 24000, rph: 0, wph: 0, fph: 0, delay: 0, lp: 0.95, lps: [0, 0],
-      line: [new Float64Array(128), new Float64Array(128)], wp: 0 };
+    // ---- WowAndFlutter::Init(24000), set_lp(0.95) — converted to the host rate (times and depths kept)
+    this.wf = { one_hertz: 1 / sr, rf: 0.125 / sr, rph: 0, wph: 0, fph: 0, delay: 0, lp: 1 - Math.pow(0.05, 24000 / sr), lps: [0, 0],
+      line: [new Float64Array(1024), new Float64Array(1024)], wp: 0 };
     this.rv = { lp1: 0, lp2: 0, dry: 0, wet: 0, send: 0 };
   }
   newGrain() {
@@ -457,6 +459,11 @@ class Ref {
     for (let i = 0; i < n; i++) {
       let l = inL[at + i], r = inR[at + i];
       gc.peak = slope(gc.peak, Math.max(Math.abs(l), Math.abs(r)), 0.1, 2 / this.codec_sr);
+      if (this.band) {   // the codec's bandwidth (FLØCK)
+        const bc = 1 - Math.exp(-2 * Math.PI * this.band / this.sr), b = this.bl;
+        b[0] = b[0] + bc * (l - b[0]); b[1] = b[1] + bc * (b[0] - b[1]); b[2] = b[2] + bc * (r - b[2]); b[3] = b[3] + bc * (b[2] - b[3]);
+        l = b[1]; r = b[3];
+      }
       gc.gain += inc;
       l *= gc.gain; r *= gc.gain;
       if (!auto) {
@@ -583,12 +590,12 @@ class Ref {
     const sine = (o, f) => { o[0] += f; if (o[0] >= 1) o[0] -= 1; return 0.5 + 0.5 * lutSine(o[0]); };
     const rp = [w.rph], previous_phase = w.rph;
     const random_modulation = sine(rp, w.rf * size); w.rph = rp[0];
-    if (w.rph >= 0.25 && previous_phase < 0.25) w.rf = w.one_hertz * (0.05 + this.R() * 0.2);
+    if (w.rph >= 0.25 && previous_phase < 0.25) w.rf = (1 / 24000) * (0.05 + this.R() * 0.2) * 24000 / this.sr;
     const fm = 0.5 + 1.5 * random_modulation * random_modulation;
     const amount = (1 - 0.4 * random_modulation) * 1;
     const wp_ = [w.wph]; const wow = sine(wp_, w.one_hertz * 0.23 * size * fm); w.wph = wp_[0];
     const fp_ = [w.fph]; const flutter = sine(fp_, w.one_hertz * 1.99 * size); w.fph = fp_[0];
-    const delay = 1 + (105 * wow + 17 * flutter) * amount;
+    const delay = (1 + (105 * wow + 17 * flutter) * amount) * this.sr / 24000;
     const inc = (delay - w.delay) / size;
     for (const fr of block) {
       w.delay += inc;
@@ -596,11 +603,11 @@ class Ref {
       for (let ch = 0; ch < 2; ch++) {
         const line = w.line[ch];
         line[w.wp] = fr[ch];
-        const p = (w.wp - 1 + 128) % 128;
-        const a = line[(p + di) % 128], b = line[(p + di + 1) % 128];
+        const p = (w.wp - 1 + 1024) % 1024;
+        const a = line[(p + di) % 1024], b = line[(p + di + 1) % 1024];
         w.lps[ch] = ONE_POLE(w.lps[ch], a + (b - a) * df, w.lp);
       }
-      w.wp = (w.wp - 1 + 128) % 128;
+      w.wp = (w.wp - 1 + 1024) % 1024;
       fr[0] = w.lps[0]; fr[1] = w.lps[1];
     }
   }
@@ -611,81 +618,18 @@ class Ref {
   }
 }
 
-// ---------------- FLØCK codec converters (not Beads: they stand in for the module's codec when the
-// quality's rate is below the host rate). Kaiser-windowed sinc, cutoff 0.47 · codec rate, β 7.5,
-// ±16 codec samples, table of 256 points per codec sample with linear interpolation, weights
-// normalised. Written from the spec in docs/PORTING_NOTES.md.
-function besselI0(x) {
-  const ax = Math.abs(x);
-  if (ax < 3.75) {
-    const y = (x / 3.75) * (x / 3.75);
-    return 1 + y * (3.5156229 + y * (3.0899424 + y * (1.2067492 + y * (0.2659732 + y * (0.0360768 + y * 0.0045813)))));
-  }
-  const y = 3.75 / ax;
-  return (Math.exp(ax) / Math.sqrt(ax)) * (0.39894228 + y * (0.01328592 + y * (0.00225319 + y * (-0.00157565 + y * (0.00916281 + y * (-0.02057706 + y * (0.02635537 + y * (-0.01647633 + y * 0.00392377))))))));
-}
-function kaiserSinc(x) {
-  const a = Math.abs(x), r = a / 16;
-  const wv = r < 1 ? besselI0(7.5 * Math.sqrt(1 - r * r)) / besselI0(7.5) : 0;
-  const s = a < 0.000001 ? 1 : Math.sin(Math.PI * 0.94 * a) / (Math.PI * 0.94 * a);
-  return 0.94 * s * wv;
-}
-const KTAB = Float64Array.from({ length: 4098 }, (_, k) => (k < 4097 ? kaiserSinc(k / 256) : 0));
-function kern(x) { const ka = Math.abs(x) * 256, ki = Math.floor(ka); return ki < 4096 ? { w: KTAB[ki] + (KTAB[ki + 1] - KTAB[ki]) * (ka - ki) } : null; }
-// gen~ fills the kernel table 8 entries per host sample (no big loops in Max): the codec qualities
-// are silent for the first 512 host samples
-const KREADY = 512;
-// The whole device at the host rate: codec clock, down-converter, the processor in codec blocks,
-// up-converter. phases: [{ hostSamples, P }] (param changes on host samples, like gen~).
+// The whole device at the host rate (v0.4.1: no codec converters). phases: [{ hostSamples, P }].
 function runHost(hostSr, quality, random, phases, inL, inR) {
-  const Q = QUALITY[quality];
-  const RC = Math.min(Q.rate === 48000 ? hostSr : Q.rate, hostSr), rsm = RC < hostSr, rr = RC / hostSr;
-  const ref = new Ref(RC, random, quality);
-  const N = inL.length;
-  // codec clock
-  const ticks = [], dlts = new Float64Array(N);
-  let acc = 0;
-  for (let n = 0; n < N; n++) {
-    let a = rsm ? acc + RC : 0; const tick = !rsm || a >= hostSr; if (a >= hostSr) a -= hostSr; acc = a;
-    dlts[n] = a / RC; if (tick) ticks.push(n);
-  }
-  const M = ticks.length, cL = new Float64Array(M), cR = new Float64Array(M);
-  for (let m = 0; m < M; m++) {
-    const n = ticks[m];
-    if (!rsm) { cL[m] = inL[n]; cR[m] = inR[n]; continue; }
-    if (n < KREADY) { cL[m] = 0; cR[m] = 0; continue; }   // FLØCK: kernel table not complete yet
-    let L = 0, R = 0, W = 0; const nj = Math.floor(33 / rr);
-    for (let k = 0; k < nj; k++) {
-      const kk = kern(rr * k - dlts[n] - 16); if (!kk) continue;
-      const x = n - k >= 0 ? [inL[n - k], inR[n - k]] : [0, 0];
-      L += x[0] * kk.w; R += x[1] * kk.w; W += kk.w;
-    }
-    cL[m] = L / W; cR[m] = R / W;
-  }
-  // processor in codec blocks; each phase starts at the first tick on / after its host sample
-  const oL = new Float64Array(M), oR = new Float64Array(M);
-  let h0 = 0, m0 = 0;
+  const ref = new Ref(hostSr, random, quality);
+  const N = inL.length, oL = new Float64Array(N), oR = new Float64Array(N);
+  let h0 = 0;
   for (const ph of phases) {
     const h1 = h0 + ph.hostSamples;
-    let m1 = m0; while (m1 < M && ticks[m1] < h1) m1++;
-    if ((m1 - m0) % ref.BLK !== 0 && m1 < M) throw new Error("phase not aligned to codec blocks");
-    for (let b = m0; b < m1; b += ref.BLK) ref.processBlock(ph.P, cL, cR, oL, oR, b, Math.min(ref.BLK, m1 - b));
-    h0 = h1; m0 = m1;
+    if ((h1 - h0) % ref.BLK !== 0 && h1 < N) throw new Error("phase not aligned to blocks");
+    for (let b = h0; b < h1; b += ref.BLK) ref.processBlock(ph.P, inL, inR, oL, oR, b, Math.min(ref.BLK, h1 - b));
+    h0 = h1;
   }
-  if (!rsm) return [oL, oR, ref];
-  const L = new Float64Array(N), R = new Float64Array(N);
-  let last = -1, mi = 0;
-  for (let n = 0; n < N; n++) {
-    if (mi < M && ticks[mi] === n) { last = mi; mi++; }
-    let a = 0, b = 0, W = 0;
-    for (let k = 0; k < 33; k++) {
-      const kk = kern(16 - dlts[n] - k); if (!kk) continue;
-      const j = last - k;
-      a += (j >= 0 ? oL[j] : 0) * kk.w; b += (j >= 0 ? oR[j] : 0) * kk.w; W += kk.w;
-    }
-    L[n] = n < KREADY ? 0 : a / W; R[n] = n < KREADY ? 0 : b / W;
-  }
-  return [L, R, ref];
+  return [oL, oR, ref];
 }
 
 // knob values (0..1, as the device sends them) → module parameters (C++ units)
@@ -699,4 +643,4 @@ function fromKnobs(k) {
   };
 }
 
-module.exports = { Ref, fromKnobs, attenuverterLaw, detuneLaw, BLOCK, runHost, QUALITY, Lin2MuLaw, MuLaw2Lin, kaiserSinc };
+module.exports = { Ref, fromKnobs, attenuverterLaw, detuneLaw, BLOCK, runHost, QUALITY, Lin2MuLaw, MuLaw2Lin };

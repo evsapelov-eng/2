@@ -175,8 +175,8 @@ test("buffer (Pristine): 192000 frames, 16-bit truncation like Clip16, record he
   const i = 1000, w = (((-(n - 1 - 0)) % 192000) + 192000) % 192000; // the sample written last sits at wp+1
   const last = g.D.buf.a[(g.H.wp + 1) % 192000];
   assert.strictEqual(last, Math.trunc(x[n - 1] * 32768) / 32768);
-  // the Data holds the longest quality (Scorched cassette: 384000 frames + 4)
-  assert.ok(g.D.buf.a.length === 384004 * 2 && i < w + 192000);
+  // the Data holds the longest quality
+  assert.ok(g.D.buf.a.length === 768004 * 2 && i < w + 192000);   // 16 s at 48 kHz (Scorched cassette) + 4
 });
 
 test("IN gain scales what is recorded; OUT gain scales the output", () => {
@@ -375,18 +375,4 @@ test("R5 AUTO gain: learns for 1 + 5 s, then gain = 0.9 / peak (max ×40); LEARN
   // manual
   const m = run(0.3, { agc: 0, ingain: 2 }, 1);
   assert.ok(Math.abs(m.o[9][SR - 1] - 2) < 1e-9 && silentish.o[9].length);
-});
-
-test("display copy of the recording (out12 / out13): the value and index of the frame written now; -1 while frozen", () => {
-  const g = engine({ density: 0.5 }), n = 2000, x = sine(300, n, 0.3), y = sine(450, n, 0.2);
-  const o = g.run(n, [x, y]);
-  const len = g.D.buf.a.length / 2;
-  for (const i of [10, 500, 1999]) {
-    const idx = o[12][i];
-    assert.ok(idx >= 0, "index at " + i);
-    assert.strictEqual(o[11][i], (g.D.buf.a[idx] + g.D.buf.a[len + idx]) * 0.5);
-  }
-  g.set("freeze", 1);
-  const f = g.run(100, [x.subarray(0, 100), y.subarray(0, 100)]);
-  assert.ok(f[12].every((v) => v === -1), "nothing written while frozen");
 });

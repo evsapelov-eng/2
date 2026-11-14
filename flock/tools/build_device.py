@@ -83,8 +83,9 @@ def compact_code(code):
     return "\n".join(out) + "\n"
 
 
-# what goes into the codebox (tools/build_diag.py switches it per variant)
-EMBED = compact_code
+# what goes into the codebox: comment-free, original names (the form every working device used;
+# compact_code is kept but not used)
+EMBED = embed_code
 
 
 def _b36(n):
@@ -429,22 +430,7 @@ def package(path):
     os.makedirs(PKG)
     with open(os.path.join(PKG, AMXDNAME), "wb") as f:
         f.write(amxd_bytes(pj))
-    # the native variant (Live's own controls on the SOUND page), built the same way
-    global NATIVE
-    NATIVE = True
-    try:
-        npath, npatch = build()
-        if validate(npatch):
-            raise SystemExit("native: " + "; ".join(validate(npatch)))
-        nj = json.load(open(npath, encoding="utf-8"))
-        nj["patcher"]["parameters"] = _param_table(nj["patcher"])
-        nj["patcher"]["dependency_cache"] = p["dependency_cache"]
-        nj["patcher"]["autosave"] = 0
-        with open(os.path.join(PKG, AMXDNAME.replace(".amxd", "_native.amxd")), "wb") as f:
-            f.write(amxd_bytes(nj))
-    finally:
-        NATIVE = False
-        build()   # restore max/flock_main.maxpat (drawn panel)
+    # (the native variant — Live's own controls — is built only on request: python3 tools/build_device.py --native)
     shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(PKG, JSNAME))
     shutil.copy(os.path.join(ROOT, "dist_README.txt"), os.path.join(PKG, "README_FIRST.txt"))
     shutil.copy(os.path.join(ROOT, "LICENSE-BEADS.txt"), os.path.join(PKG, "LICENSE-BEADS.txt"))
@@ -479,6 +465,8 @@ def validate(p):
 
 
 if __name__ == "__main__":
+    if "--native" in sys.argv:
+        NATIVE = True
     path, patcher = build()
     errs = validate(patcher)
     if errs:

@@ -185,3 +185,23 @@ Limitations:
 - Live's objects follow Live's theme, but the panel's own background is dark. With a light Live
   theme the native labels may be hard to read.
 - The look cannot be checked here (only a mock-up, renders/panel_native_mockup.png).
+
+## v0.4.1 — the qualities rebuilt on the engine that runs in Max
+Diagnostic kit 7: every variant of the v0.3 engine stayed silent, even with all suspects removed
+(converter loops, tape effects, buffer gating, runtime loop bounds). Only B and N (both on the v0.2
+engine) sounded. So Max does not run the v0.3 structure itself: the codec stage and the core stage as
+nested conditional blocks executed on "ticks". The exact cause is unknown without Max's console.
+
+Kit 8 rebuilt the qualities on the working engine C (v0.2.x) in cumulative steps Q0…Q4
+(tools/lite_qualities.py). ALL sounded in Live. Q4 is the engine now:
+- Formats, feedback soft clip and low-pass, dry formats, GainControl soft clip modes and the caveman
+  reverb are as in Beads.
+- Buffer durations are as in Beads: frames = duration × host rate, up to 768000.
+- Wow & flutter keeps the module's times and depths, converted from 24 kHz to the host rate (delay ×
+  FS/24000, low-pass 1 − 0.05^(24000/FS), rates per host sample).
+- The codec rates are NOT emulated. Cold digital and Scorched cassette get the codec's bandwidth (two
+  one-poles at 14 / 10 kHz on the input), and Sunny tape's grains run at the full rate.
+- A quality change clears the buffer by counting the written frames (no loop).
+- The reference (beads_ref.js) follows the same model. The differential tests pass for all qualities.
+- The native device (Live's controls) is only built on request (`--native`): the user preferred the
+  drawn Ableton-style panel.

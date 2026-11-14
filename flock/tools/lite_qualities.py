@@ -54,7 +54,7 @@ def q2(s):   # wow & flutter at the host rate: the module's 24 kHz times and dep
     s = rep(s, "History lastspd(1);", "History lastspd(1);\nHistory wf_rph(0);\nHistory wf_rf(0.0000052083333);\nHistory wf_wph(0);\nHistory wf_fph(0);\nHistory wf_del(0);\nHistory wf_inc(0);\nHistory wf_lpl(0);\nHistory wf_lpr(0);\nHistory wf_w(0);\nHistory wf_pend(0);")
     wow = '''// ---- wow & flutter (Scorched cassette): WowAndFlutter (24 kHz) converted to the host rate
 wrph = wf_rph;
-wrf = wf_rf;
+wrf = init < 0.5 ? 0.125 / FS : wf_rf;
 wwph = wf_wph;
 wfph = wf_fph;
 wdel = wf_del;

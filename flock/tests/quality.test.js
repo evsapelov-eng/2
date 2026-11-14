@@ -1,5 +1,5 @@
-// R6 RECORDING QUALITIES: the gen~ engine vs the independent reference (tools/beads_ref.js runHost:
-// codec clock + FLØCK converters + Processor at the quality's rate). Same random stream for both.
+// R6 RECORDING QUALITIES (v0.4.1 "lite": all at the host rate, codec rate as bandwidth): the gen~
+// engine vs the independent reference (tools/beads_ref.js runHost). Same random stream for both.
 // Plus checks of the constants against the Beads source itself (buffer lengths, µ-law table points).
 "use strict";
 const test = require("node:test");
@@ -7,7 +7,7 @@ const assert = require("node:assert");
 const fs = require("fs");
 const path = require("path");
 const { GenPatch } = require("../tools/genexpr");
-const { fromKnobs, runHost, Lin2MuLaw, MuLaw2Lin, kaiserSinc } = require("../tools/beads_ref");
+const { fromKnobs, runHost, Lin2MuLaw, MuLaw2Lin } = require("../tools/beads_ref");
 const SR = 48000;
 const SRC = fs.readFileSync(path.join(__dirname, "..", "gen", "flock.genexpr"), "utf8");
 const BASE = { time: 0.5, density: 0.3, pitch: 0.5, size: 0.45, shape: 0.5, time_amt: 0.5, pitch_amt: 0.5, size_amt: 0.5,
@@ -69,16 +69,16 @@ test("R6 Pristine through the quality path is still the v0.2 engine (reference w
   assert.ok(r.rel < 1e-9, `relative error ${r.rel.toExponential(2)}`);
 });
 
-test("R6 buffer lengths from processor.h: kDelayBufferSizeBits / (bits · 2) → 4 s / 8 s / 10.7 s / 16 s", () => {
+test("R6 buffer lengths: the module's durations (kDelayBufferSizeBits / (bits · 2) at 48 / 32 / 24 / 24 kHz = 4 / 8 / 10.7 / 16 s)", () => {
   const bits = 768 * 1000 * 8;
-  const expect = [[bits / 32, 48000], [bits / 24, 32000], [bits / 24, 24000], [bits / 16, 24000]];
+  const secs = [bits / 32 / 48000, bits / 24 / 32000, bits / 24 / 24000, bits / 16 / 24000];
   for (let q = 0; q < 4; q++) {
     const g = new GenPatch(SRC, { sr: SR, seed: 1 }); g.set("quality", q); g.set("density", 0.5);
     const n = 9000; g.run(n, [new Float64Array(n), new Float64Array(n)]);
-    // the head moves backwards one frame per core sample: wp = MAXD − frames written
-    const rate = expect[q][1], frames = Math.floor(n * rate / SR);
-    const wp = g.H.wp, MAXD = expect[q][0];
-    assert.ok(Math.abs((MAXD - wp) - frames) <= 1, `${NAMES[q]}: wp ${wp}, MAXD ${MAXD}, frames ${frames}`);
+    // the head moves backwards one frame per sample: MAXD − wp = frames written; MAXD = duration × rate
+    const MAXD = q === 0 ? 192000 : Math.floor(secs[q] * SR), wp = g.H.wp;
+    assert.ok(Math.abs(MAXD - wp - n) <= 1, `${NAMES[q]}: wp ${wp}, MAXD ${MAXD} (${(MAXD / SR).toFixed(2)} s)`);
+    assert.ok(Math.abs(MAXD / SR - secs[q]) < 0.001);
   }
 });
 
@@ -95,15 +95,6 @@ test("R6 µ-law: encoder + decoder table points from mu_law.cc (lut_ulaw_f[0], [
   assert.ok(quiet < 0.0002 && loud > 0.01, `quiet ${quiet}, loud ${loud}`);
 });
 
-test("R6 codec converter kernel: unity at 0, zero at ±16 samples, low-pass (cutoff 0.47 · rate)", () => {
-  assert.ok(Math.abs(kaiserSinc(0) - 0.94) < 1e-12);
-  assert.ok(kaiserSinc(16) === 0 && kaiserSinc(-16) === 0);
-  // frequency response of the continuous kernel (codec-rate units, sampled finely as on the host side): pass 0.35, stop 0.6
-  const H = (f) => { let a = 0, w = 0; for (let x = -16; x <= 16; x += 0.125) { const k = kaiserSinc(x); a += k * Math.cos(2 * Math.PI * f * x); w += k; } return Math.abs(a / w); };
-  assert.ok(Math.abs(H(0.35) - 1) < 0.01, "passband " + H(0.35));
-  assert.ok(H(0.6) < 0.001, "stopband " + H(0.6));
-});
-
 test("R6 Scorched cassette sounds like a worn cassette: µ-law noise, wow & flutter pitch drift, dull top", () => {
   // a steady 1 kHz tone straight through (dry), Pristine vs Scorched cassette
   const n = SR * 3, x = Float64Array.from({ length: n }, (_, i) => 0.3 * Math.sin(2 * Math.PI * 1000 * i / SR));
@@ -113,11 +104,11 @@ test("R6 Scorched cassette sounds like a worn cassette: µ-law noise, wow & flut
   const clean = zc(run(0)), dirty = zc(run(3));
   assert.ok(spread(clean) < 0.01, "Pristine is stable: " + spread(clean));
   assert.ok(spread(dirty) > 0.3, "Scorched cassette wobbles: period spread " + spread(dirty).toFixed(2) + " samples");
-  // 15 kHz is gone at 24 kHz (Nyquist 12 kHz)
+  // the 24 kHz codec's bandwidth: 15 kHz strongly damped (two one-poles at 10 kHz)
   const hf = Float64Array.from({ length: n }, (_, i) => 0.3 * Math.sin(2 * Math.PI * 15000 * i / SR));
   const g = new GenPatch(SRC, { sr: SR, seed: 2 }); for (const [k, v] of Object.entries(Object.assign({ quality: 3 }, BASE, { drywet: 0, reverb: 0 }))) g.set(k, v);
   const o = g.run(n, [hf, hf])[0]; let e = 0; for (let i = SR; i < n; i++) e += o[i] * o[i];
-  assert.ok(Math.sqrt(e / (n - SR)) < 0.003, "15 kHz removed: rms " + Math.sqrt(e / (n - SR)));
+  assert.ok(Math.sqrt(e / (n - SR)) < 0.3 * 0.75 / Math.SQRT2 * 0.45, "15 kHz damped: rms " + Math.sqrt(e / (n - SR)));
 });
 
 test("R6 Cold digital: the dry signal is truncated to 12 bits — a signal below 1/4096 disappears, Pristine keeps it", () => {
