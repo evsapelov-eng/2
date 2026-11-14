@@ -229,3 +229,14 @@ Kit 8 rebuilt the qualities on the working engine C (v0.2.x) in cumulative steps
   - delay mode (P5 / D1–D4) and the mono mode (R4) — whole DSP ports;
   - tempo-locked SIZE / TIME without the MOD tab;
   - presets as Live files (.adv cannot be checked here).
+
+## v0.5.1 — clicks after RANDOM, IN / OUT knobs
+- Clicks: a stepped source (CLOCK, SEQ, square / saw LFO, STEPS random) routed to DRY/WET, FEEDBACK
+  or REVERB moved the level within ~2.5 ms (Beads' assign CV low-pass, 0.1 per block). A limiter
+  cannot remove that: it is a jump in the waveform, not an over.
+  - The low-pass is now 0.02 per block (≈12 ms). Measured: the fastest level jump of a 1 kHz tone
+    under a square clock into DRY/WET went from 3.3 dB/ms to 0.8 dB/ms.
+  - RANDOM gives these destinations only smooth sources (sine / triangle LFO, smooth RANDOM, ENV).
+  - The output got a soft knee above 0.9, so there is never a hard digital clip.
+- IN / OUT: the knob angle was drawn from the dB number instead of the knob position → it spun.
+  Fixed (`norm()`), with a test of the needle.

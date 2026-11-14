@@ -41,7 +41,7 @@ Sources: M = `docs/modules/beads/manual.md`; C = `pichenettes/eurorack/beads` @ 
 | X1 | FEEDBACK with limiting per quality (16-bit: hard limiting) (M, C granular_processor) | `feedback`, Pristine scheme | FEEDBACK at 100% | DONE |
 | X2 | DRY/WET: dry (1−x)(1+x)·0.75, wet x(2−x)·1.5 (C processor) | `drywet` | dry/wet law | DONE |
 | X3 | REVERB ("Thoreau's cabin"), length and tone depend on quality (M, C reverb, processor.cc) | `reverb`; Pristine time 0.3 + 0.6 r³, lp 0.6; other qualities ("caveman") 0.45 + 0.5 r³, lp 0.4 (the 0.75 branch for MEDIA_VINTAGE_DIGITAL is unreachable in processor.cc); delays in samples of the codec rate | X3 caveman reverb | DONE |
-| X4 | Assignable CV → FEEDBACK/DRY-WET/REVERB with individual depth (M) | MOD → `Feedback` `Dry/Wet` `Reverb` with their own amounts `fb_amt` `dw_amt` `rv_amt` (beads.cc: base·1.005 + cv·amount) | X4 assignable CV | DONE |
+| X4 | Assignable CV → FEEDBACK/DRY-WET/REVERB with individual depth (M) | MOD → `Feedback` `Dry/Wet` `Reverb` with their own amounts `fb_amt` `dw_amt` `rv_amt` (beads.cc: base·1.005 + cv·amount). DEVIATION: CV low-pass 0.02 per block instead of 0.1 (≈12 ms) — a stepped source made the level click; RANDOM puts only smooth sources there | X4 assignable CV | DONE |
 | X5 | The chain is always stereo (M) | stereo | randomised parameters | DONE |
 | X6 | Grain trigger output on R (M) | no jack in Live → "grain trigger" source in MOD | — | N/A |
 | X7 | LEDs: input level, CV amounts, SEED "breathes" when latched (M) | SEED pulses when latched, grain counter, tape view; input meter in v0.2 | panel: knobs send | PARTIAL |

@@ -489,7 +489,8 @@ class Ref {
     const P = this.pots(Praw);
     X = X || {};
     // CvReader: CV channels read once per block with their low-pass (TIME/SIZE/SHAPE 0.5, PITCH/DENSITY 1, ASSIGN 0.1)
-    const lpc = { time: 0.5, size: 0.5, shape: 0.5, pitch: 1, density: 1, fb: 0.1, dw: 0.1, rv: 0.1 };
+    // FLØCK: assignable CV low-pass 0.02 per block (Beads 0.1) — no clicks from stepped sources
+    const lpc = { time: 0.5, size: 0.5, shape: 0.5, pitch: 1, density: 1, fb: 0.02, dw: 0.02, rv: 0.02 };
     // FLØCK: the DENSITY CV is scaled by dn_amt before the CV low-pass (1 = Beads)
     const raw = (k) => (X[k] ? X[k][Xat] * (k === "density" ? (Praw.dn_amt === undefined ? 1 : Praw.dn_amt) : 1) : 0);
     if (!this.cv) { this.cv = {}; for (const k in lpc) this.cv[k] = raw(k); }
@@ -557,7 +558,8 @@ class Ref {
     for (let i = 0; i < n; i++) {
       this.limiter(this.lim_out, block[i]);
       const comp = Praw.agc ? 1 / this.gainTrace[i] : 1;
-      outL[at0 + i] = block[i][0] * comp; outR[at0 + i] = block[i][1] * comp;
+      const knee = (x) => { const ax = Math.abs(x); return ax < 0.9 ? x : (x < 0 ? -1 : 1) * (0.9 + 0.1 * Math.tanh((ax - 0.9) / 0.1)); };
+      outL[at0 + i] = knee(block[i][0] * comp); outR[at0 + i] = knee(block[i][1] * comp);
     }
   }
   // GranularProcessor::ProcessInternal (granular mode) for one block of core samples

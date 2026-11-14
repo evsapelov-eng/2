@@ -360,7 +360,8 @@ function knobBody(cx, cy, r, a, capR) {
 }
 var A0 = Math.PI * 0.75, A1 = Math.PI * 2.25;   // 270° knob travel, 0 at 7:30
 function knob(cx, cy, r, name, bipolar) {
-  var v = P[name].v, a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
+  // the angle comes from the knob position 0..1 (IN / OUT hold dB: −12…+32 / −24…+12)
+  var v = norm(name, P[name].v), a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
   if (STYLE === "ableton") {   // live.dial look: grey track, coloured value arc, needle
     var rr = r * 0.82, lw = Math.max(2.5, r * 0.13);
     arc(cx, cy, rr, A0, A1, C.line, lw);
@@ -780,8 +781,13 @@ function randomPatch(noHistory) {
       var on = 0; for (var q = 0; q < Math.round(P.sq_len.v); q++) if (stepOn(q)) on++;
       if (src === 6 && on < 3) for (q = 0; q < 16; q++) send("sq" + q, stepCode(q % 4 === 0 || Math.random() < 0.35, rr(0, 0.8)));
     } else {
-      var s2 = pickOne([1, 2, 3, 3, 4, 6]);
+      // loudness destinations (feedback / reverb / dry-wet / density) only get smooth sources: a square /
+      // saw LFO, STEPS random, CLOCK or SEQ there makes the level jump = clicks
+      var smoothOnly = dname === "feedback" || dname === "reverb" || dname === "drywet" || dname === "density";
+      var s2 = smoothOnly ? pickOne([1, 2, 3, 3, 4]) : pickOne([1, 2, 3, 3, 4, 6]);
       send(dkey, s2);
+      if (smoothOnly && (s2 === 1 || s2 === 2) && P["l" + s2 + "_shape"].v > 1.5) send("l" + s2 + "_shape", pickOne([0, 1]));
+      if (smoothOnly && s2 === 3) send("rn_smooth", 1);
       if (CV_AMOUNT[dname] !== undefined) send(dname + "_amt", CV_AMOUNT[dname]);
       if (dname === "density") send("dn_amt", rr(0.15, 0.35));
       if (dname === "feedback") send("fb_amt", rr(0.2, 0.5));

@@ -273,3 +273,31 @@ test("FLØCK Keys: a MIDI effect device that sends its notes to FLØCK (and pass
   assert.ok(t.includes("midiin") && t.includes("midiparse") && t.includes("send flock_keys") && t.includes("midiout"));
   assert.ok(boxes.some((x) => x.text === "receive flock_keys") && boxes.some((x) => x.text === "route agc_restart ktrig knote kon"));
 });
+
+test("IN / OUT knobs: the needle follows the knob position (dB range), not the dB number", () => {
+  const b = boot();
+  const A0 = Math.PI * 0.75, A1 = Math.PI * 2.25, rr = 10 * 0.82;
+  for (const [db, n] of [[-12, 0], [-2, 10 / 44], [32, 1]]) {
+    b.ctx.p("input", db); b.draw();
+    const a = A0 + (A1 - A0) * n, x = 818 + Math.cos(a) * rr, y = 40 + Math.sin(a) * rr;
+    assert.ok(b.mg.svg().includes(`M818,40L${x},${y}`), `needle for ${db} dB at ${Math.round(n * 100)} %`);
+  }
+});
+
+test("RANDOM never puts a stepped source (CLOCK, SEQ, square / saw LFO, STEPS random) into a loudness destination", () => {
+  const b = boot();
+  const state = Object.fromEntries(Object.keys(b.ctx.P).map((k) => [k, b.ctx.P[k].v]));
+  b.ctx.outlet = (o, name, v) => { state[name] = v; b.ctx.p(name, v); };
+  vm.runInContext("outlet = function (o, n, v) { __o(o, n, v); }", Object.assign(b.ctx, { __o: b.ctx.outlet }));
+  for (let k = 0; k < 300; k++) {
+    b.ctx.p("l1_shape", k % 4); b.ctx.p("l2_shape", (k + 2) % 4); b.ctx.p("rn_smooth", k % 2);
+    b.ctx.randomPatch(true);
+    for (const d of ["feedback", "reverb", "drywet", "density"]) {
+      const s = Math.round(b.ctx.P["dst_" + d].v);
+      if (!s) continue;
+      assert.ok(s !== 5 && s !== 6, d + " <- " + s);
+      if (s <= 2) assert.ok(b.ctx.P["l" + s + "_shape"].v < 1.5, d + " <- LFO " + s + " shape " + b.ctx.P["l" + s + "_shape"].v);
+      if (s === 3) assert.strictEqual(b.ctx.P.rn_smooth.v, 1);
+    }
+  }
+});
