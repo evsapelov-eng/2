@@ -240,3 +240,19 @@ Kit 8 rebuilt the qualities on the working engine C (v0.2.x) in cumulative steps
   - The output got a soft knee above 0.9, so there is never a hard digital clip.
 - IN / OUT: the knob angle was drawn from the dB number instead of the knob position → it spun.
   Fixed (`norm()`), with a test of the needle.
+
+## v0.6.0 — FILTER (FLØCK, not Beads)
+A box like Live's Echo with two points.
+- High cut: a Moog-style 4-pole ladder (Zavalishin TPT, linear solve of the feedback, tanh at the
+  input, k = 4·res up to self-oscillation, output ×(1 + k/2) for part of the bass loss).
+- Low cut: a 12 dB TPT state-variable high-pass, Q 0.707 … ≈4.7.
+- Frequencies 20 Hz … 20 kHz on one log axis. The knobs are smoothed per sample (≈10 ms).
+- The Cutoff modulation is ±5 octaves × depth.
+- Placement: on the wet signal by default (FLØCK sounds in the band, the dry stays clean); `flt_all`
+  puts it on the whole output.
+- Defaults are fully open, so the filter is bypassed bit-exactly. The differential tests against the
+  reference are therefore unaffected; the filter itself is measured in tests/engine.test.js.
+- Found while building it: a filter local named `lv1` collided with the reverb LFO's `lv1` (legal
+  in GenExpr: the later assignment wins). The filter state blew up. All filter locals now carry an
+  `fq_` prefix.
+- The panel is 1060 px wide now.

@@ -96,7 +96,7 @@ def _b36(n):
         n //= 36
         if not n:
             return s
-W, H = 900, 169
+W, H = 1060, 169
 SIG = "signal"
 
 # (engine Param, Live long name, short, min, max, default, unitstyle, kind)
@@ -121,17 +121,23 @@ PARAMS = [
     ("output", "Output Gain", "Output", -24, 12, 0, 4, "dial"),
     ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 0, 0, "toggle"),
     ("quality", "Quality", "Quality", 0, 3, 0, 0, ("enum", ["Pristine", "Cold digital", "Sunny tape", "Scorched cassette"])),
+    ("lp_cut", "Low-Pass", "Low-Pass", 0, 1, 1, 1, "dial"),
+    ("lp_res", "Resonance", "Resonance", 0, 1, 0, 1, "dial"),
+    ("hp_cut", "High-Pass", "High-Pass", 0, 1, 0, 1, "dial"),
+    ("hp_res", "High-Pass Resonance", "HP Res", 0, 1, 0, 1, "dial"),
+    ("flt_all", "Filter All", "Filter All", 0, 1, 0, 0, "toggle"),
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]
 DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"]
 for d, lab in [("freeze", "Freeze"), ("seed", "Trigger"), ("time", "Time"), ("pitch", "Pitch"), ("size", "Size"), ("shape", "Shape"),
-               ("density", "Density"), ("feedback", "Feedback"), ("reverb", "Reverb"), ("drywet", "Dry/Wet")]:
+               ("density", "Density"), ("feedback", "Feedback"), ("reverb", "Reverb"), ("drywet", "Dry/Wet"), ("cutoff", "Cutoff")]:
     PARAMS.append(("dst_" + d, "Mod Source " + lab, "Src " + lab, 0, 6, 0, 0, ("enum", SOURCES)))
 PARAMS += [
     ("fb_amt", "Mod Depth Feedback", "Depth FB", 0, 1, 1, 1, "dial"),
     ("dw_amt", "Mod Depth Dry/Wet", "Depth DW", 0, 1, 1, 1, "dial"),
     ("rv_amt", "Mod Depth Reverb", "Depth Rev", 0, 1, 1, 1, "dial"),
     ("dn_amt", "Mod Depth Density", "Depth Dens", 0, 1, 0.5, 1, "dial"),
+    ("ct_amt", "Mod Depth Cutoff", "Depth Cut", 0, 1, 0.5, 1, "dial"),
 ]
 for i, (rate, shp) in enumerate([(0.4, 0), (0.25, 1)]):
     n = str(i + 1)

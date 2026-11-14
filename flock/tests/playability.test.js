@@ -32,7 +32,7 @@ const rmsDb = (a, from, to) => { let e = 0; for (let i = from; i < to; i++) e +=
 // the panel (real code) wired to the engine like tools/build_device.py does
 function rig(seed = 1) {
   const g = new GenPatch(SRC, { sr: SR, seed });
-  const ui = vm.createContext({ mgraphics: { init() {}, size: [900, 169] }, post() {}, Task: function () { this.repeat = () => {}; this.cancel = () => {}; } });
+  const ui = vm.createContext({ mgraphics: { init() {}, size: [1060, 169] }, post() {}, Task: function () { this.repeat = () => {}; this.cancel = () => {}; } });
   const toEngine = (name, v) => {
     if (name === "input") { g.set("ingain", dbtoa(v)); return; }
     if (name === "output") { g.set("outgain", dbtoa(v)); return; }

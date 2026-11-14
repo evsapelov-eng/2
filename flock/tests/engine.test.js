@@ -378,3 +378,34 @@ test("R5 AUTO gain: learns for 1 + 5 s, then gain = 0.9 / peak (max ×40); LEARN
   const m = run(0.3, { agc: 0, ingain: 2 }, 1);
   assert.ok(Math.abs(m.o[9][SR - 1] - 2) < 1e-9 && silentish.o[9].length);
 });
+
+// ---- FILTER (FLØCK): Moog-style ladder low-pass + high-pass; FLØCK sounds between them
+function filterGain(f, k) {
+  const g = engine(Object.assign({ drywet: 0, reverb: 0, flt_all: 1, density: 0.5, seedlatch: 0 }, k));
+  const n = SR / 2, x = Float64Array.from({ length: n }, (_, i) => 0.2 * Math.sin(2 * Math.PI * f * i / SR));
+  const o = g.run(n, [x, x])[0]; let e = 0, ei = 0; for (let i = n / 2; i < n; i++) { e += o[i] ** 2; ei += x[i] ** 2; }
+  return 10 * Math.log10(e / ei) + 2.499;   // dry gain 0.75 removed
+}
+const at = (hz) => Math.log(hz / 20) / Math.log(1000);   // knob position for a frequency (20 Hz … 20 kHz)
+test("FILTER low-pass: 4-pole ladder (≈ −24 dB/oct, −12 dB at the cutoff), resonance peaks and thins the bass", () => {
+  const lp = { lp_cut: at(1000) };
+  const d = [250, 1000, 2000, 4000].map((f) => filterGain(f, lp));
+  assert.ok(Math.abs(d[0]) < 2.5 && Math.abs(d[1] + 12) < 1.5, "pass / cutoff: " + d.map((v) => v.toFixed(1)));
+  assert.ok(d[2] - d[3] > 18 && d[2] - d[3] < 28, "slope 2→4 kHz " + (d[2] - d[3]).toFixed(1) + " dB/oct");
+  const r = filterGain(1000, Object.assign({ lp_res: 0.9 }, lp)), bass = filterGain(250, Object.assign({ lp_res: 0.9 }, lp));
+  assert.ok(r > d[1] + 12, "resonance peak at the cutoff: " + r.toFixed(1));
+  assert.ok(bass < d[0] - 2, "bass thins with resonance (Moog): " + bass.toFixed(1));
+});
+test("FILTER high-pass: 12 dB/oct, resonance; defaults = fully open (bit-exact bypass)", () => {
+  const hp = { hp_cut: at(500) };
+  const a = filterGain(125, hp), b = filterGain(250, hp), c = filterGain(4000, hp);
+  assert.ok(b - a > 9 && b - a < 14 && Math.abs(c) < 1, `125 / 250 / 4k: ${a.toFixed(1)} ${b.toFixed(1)} ${c.toFixed(1)}`);
+  assert.ok(filterGain(500, Object.assign({ hp_res: 1 }, hp)) > filterGain(500, hp) + 6, "HP resonance");
+  const n = 4000, x = sine(300, n, 0.3);
+  const o1 = engine({}).run(n, [x, x]), o2 = engine({ lp_cut: 1, lp_res: 0, hp_cut: 0 }).run(n, [x, x]);
+  assert.deepStrictEqual(Array.from(o1[0]), Array.from(o2[0]));
+});
+test("FILTER on the grains only by default: the dry signal is untouched", () => {
+  const dryOnly = (k) => { const g = engine(Object.assign({ drywet: 0, reverb: 0, density: 0.5, seedlatch: 0 }, k)); const n = 4000, x = sine(3000, n, 0.3); return g.run(n, [x, x])[0]; };
+  assert.deepStrictEqual(Array.from(dryOnly({ lp_cut: at(300) })), Array.from(dryOnly({})));
+});

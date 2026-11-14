@@ -1,4 +1,4 @@
-// FLØCK — device panel for [jsui] (mgraphics, ES5). One light panel in Live's device strip (900×169).
+// FLØCK — device panel for [jsui] (mgraphics, ES5). One panel in Live's device strip (1060×169).
 // The knobs here are only a face: every value lives in a hidden live.dial / live.toggle (Live
 // parameter: automation, Push, presets). Dragging sends "<name> <value>" to that parameter; the
 // parameter sends "p <name> <value>" back here. Display data from the engine:
@@ -11,7 +11,7 @@ mgraphics.autofill = 0;
 inlets = 1;
 outlets = 1;
 
-var W0 = 900, H0 = 169;
+var W0 = 1060, H0 = 169;
 var C = {
   bg: [0.925, 0.918, 0.890, 1],     // warm paper
   panel: [0.965, 0.960, 0.940, 1],
@@ -41,13 +41,14 @@ var SRC_LIGHT = [[0.17, 0.30, 0.61, 1], [0.13, 0.52, 0.50, 1], [0.76, 0.22, 0.38
 var SRC_DARK = [[0.36, 0.82, 0.84, 1], [0.55, 0.85, 0.45, 1], [0.95, 0.50, 0.66, 1], [0.98, 0.70, 0.30, 1], [0.75, 0.75, 0.75, 1], [0.70, 0.58, 0.95, 1]];
 var SRC_COL = SRC_LIGHT.slice();
 var DST = [["freeze", "Freeze"], ["seed", "Trigger"], ["time", "Time"], ["pitch", "Pitch"], ["size", "Size"], ["shape", "Shape"],
-  ["density", "Density"], ["feedback", "Feedback"], ["reverb", "Reverb"], ["drywet", "Dry/Wet"]];
+  ["density", "Density"], ["feedback", "Feedback"], ["reverb", "Reverb"], ["drywet", "Dry/Wet"], ["cutoff", "Cutoff"]];
 var DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"];
 var SHAPES = ["sine", "tri", "saw", "square"];
 (function () {
   var i, d = function (v, extra) { var o = { v: v, d: v }; if (extra) for (var k in extra) o[k] = extra[k]; return o; };
   for (i = 0; i < DST.length; i++) P["dst_" + DST[i][0]] = d(0, { lo: 0, hi: 6, int: 1 });
-  P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1); P.dn_amt = d(0.5);
+  P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1); P.dn_amt = d(0.5); P.ct_amt = d(0.5);
+  P.lp_cut = d(1); P.lp_res = d(0); P.hp_cut = d(0); P.hp_res = d(0); P.flt_all = d(0);
   P.l1_rate = d(0.4); P.l1_sync = d(0); P.l1_shape = d(0, { lo: 0, hi: 3, int: 1 }); P.l1_reset = d(0); P.l1_amt = d(1);
   P.l2_rate = d(0.25); P.l2_sync = d(0); P.l2_shape = d(1, { lo: 0, hi: 3, int: 1 }); P.l2_reset = d(0); P.l2_amt = d(1);
   P.rn_rate = d(0.4); P.rn_sync = d(0); P.rn_smooth = d(1); P.rn_amt = d(1);
@@ -145,6 +146,7 @@ function grainMs(s) {
 function fmtHz(hz) { return (hz < 1 ? Math.round(hz * 100) / 100 : Math.round(hz * 10) / 10) + " Hz"; }
 function fmtMs(ms) { return ms >= 1000 ? (Math.round(ms / 100) / 10) + " s" : Math.round(ms) + " ms"; }
 function pct(v) { return Math.round(v * 100) + "%"; }
+function fmtF(hz) { return hz >= 1000 ? (Math.round(hz / 100) / 10) + " kHz" : Math.round(hz) + " Hz"; }
 function valueText(name) {
   var v = P[name].v;
   if (name === "time") return "-" + (Math.round(v * bufSeconds() * 10) / 10) + " s";
@@ -153,6 +155,8 @@ function valueText(name) {
     if (v > 0.52) return "~" + (Math.round(0.5 * 130.81278 * Math.pow(2, -(1 - v) * 16) * 10) / 10) + " /s random";
     return P.seedlatch.v > 0.5 ? (Math.round(130.81278 * Math.pow(2, -0.479 * 16) * 100) / 100) + " /s even" : "1 per TRIGGER";
   }
+  if (name === "lp_cut") return v > 0.999 ? "open" : fmtF(20 * Math.pow(1000, v));
+  if (name === "hp_cut") return v < 0.001 ? "off" : fmtF(20 * Math.pow(1000, v));
   if (name === "pitch") { var st = detune(v); return (st > 0 ? "+" : "") + (Math.round(st * 10) / 10) + " st"; }
   if (name === "size") return (v < 0.3333333 ? "rev " : "") + fmtMs(grainMs(v));
   if (name === "shape") return v < 0.12 ? "square" : v < 0.3 ? "hold+decay" : v < 0.45 ? "decay" : v < 0.6 ? "smooth" : v < 0.85 ? "bell" : "slow attack";
@@ -270,7 +274,7 @@ function panelTexture() {
   if (STYLE === "ableton") {   // section boxes like Live's devices
     rect(8, 6, 140, H0 - 12, C.panel, true);
     if (tab === "MOD") rect(156, 6, W0 - 164, H0 - 12, C.panel, true);
-    else { rect(156, 6, 426, H0 - 12, C.panel, true); rect(590, 6, W0 - 598, H0 - 12, C.panel, true); }
+    else { rect(156, 6, 426, H0 - 12, C.panel, true); rect(590, 6, 152, H0 - 12, C.panel, true); rect(750, 6, W0 - 758, H0 - 12, C.panel, true); }
     return;
   }
   if (STYLE === "toon") {   // manga screentone in two corners, dots growing towards the edge
@@ -491,20 +495,28 @@ function paint() {
     }
   }
   line(586, 12, 586, H0 - 12, C.line);
+  // ---- FILTER: two points like Live's Echo — left = cut the lows, right = cut the highs; across = frequency,
+  // up = resonance. FLØCK's grains sound between them (ALL: the whole output).
+  textC("FILTER", 666, 18, 9.5, C.ink, true);
+  filterBox(FBX, FBY, FBW, FBH);
+  text("LOW " + valueText("hp_cut"), 596, 145, 7.5, PINK, true);
+  text("HIGH " + valueText("lp_cut"), 668, 145, 7.5, C.accent, true);
+  pill(596, 150, 140, P.flt_all.v > 0.5 ? "FILTER ON: ALL OF THE OUTPUT" : "FILTER ON: THE GRAINS", P.flt_all.v > 0.5, "toggle", "flt_all");
+  line(746, 12, 746, H0 - 12, C.line);
   // ---- mix
   for (var m = 0; m < MIX.length; m++) {
-    var mx = 622 + m * 62;
+    var mx = 782 + m * 62;
     textC(MIX[m][1], mx, 18, 8.5, C.ink, true);
     knob(mx, 44, 15, MIX[m][0], false);
     textC(valueText(MIX[m][0]), mx, 76, 8.5, C.accent, true);
   }
   // IN / OUT as knobs, AUTO, output level
-  textC("IN", 818, 18, 8.5, C.ink, true); knob(818, 40, 10, "input", false); textC(valueText("input"), 818, 62, 7.5, C.accent, true);
-  textC("OUT", 858, 18, 8.5, C.ink, true); knob(858, 40, 10, "output", false); textC(valueText("output"), 858, 62, 7.5, C.accent, true);
-  pill(800, 67, 36, "AUTO", P.agc.v > 0.5, "toggle", "agc");
-  meter(884, 12, 66);
+  textC("IN", 978, 18, 8.5, C.ink, true); knob(978, 40, 10, "input", false); textC(valueText("input"), 978, 62, 7.5, C.accent, true);
+  textC("OUT", 1018, 18, 8.5, C.ink, true); knob(1018, 40, 10, "output", false); textC(valueText("output"), 1018, 62, 7.5, C.accent, true);
+  pill(960, 67, 36, "AUTO", P.agc.v > 0.5, "toggle", "agc");
+  meter(1044, 12, 66);
   // ---- recording quality: held while FREEZE is on, like the module
-  var qx = 598, qw = [56, 72, 66, 84], qz = P.freeze.v > 0.5;
+  var qx = 758, qw = [56, 72, 66, 84], qz = P.freeze.v > 0.5;
   for (var qq = 0; qq < 4; qq++) {
     var qon = Math.round(P.quality.v) === qq;
     rect(qx, 84, qw[qq], 14, qon ? C.accent : C.line, qon, 1, qz && !qon ? 0.35 : 1);
@@ -513,8 +525,62 @@ function paint() {
     qx += qw[qq] + 4;
   }
   // ---- tape
-  drawTape(598, 102, 290, 48);
+  drawTape(758, 102, 290, 48);
   fitHelp(160, 163, 420);
+}
+// ---- the filter box: axis 20 Hz ... 20 kHz (log) across, resonance up
+var FBX = 596, FBY = 24, FBW = 140, FBH = 108;
+function fpt(which) {   // a point's position in the box
+  var xf = which === "hp" ? P.hp_cut.v : P.lp_cut.v, yf = which === "hp" ? P.hp_res.v : P.lp_res.v;
+  return [FBX + 6 + xf * (FBW - 12), FBY + FBH - 8 - yf * (FBH - 22)];
+}
+function filterBox(x, y, w, h) {
+  rect(x, y, w, h, C.bg, true);
+  rect(x, y, w, h, C.line, false, 1);
+  var fl = [[100, "100"], [1000, "1k"], [10000, "10k"]];
+  for (var g = 0; g < fl.length; g++) {
+    var gx = x + 6 + Math.log(fl[g][0] / 20) / Math.log(1000) * (w - 12);
+    line(gx, y + 2, gx, y + h - 2, C.line, 1, 0.7);
+    text(fl[g][1], gx + 2, y + 10, 7, C.mid);
+  }
+  // response: 4-pole ladder (resonance) × 2-pole high-pass (Q from its point)
+  var fc = 20 * Math.pow(1000, P.lp_cut.v), k = 4 * P.lp_res.v, fh = 20 * Math.pow(1000, P.hp_cut.v), R = 0.7071 - 0.6 * P.hp_res.v;
+  var pts = [];
+  for (var i = 0; i <= 48; i++) {
+    var f = 20 * Math.pow(1000, i / 48), wl = f / fc, wh = f / fh, re = 1, im = 0;
+    for (var q = 0; q < 4; q++) { var nr = re - im * wl, ni = im + re * wl; re = nr; im = ni; }
+    var lp = P.lp_cut.v > 0.999 && P.lp_res.v < 0.001 ? 1 : (1 + 0.5 * k) / Math.sqrt((re + k) * (re + k) + im * im);
+    var hp = P.hp_cut.v < 0.001 ? 1 : wh * wh / Math.sqrt((1 - wh * wh) * (1 - wh * wh) + 4 * R * R * wh * wh);
+    var db = 20 * Math.log(Math.max(lp * hp, 1e-6)) / Math.LN10;
+    pts.push([x + 6 + (w - 12) * i / 48, Math.max(y + 2, Math.min(y + h - 2, y + h * 0.45 - db / 36 * h * 0.55))]);
+  }
+  // the band where FLØCK sounds: filled under the curve
+  col(C.accent, 0.16); mgraphics.move_to(pts[0][0], y + h - 2);
+  for (var p = 0; p < pts.length; p++) mgraphics.line_to(pts[p][0], pts[p][1]);
+  mgraphics.line_to(pts[pts.length - 1][0], y + h - 2); mgraphics.close_path ? mgraphics.close_path() : 0; mgraphics.fill();
+  col(C.accent); mgraphics.set_line_width(1.4);
+  for (p = 0; p < pts.length; p++) { if (p === 0) mgraphics.move_to(pts[p][0], pts[p][1]); else mgraphics.line_to(pts[p][0], pts[p][1]); }
+  mgraphics.stroke();
+  // the two points
+  var ph = fpt("hp"), pl = fpt("lp");
+  var actH = (drag && drag.which === "hp") || hover === "f_hp", actL = (drag && drag.which === "lp") || hover === "f_lp";
+  circle(ph[0], ph[1], actH ? 6.5 : 5, PINK, true); circle(ph[0], ph[1], actH ? 6.5 : 5, C.bg, false, 1.2);
+  circle(pl[0], pl[1], actL ? 6.5 : 5, C.accent, true); circle(pl[0], pl[1], actL ? 6.5 : 5, C.bg, false, 1.2);
+  // the whole box picks the nearest point (drawn hit areas for the points first: hover help)
+  hit({ x: x, y: y, w: w, h: h, kind: "fbox", name: "fbox" });
+  hit({ x: ph[0] - 8, y: ph[1] - 8, w: 16, h: 16, kind: "fbox", name: "f_hp" });
+  hit({ x: pl[0] - 8, y: pl[1] - 8, w: 16, h: 16, kind: "fbox", name: "f_lp" });
+}
+// move a point to (x, y) in the box
+function fmove(which, x, y) {
+  var xf = Math.max(0, Math.min(1, (x - FBX - 6) / (FBW - 12))), yf = Math.max(0, Math.min(1, (FBY + FBH - 8 - y) / (FBH - 22)));
+  if (which === "hp") { send("hp_cut", Math.round(xf * 1000) / 1000); send("hp_res", Math.round(yf * 1000) / 1000); }
+  else { send("lp_cut", Math.round(xf * 1000) / 1000); send("lp_res", Math.round(yf * 1000) / 1000); }
+}
+function fnearest(x, y) {
+  var ph = fpt("hp"), pl = fpt("lp");
+  var dh = Math.abs(x - ph[0]) + Math.abs(y - ph[1]) * 0.3, dl = Math.abs(x - pl[0]) + Math.abs(y - pl[1]) * 0.3;
+  return dh < dl ? "hp" : "lp";
 }
 // flat button like Live's toggles: label inside, lit when on
 function flatButton(x, y, w, h, label, on, kind, name, alpha) {
@@ -580,9 +646,9 @@ function paintNativeSound() {
   text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
 }
 // ================= MOD tab =================
-var JS_X = 575, JD_X = 790;
+var JS_X = 575, JD_X = 950;
 function srcY(i) { return 26 + i * 23; }
-function dstY(j) { return 14 + j * 14.2; }
+function dstY(j) { return 13 + j * 13.6; }
 // small knob for the MOD tab: thin ring, fits in a 14 px row
 function smallKnob(cx, cy, name) {
   var v = norm(name, P[name].v), a = A0 + (A1 - A0) * v, act = hover === name || (drag && drag.name === name);
@@ -666,12 +732,12 @@ function paintMod() {
   for (var j = 0; j < DST.length; j++) {
     var dy = dstY(j), dn = "dst_" + DST[j][0], si = Math.round(P[dn].v);
     jack(JD_X, dy, si ? SRC_COL[si - 1] : null, !!si);
-    text(DST[j][1], 800, dy + 3, 7.5, C.ink, si > 0);
+    text(DST[j][1], 960, dy + 3, 7.5, C.ink, si > 0);
     hit({ x: JD_X - 8, y: dy - 7, w: 60, h: 14, kind: "jack_dst", name: dn, dst: j });
-    var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt", density: "dn_amt" }[DST[j][0]];
-    if (an) amountBar(852, dy, 36, an);
+    var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt", density: "dn_amt", cutoff: "ct_amt" }[DST[j][0]];
+    if (an) amountBar(1012, dy, 36, an);
   }
-  text("DEPTH", 852, dstY(6) - 8, 7, C.mid, true);
+  text("DEPTH", 1012, dstY(6) - 8, 7, C.mid, true);
   // cables (drawn last, on top)
   for (var k = 0; k < DST.length; k++) {
     var s2 = Math.round(P["dst_" + DST[k][0]].v);
@@ -791,7 +857,7 @@ function patchCable(dst, src) {
 // to TIME / PITCH / SIZE / SHAPE (with a working CV amount), DENSITY (limited depth) and the mix.
 function randomPatch(noHistory) {
   if (!noHistory) { history.push(snapshot()); if (history.length > 16) history.shift(); }
-  var i, n = 1 + Math.floor(Math.random() * maxCables), dests = ["time", "pitch", "size", "shape", "density", "feedback", "reverb", "drywet", "seed"];
+  var i, n = 1 + Math.floor(Math.random() * maxCables), dests = ["time", "pitch", "size", "shape", "density", "feedback", "reverb", "drywet", "seed", "cutoff"];
   for (i = 0; i < DST.length; i++) send("dst_" + DST[i][0], 0);
   ensureGrains(0);   // a fresh patch starts from running grains; SEED (if chosen below) changes that
   for (i = dests.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = dests[i]; dests[i] = dests[j]; dests[j] = t; }
@@ -806,7 +872,7 @@ function randomPatch(noHistory) {
     } else {
       // loudness destinations (feedback / reverb / dry-wet / density) only get smooth sources: a square /
       // saw LFO, STEPS random, CLOCK or SEQ there makes the level jump = clicks
-      var smoothOnly = dname === "feedback" || dname === "reverb" || dname === "drywet" || dname === "density";
+      var smoothOnly = dname === "feedback" || dname === "reverb" || dname === "drywet" || dname === "density" || dname === "cutoff";
       var s2 = smoothOnly ? pickOne([1, 2, 3, 3, 4]) : pickOne([1, 2, 3, 3, 4, 6]);
       send(dkey, s2);
       if (smoothOnly && (s2 === 1 || s2 === 2) && P["l" + s2 + "_shape"].v > 1.5) send("l" + s2 + "_shape", pickOne([0, 1]));
@@ -816,6 +882,7 @@ function randomPatch(noHistory) {
       if (dname === "feedback") send("fb_amt", rr(0.2, 0.5));
       if (dname === "reverb") send("rv_amt", rr(0.3, 0.6));
       if (dname === "drywet") send("dw_amt", rr(0.2, 0.4));
+      if (dname === "cutoff") { send("ct_amt", rr(0.25, 0.5)); if (P.lp_cut.v > 0.95) send("lp_cut", rr(0.55, 0.75)); }
     }
   }
 }
@@ -901,6 +968,12 @@ var HELP = {
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK DEPTH: how far the cable moves FEEDBACK (drag)", dw_amt: "DRY/WET DEPTH: how far the cable moves DRY/WET (drag)", rv_amt: "REVERB DEPTH: how far the cable moves REVERB (drag)",
+  fbox: "FILTER: drag the points - pink cuts the lows, blue cuts the highs (Moog ladder); up = resonance; FLØCK sounds between them · double-click = home",
+  f_hp: "LOW CUT (pink): across = frequency, up = resonance · double-click = off", f_lp: "HIGH CUT (blue, Moog ladder): across = frequency, up = resonance (sings near the top) · double-click = open",
+  lp_cut: "LOW-PASS: Moog-style 24 dB ladder - cuts the highs (fully CW = open)",
+  lp_res: "RES: resonance of the low-pass - a peak at the cutoff, sings / self-oscillates near the max, thins the bass like a Moog",
+  hp_cut: "HIGH-PASS: 12 dB - cuts the lows (fully CCW = off)", flt_all: "FILTER on the GRAINS only (the dry signal stays clean) or on ALL of the output (click)",
+  dst_cutoff: "Cutoff: moves the low-pass cutoff (up to +-5 octaves x DEPTH) - LFO here = wah / sweeps", ct_amt: "CUTOFF DEPTH: how far the cable moves the cutoff (drag)",
   dicemode: "what DICE changes: SOUND / MOD / ALL (click)", slice: "SLICE: one click - the sequencer cuts the recording into rhythmic slices (SEQ -> TRIGGER + TIME)",
   dst_freeze: "Freeze: freezes while the source is high", dst_seed: "Trigger: gate/clock input - AUTO GRAINS on: DENSITY divides (CCW) or thins (CW) the pulses; off: grains while high",
   dst_time: "Time: the SPREAD knob under TIME becomes the DEPTH (CW) / random depth (CCW)", dst_pitch: "Pitch: +-12 st per unit, DEPTH = the knob under PITCH",
@@ -956,6 +1029,12 @@ function onclick(x, y, but, cmd, shift) {
   }
   else if (h.kind === "quality") { if (P.freeze.v < 0.5) send("quality", h.val); }
   else if (h.kind === "style") nextStyle();
+  else if (h.kind === "fbox") {   // grab a point (the one clicked, or the nearest) and move it here
+    var wh = h.name === "f_hp" ? "hp" : h.name === "f_lp" ? "lp" : fnearest(x, y);
+    drag = { kind: "fpoint", which: wh };
+    if (h.name === "fbox") fmove(wh, x, y);
+    dirty = true;
+  }
   else if (h.kind === "dice") diceButton();
   else if (h.kind === "dicemode") { diceMode = (diceMode + 1) % 3; dirty = true; }
   else if (h.kind === "back") back();
@@ -982,6 +1061,7 @@ function ondrag(x, y, but, cmd, shift) {
     if (drag.moved) send(drag.name, stepCode(true, Math.max(0, Math.min(1, (drag.top + drag.h2 - y) / drag.h2))));
   }
   if (drag.kind === "cable") { drag.x = x; drag.y = y; dirty = true; }
+  if (drag.kind === "fpoint") fmove(drag.which, x, y);
   if (!but) {
     if (drag.kind === "momentary") send(drag.name, 0);
     if (drag.kind === "step" && !drag.moved) send(drag.name, stepCode(!stepOn(drag.step), stepVal(drag.step)));
@@ -998,6 +1078,11 @@ function dropCable(x, y) {
 function ondblclick(x, y) {
   x /= scaleF; y /= scaleF;
   var h = find(x, y); if (h && h.kind === "knob") send(h.name, P[h.name].d);
+  if (h && h.kind === "fbox") {   // double-click: the point goes home (low: off, high: open), no resonance
+    var wh = h.name === "f_hp" ? "hp" : h.name === "f_lp" ? "lp" : fnearest(x, y);
+    if (wh === "hp") { send("hp_cut", 0); send("hp_res", 0); } else { send("lp_cut", 1); send("lp_res", 0); }
+    drag = null;
+  }
 }
 function onidle(x, y) { var h = find(x / scaleF, y / scaleF), k = h ? h.name : null; if (k !== hover) { hover = k; dirty = true; } }
 function onidleout() { if (hover) { hover = null; dirty = true; } }

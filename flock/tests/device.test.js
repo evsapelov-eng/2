@@ -14,7 +14,7 @@ const decl = parse(fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf
 
 test("every Live parameter reaches an existing gen~ Param and the panel; panel outputs route to the parameters", () => {
   const params = boxes.filter((b) => b.parameter_enable);
-  assert.strictEqual(params.length, 68);
+  assert.strictEqual(params.length, 75);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const outsOf = (id) => patch.lines.filter((l) => l.patchline.source[0] === id).map((l) => byId[l.patchline.destination[0]]);
   for (const p of params) {
@@ -35,7 +35,7 @@ test("every Live parameter reaches an existing gen~ Param and the panel; panel o
   assert.deepStrictEqual(route.text.split(" ").slice(1).sort(), params.map((p) => p.varname).sort());
 });
 
-test("gen~ box embeds the engine code with matching inlet/outlet counts; device is an audio effect strip 900×169", () => {
+test("gen~ box embeds the engine code with matching inlet/outlet counts; device is an audio effect strip 1060×169", () => {
   const g = boxes.find((b) => b.text === "gen~");
   const cb = g.patcher.boxes.map((b) => b.box).find((b) => b.maxclass === "codebox");
   assert.ok(cb.code.includes("Param time(") && g.patcher.classnamespace === "dsp.gen");
@@ -51,9 +51,9 @@ test("gen~ box embeds the engine code with matching inlet/outlet counts; device 
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const ph = boxes.find((b) => b.text === "phasor~ 1n @lock 1");
   assert.ok(patch.lines.some((l) => l.patchline.source[0] === ph.id && byId[l.patchline.destination[0]].text === "gen~" && l.patchline.destination[1] === 6), "bar phase → gen~ in7");
-  assert.strictEqual(patch.devicewidth, 900);
+  assert.strictEqual(patch.devicewidth, 1060);
   const ui = boxes.find((b) => b.maxclass === "jsui");
-  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 900, 169]);
+  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 1060, 169]);
 });
 
 // ---------- panel in an SVG shim ----------
@@ -86,7 +86,7 @@ function makeShim(w, h) {
   return g;
 }
 function boot() {
-  const mg = makeShim(900, 169), out = [];
+  const mg = makeShim(1060, 169), out = [];
   const ctx = vm.createContext({ mgraphics: mg, outlet: (...a) => out.push(a), post() {}, Task: function () { this.repeat = () => {}; this.cancel = () => {}; } });
   vm.runInContext(fs.readFileSync(path.join(ROOT, "js", "flock_ui.js"), "utf8"), ctx);
   const draw = () => { mg.reset(); ctx.paint(); };
@@ -114,7 +114,7 @@ test("panel: knobs send their parameter, toggles toggle, SEED is momentary, doub
   assert.ok(svg.includes("TIME: where the grains start"));
   for (const m of svg.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)" [^>]*font-size="([\d.]+)"[^>]*>([^<]*)</g)) {
     const [x, y, f, s] = [+m[1], +m[2], +m[3], m[4]];
-    assert.ok(x >= 0 && y <= 169 && y - f >= 0 && x + s.length * f * 0.58 <= 901, `"${s}" at ${x},${y}`);
+    assert.ok(x >= 0 && y <= 169 && y - f >= 0 && x + s.length * f * 0.58 <= 1061, `"${s}" at ${x},${y}`);
   }
   fs.mkdirSync(path.join(ROOT, "renders"), { recursive: true });
   fs.writeFileSync(path.join(ROOT, "renders", "panel.svg"), svg);
@@ -206,12 +206,12 @@ test("MOD tab: drag a cable source → destination, pick it up again, RANDOM ≤
   }
   b.out.length = 0;
   const c = b.ctx.hits.find((h) => h.name === "clear"); b.ctx.onclick(c.x + 5, c.y + 5, 1);
-  assert.strictEqual(b.out.filter((m) => /^dst_/.test(m[1]) && m[2] === 0).length, 10);
+  assert.strictEqual(b.out.filter((m) => /^dst_/.test(m[1]) && m[2] === 0).length, 11);   // 11 destinations (+ Cutoff)
   b.ctx.p("dst_seed", 5); b.ctx.p("dst_time", 6); b.ctx.p("dst_reverb", 1); b.ctx.seq(3, 1); b.draw();
   const svg = b.mg.svg();
   for (const m of svg.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)" [^>]*font-size="([\d.]+)"[^>]*>([^<]*)</g)) {
     const [x, y, f, t] = [+m[1], +m[2], +m[3], m[4]];
-    assert.ok(x >= 0 && y <= 169 && y - f >= 0 && x + t.length * f * 0.58 <= 901, `"${t}" at ${x},${y}`);
+    assert.ok(x >= 0 && y <= 169 && y - f >= 0 && x + t.length * f * 0.58 <= 1061, `"${t}" at ${x},${y}`);
   }
   fs.writeFileSync(path.join(ROOT, "renders", "panel_mod.svg"), svg);
 });
@@ -279,8 +279,8 @@ test("IN / OUT knobs: the needle follows the knob position (dB range), not the d
   const A0 = Math.PI * 0.75, A1 = Math.PI * 2.25, rr = 10 * 0.82;
   for (const [db, n] of [[-12, 0], [-2, 10 / 44], [32, 1]]) {
     b.ctx.p("input", db); b.draw();
-    const a = A0 + (A1 - A0) * n, x = 818 + Math.cos(a) * rr, y = 40 + Math.sin(a) * rr;
-    assert.ok(b.mg.svg().includes(`M818,40L${x},${y}`), `needle for ${db} dB at ${Math.round(n * 100)} %`);
+    const a = A0 + (A1 - A0) * n, x = 978 + Math.cos(a) * rr, y = 40 + Math.sin(a) * rr;
+    assert.ok(b.mg.svg().includes(`M978,40L${x},${y}`), `needle for ${db} dB at ${Math.round(n * 100)} %`);
   }
 });
 
@@ -300,4 +300,26 @@ test("RANDOM never puts a stepped source (CLOCK, SEQ, square / saw LFO, STEPS ra
       if (s === 3) assert.strictEqual(b.ctx.P.rn_smooth.v, 1);
     }
   }
+});
+
+test("FILTER box: drag a point = frequency across, resonance up; click picks the nearest point; double-click = home", () => {
+  const b = boot(); b.draw();
+  const box = b.ctx.hits.find((h) => h.name === "fbox");
+  assert.ok(box && box.w > 100, "the box");
+  const X = (f) => box.x + 6 + Math.log(f / 20) / Math.log(1000) * (box.w - 12), Y = (r) => box.y + box.h - 8 - r * (box.h - 22);
+  // grab the high-cut point (right edge, open) and pull it to 2 kHz, half resonance
+  const pl = b.ctx.hits.find((h) => h.name === "f_lp");
+  b.out.length = 0; b.ctx.onclick(pl.x + 8, pl.y + 8, 1); b.ctx.ondrag(X(2000), Y(0.5), 1);
+  const last = (n) => b.out.filter((m) => m[1] === n).pop()[2];
+  assert.ok(Math.abs(last("lp_cut") - Math.log(100) / Math.log(1000)) < 0.01 && Math.abs(last("lp_res") - 0.5) < 0.01);
+  b.ctx.ondrag(X(2000), Y(0.5), 0);
+  b.ctx.p("lp_cut", last("lp_cut")); b.ctx.p("lp_res", 0.5); b.draw();
+  // a click near the left = the low-cut point moves there
+  b.out.length = 0; b.ctx.onclick(X(150), Y(0), 1); b.ctx.ondrag(X(150), Y(0), 0);
+  assert.ok(Math.abs(last("hp_cut") - Math.log(7.5) / Math.log(1000)) < 0.01, "low cut to 150 Hz");
+  // double-click on the high-cut point: open again
+  b.draw(); const p2 = b.ctx.hits.find((h) => h.name === "f_lp");
+  b.out.length = 0; b.ctx.ondblclick(p2.x + 8, p2.y + 8);
+  assert.ok(last("lp_cut") === 1 && last("lp_res") === 0);
+  assert.strictEqual(b.ctx.valueText("hp_cut"), "off"); b.ctx.p("lp_cut", Math.log(100) / Math.log(1000)); assert.strictEqual(b.ctx.valueText("lp_cut"), "2 kHz");
 });
