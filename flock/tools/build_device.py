@@ -307,7 +307,9 @@ def build():
     P.connect(gen, 0, pout, 0); P.connect(gen, 1, pout, 1)
     ui = P.add({"maxclass": "jsui", "filename": JSNAME, "numinlets": 1, "numoutlets": 1, "outlettype": [""],
                 "parameter_enable": 0, "border": 0, "patching_rect": [400, 600, W, H],
-                "presentation": 1, "presentation_rect": [0, 0, W, H], "varname": "flock_ui"})
+                "presentation": 1, "presentation_rect": [0, 0, W, H], "varname": "flock_ui",
+                # native device: the panel sits on the background layer, Live's objects are drawn above it
+                "background": 1 if NATIVE else 0})
     lb = P.obj("loadbang", 1, 1, ["bang"], x=900, y=40)
     if NATIVE:
         # tell the panel it is the native device; it hides / shows Live's objects through thispatcher
