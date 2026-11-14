@@ -607,7 +607,8 @@ function paintMod() {
   text(running ? "PLAYING (synced to Live)" : "Live stopped: synced sources wait", 260, 13, 7.5, running ? C.accent : C.mid);
   for (var i = 0; i < 6; i++) {
     var y = srcY(i);
-    text(SRC[i], 160, y + 3, 7.5, C.ink, true);
+    circle(163, y, 3, SRC_COL[i], true);
+    text(SRC[i], 170, y + 3, 7.5, C.ink, true);
     if (i < 2) {
       var pre = "l" + (i + 1) + "_";
       smallKnob(222, y, pre + "rate"); text(valueText(pre + "rate"), 233, y + 3, 7.5, C.ink);
@@ -637,6 +638,7 @@ function paintMod() {
     }
     // source jack
     jack(JS_X, y, SRC_COL[i], true);
+    text(SRC[i], JS_X + 9, y - 6, 7, SRC_COL[i], true);   // the source's name at its jack, in its cable colour
     hit({ x: JS_X - 8, y: y - 8, w: 16, h: 16, kind: "jack_src", name: "src" + i, src: i + 1 });
   }
   // destinations
