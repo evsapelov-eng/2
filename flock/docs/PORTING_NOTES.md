@@ -205,3 +205,27 @@ Kit 8 rebuilt the qualities on the working engine C (v0.2.x) in cumulative steps
 - The reference (beads_ref.js) follows the same model. The differential tests pass for all qualities.
 - The native device (Live's controls) is only built on request (`--native`): the user preferred the
   drawn Ableton-style panel.
+
+## v0.5.0 — the critique worked through (U6–U8 in the matrix)
+- Silence traps:
+  - DENSITY 12 h with AUTO GRAINS = the slowest even grains, not none (deviation G1).
+  - A quality change keeps the recording (deviation R7).
+  - The tape shows "recording…" until the buffer reaches TIME (gen~ out12 = filled part).
+- Names and readability:
+  - SEED → TRIGGER, LATCH → AUTO GRAINS, RND → SPREAD (DEPTH when a cable is in);
+  - fonts ≥ 7 px;
+  - DEPTH bars with %;
+  - step values in the help line;
+  - tape seconds scale;
+  - readable Live parameter names.
+- One randomizer: DICE with SOUND / MOD / ALL and the recipe name; BACK undoes DICE, RANDOM and
+  SLICE; SLICE = one-click slicer.
+- Output level meter (peakamp~), IN / OUT as knobs, LEARN removed (AUTO on = learn afresh), one look.
+- MIDI: FLØCK Keys (a MIDI effect, `send flock_keys`) → FLØCK (`receive flock_keys` → panel → gen~
+  `ktrig` / `knote` / `kon`). Live does not send MIDI to audio effects, hence the second device.
+- Not done in this round:
+  - saving a frozen buffer in the Live Set (R3) — it needs the buffer outside gen~, a large change
+    of the engine that just started running in Max;
+  - delay mode (P5 / D1–D4) and the mono mode (R4) — whole DSP ports;
+  - tempo-locked SIZE / TIME without the MOD tab;
+  - presets as Live files (.adv cannot be checked here).

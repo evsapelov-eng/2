@@ -1,6 +1,6 @@
 {
   "name": "flock",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "description": "FL\u00d8CK \u2014 granular texture audio effect for Max for Live (gen~ port of the open Beads DSP)",
   "scripts": {

@@ -261,7 +261,8 @@ class Ref {
       const pan = 0.5 + (u - 0.5) * Math.min(0.5 * n * spread * v, 1);
       const safety = 257, max_delay = this.MAX - 2 * safety;
       const delay = this.value(p.time, 1, true) * max_delay + safety;                 // argument order: left to right
-      const speed = (reverse ? -1 : 1) * SemitonesToRatio(this.value(p.pitch, 24, false));
+      const pitch = p.kon ? Object.assign({}, p.pitch, { base: p.pitch.base + p.knote }) : p.pitch;   // FLØCK keys
+      const speed = (reverse ? -1 : 1) * SemitonesToRatio(this.value(pitch, 24, false));
       const csh = reverse ? duration * 3 * (2 - duration * 3) : 1 - 1.5 * (duration - 0.3333333);
       const gdur = SemitonesToRatio(Math.min(1, 1.025 * csh) * -108) * this.max_grain_duration;
       const shape = this.value(p.shape, 1, true);
@@ -350,6 +351,8 @@ class Ref {
       return out;
     }
     density = Math.min(1, Math.max(0, density + linear_fm));
+    // FLØCK: AUTO GRAINS (latched, no SEED input) has no silent 12 o'clock: the slowest even grains
+    if (seedState === 2 && !ext && density >= 0.48 && density <= 0.52) density = 0.479;
     const fm = SemitonesToRatio(exponential_fm * 60);
     const flags = [];
     for (let i = 0; i < n; i++) {
@@ -639,7 +642,8 @@ function fromKnobs(k) {
     time: rp(k.time, k.time_amt), size: rp(k.size, k.size_amt), shape: rp(k.shape, k.shape_amt),
     pitch: rp(detuneLaw(k.pitch), k.pitch_amt),
     agc: k.agc > 0.5, ingain: k.ingain === undefined ? 1 : k.ingain, dn_amt: k.dn_amt === undefined ? 1 : k.dn_amt,
-    density: k.density, fbk: k.feedback, dwk: k.drywet, rvk: k.reverb, freeze: k.freeze > 0.5, seedState: k.seedlatch > 0.5 ? 2 : k.seed > 0.5 ? 1 : 0,
+    density: k.density, fbk: k.feedback, dwk: k.drywet, rvk: k.reverb, freeze: k.freeze > 0.5, seedState: k.seedlatch > 0.5 ? 2 : (k.seed > 0.5 || k.ktrig > 0.5) ? 1 : 0,
+    kon: k.kon > 0.5, knote: k.knote || 0,
   };
 }
 

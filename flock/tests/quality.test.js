@@ -122,22 +122,20 @@ test("R6 Cold digital: the dry signal is truncated to 12 bits — a signal below
   assert.ok(c < 1e-9, "Cold digital truncates it to 0: " + c);
 });
 
-test("R6 changing the quality clears the buffer and restarts the grains; held while FREEZE is on (R7)", () => {
+test("R6 changing the quality keeps the recording (FLØCK; Beads clears it); held while FREEZE is on (R7)", () => {
   const g = new GenPatch(SRC, { sr: SR, seed: 4 });
   for (const [k, v] of Object.entries(Object.assign({}, BASE, { quality: 0, density: 0.1, drywet: 1, reverb: 0, time: 0.3, size: 0.5 }))) g.set(k, v);
   const n = SR, [L, R] = source(n, 3), z = new Float64Array(SR);
   const rms = (o) => { let e = 0; for (const v of o[0]) e += v * v; return Math.sqrt(e / o[0].length); };
   g.run(n, [L, R]);
-  assert.ok(rms(g.run(SR / 2, [z, z])) > 0.01, "grains play the recording (silent input now)");
   g.set("freeze", 1); g.run(100, [z, z]);
   g.set("quality", 2); g.run(1000, [z, z]);
   assert.strictEqual(g.H.qc, 0, "held while frozen");
   g.set("freeze", 0); g.run(10, [z, z]);
   assert.strictEqual(g.H.qc, 2, "applied after unfreeze");
-  // FLØCK clears by counting the frames written since the change (no loop over the buffer):
-  // everything recorded before reads as silence → with a silent input the grains are silent
-  assert.ok(g.H.nwr <= 10, "frames since the change: " + g.H.nwr);
-  assert.ok(rms(g.run(SR / 2, [z, z])) < 1e-9, "old recording gone");
+  g.set("time", 0.05);   // ≈ 0.5 s back on the 10.7 s Sunny tape buffer: the material recorded before the change
+  assert.ok(rms(g.run(SR / 2, [z, z])) > 0.005, "the old recording still plays after the change");
+  assert.ok(g.H.nwr > 40000, "frames counted: " + g.H.nwr);
 });
 
 test("X3 caveman reverb (every quality but Pristine): darker tail than Pristine (lp 0.4 vs 0.6 in the loop)", () => {

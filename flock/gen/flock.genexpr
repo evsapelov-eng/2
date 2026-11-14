@@ -19,7 +19,7 @@
 // Outlets: out1 L, out2 R, out3 grain trigger (1 sample), out4 active grains, out5 write position 0..1,
 //          out6 start of the latest grain (samples behind the head / buffer), out7 its speed (signed),
 //          out8 sequencer step, out9 Live transport running (bar phase moving), out10 input gain,
-//          out11 auto gain learning, out12 / out13 reserved (0 / -1)
+//          out11 auto gain learning, out12 buffer filled 0..1, out13 reserved (-1)
 //          in7 bar phase from Live (phasor~ 1n @lock 1); in8..in11 external SEED / FREEZE / DENSITY / assign
 //          (destination index 7, used by the tests)
 //
@@ -151,6 +151,11 @@ Param outgain(1, min=0, max=4);
 // agc = 0 → manual gain `ingain`. agc_restart: any new value restarts the learning (LEARN).
 Param agc(0, min=0, max=1);
 Param quality(0, min=0, max=3);
+// MIDI keys (FLØCK Keys device): ktrig = a key is held (fires grains like SEED), knote = semitones
+// from C3 added to PITCH while kon = 1 (FLØCK, not Beads)
+Param ktrig(0, min=0, max=1);
+Param knote(0, min=-48, max=48);
+Param kon(0, min=0, max=1);
 Param agc_restart(0, min=0, max=1000000);
 // DENSITY CV depth (FLØCK; Beads has none = 1)
 Param dn_amt(0.5, min=0, max=1);
@@ -341,7 +346,7 @@ MAXD = qi < 0.5 ? 192000 : min(768000, floor((qi < 1.5 ? 8 : qi < 2.5 ? 10.66666
 k = 0;
 j = 0;
 // one-time init of the grain priority list
-if (init < 0.5 || qchg) {
+if (init < 0.5) {
 	for (k = 0; k < 32; k += 1) {
 		poke(prio, k, k, 0);
 		poke(gr, 3, k, 0);
@@ -371,7 +376,7 @@ st_samt = s_samt + (attenu_law(size_amt) - s_samt) * kp;
 st_hamt = s_hamt + (attenu_law(shape_amt) - s_hamt) * kp;
 st_pamt = s_pamt + (attenu_law(pitch_amt) - s_pamt) * kp;
 st_dens = s_dens + (density - s_dens) * kp;
-seedstate = seedlatch > 0.5 ? 2 : seed > 0.5 ? 1 : 0;
+seedstate = seedlatch > 0.5 ? 2 : (seed > 0.5 || ktrig > 0.5) ? 1 : 0;
 
 // ---- tempo from Live: bar phase (phasor~ 1n @lock 1) on in7; bars counted modulo 24
 bp = in7;
@@ -504,6 +509,9 @@ lin_fm = (1 - expo) * cv_d;
 exp_fm = expo * cv_d;
 divmode = ext && seedstate > 1.5;
 dens = clamp(st_dens + lin_fm + (divmode ? exp_fm : 0), 0, 1);
+// FLØCK: no silent dead zone with AUTO GRAINS (latched, nothing in SEED): 12 o'clock = the slowest
+// even grains (Beads: no grains at all there)
+dens = (seedstate > 1.5 && !ext && dens >= 0.48 && dens <= 0.52) ? 0.479 : dens;
 fmr = divmode ? 1 : pow(2, exp_fm * 60 / 12);
 // gate stream: latched mode with an external SEED = the clock alone (divider), else button OR input
 // the SEED input has its own edge memory (beads.cc previous_seed, updated whenever patched);
@@ -636,11 +644,12 @@ if (slg > 0) {
 }
 
 // ---- recording buffer with freeze tail (DelayLine::Write(in, frozen))
-w = qchg ? 0 : wp;
-twp = qchg ? 0 : tail_wp;
-txf = qchg ? 0 : tail_xf;
-wfz = qchg ? 0 : was_frozen;
-nwr0 = qchg ? 0 : nwr;
+// FLØCK: a quality change keeps the recording (Beads clears it); only a head beyond the new length restarts
+w = (qchg && wp >= MAXD) ? 0 : wp;
+twp = tail_wp;
+txf = tail_xf;
+wfz = was_frozen;
+nwr0 = qchg ? MAXD + 1 : min(nwr, MAXD + 1);   // after a change everything in the buffer counts as recorded
 nwr1 = nwr0;
 if (frozen) {
 	if (wfz < 0.5) {
@@ -699,7 +708,7 @@ if (trig) {
 	pan = 0.5 + (u - 0.5) * min(0.5 * nact * spread * v, 1);
 	maxdel = MAXD - 2 * 257;
 	gdelay = rparam(st_timeh, tamt, cv_t, has_t, 1, 1) * maxdel + 257;
-	semis = rparam(st_pitch, pamt, cv_p, has_p, 24, 0);
+	semis = rparam(st_pitch + (kon > 0.5 ? knote : 0), pamt, cv_p, has_p, 24, 0);
 	speed = (rev ? -1 : 1) * pow(2, semis / 12);
 	csh = rev ? dur_k * 3 * (2 - dur_k * 3) : 1 - 1.5 * (dur_k - 0.3333333);
 	duration = pow(2, min(1, 1.025 * csh) * -9) * FS * 4;
@@ -1213,7 +1222,7 @@ tg_resetint = rint;
 tg_quant = quant;
 tg_div = ndiv;
 l2v = lv2;
-out12 = 0;
+out12 = min(nwr1, MAXD) / MAXD;   // how much of the buffer holds a recording (tape display)
 out13 = -1;
 wf_rph = wrph;
 wf_rf = wrf;

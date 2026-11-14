@@ -123,7 +123,7 @@ test("panel: knobs send their parameter, toggles toggle, SEED is momentary, doub
 test("value texts follow the engine laws (grain rate, transposition, grain length)", () => {
   const b = boot();
   b.ctx.p("density", 0.2); assert.match(b.ctx.valueText("density"), /^\d+(\.\d)? \/s even$/);
-  b.ctx.p("density", 0.5); assert.strictEqual(b.ctx.valueText("density"), "no grains");
+  b.ctx.p("density", 0.5); assert.strictEqual(b.ctx.valueText("density"), "0.64 /s even");   // FLØCK: no dead zone with AUTO GRAINS
   b.ctx.p("pitch", (5.15 / 6 + 1) / 2); assert.strictEqual(b.ctx.valueText("pitch"), "+12 st");
   b.ctx.p("size", 0.2); assert.match(b.ctx.valueText("size"), /^rev /);
 });
@@ -142,11 +142,12 @@ test("SEED gestures as on Beads: short press while latched → LATCH off (+ a gr
   assert.strictEqual(b.out.filter((m) => m[1] === "seedlatch" && m[2] === 1).length, 1, "latched once at 4 s");
 });
 
-test("SIZE ∞ marked: fully CW shows the delay mode as coming; TIME seconds follow the host sample rate", () => {
+test("SIZE fully CW shows the longest grain (no promise of an unfinished mode); TIME seconds follow the host rate and the quality", () => {
   const b = boot();
-  b.ctx.p("size", 1); assert.match(b.ctx.valueText("size"), /inf: delay v0\.3/);
+  b.ctx.p("size", 1); assert.match(b.ctx.valueText("size"), /^4(\.0)? s$/);
   b.ctx.p("time", 1); assert.strictEqual(b.ctx.valueText("time"), "-4 s");
   b.ctx.sr(44100); assert.strictEqual(b.ctx.valueText("time"), "-4.4 s");
+  b.ctx.p("quality", 3); assert.strictEqual(b.ctx.valueText("time"), "-16 s");
 });
 
 test("engine status: the panel warns when the record head stops moving (gen~ not running), not while FROZEN", () => {
@@ -229,4 +230,46 @@ test("MOD tab sequencer: click toggles a step (value kept), drag sets its value;
   const div = b.ctx.hits.find((x) => x.name === "sq_div"); b.out.length = 0;
   b.ctx.onclick(div.x + 5, div.y + 5, 1); b.ctx.ondrag(div.x + 5, div.y - 20, 0);
   const dv = b.out.pop(); assert.strictEqual(dv[1], "sq_div"); assert.ok(Number.isInteger(dv[2]) && dv[2] >= 0 && dv[2] <= 14);
+});
+
+test("v0.5 panel: MIDI keys, one randomizer with BACK, SLICE, DEPTH labels, level / fill messages", () => {
+  const b = boot(); b.draw();
+  // a key: AUTO GRAINS off, keys on, note relative to C3, held; release: not held
+  b.out.length = 0; b.ctx.p("seedlatch", 1);
+  b.ctx.note(67, 100);
+  const sent = b.out.map((m) => m.slice(1).join(" "));
+  assert.ok(sent.includes("seedlatch 0") && sent.includes("kon 1") && sent.includes("knote 7") && sent.includes("ktrig 1"), sent.join(", "));
+  b.ctx.note(72, 90); b.out.length = 0; b.ctx.note(72, 0);
+  assert.deepStrictEqual(b.out.map((m) => m.slice(1).join(" ")).filter((x) => /^k/.test(x)), ["kon 1", "knote 7", "ktrig 1"], "back to the held key");
+  b.out.length = 0; b.ctx.note(67, 0);
+  assert.deepStrictEqual(b.out.map((m) => m.slice(1).join(" ")), ["ktrig 0"]);
+  // DICE modes: SOUND / MOD / ALL; BACK undoes a RANDOM patch too
+  const before = JSON.stringify(b.ctx.snapshot());
+  b.ctx.diceMode = 1; vm.runInContext("diceMode = 1", b.ctx);
+  b.ctx.diceButton();
+  b.out.forEach((m) => { if (m[1] && b.ctx.P[m[1]]) b.ctx.p(m[1], m[2]); });
+  b.ctx.back(); b.out.forEach((m) => { if (m[1] && b.ctx.P[m[1]]) b.ctx.p(m[1], m[2]); });
+  assert.strictEqual(JSON.stringify(b.ctx.snapshot()), before, "BACK after a random patch");
+  // SLICE: SEQ into TRIGGER and TIME, AUTO GRAINS off
+  b.out.length = 0; b.ctx.slice();
+  const sl = Object.fromEntries(b.out.map((m) => [m[1], m[2]]));
+  assert.ok(sl.dst_seed === 6 && sl.dst_time === 6 && sl.seedlatch === 0, JSON.stringify(sl));
+  // display messages and the MOD page labels
+  b.ctx.level(0.5, 1.2); b.ctx.fill(0.3); b.draw();
+  b.ctx.p("time", 0.6); b.draw();
+  assert.ok(b.mg.svg().includes("recording..."), "TIME beyond what is recorded yet");
+  vm.runInContext('tab = "MOD"', b.ctx); b.draw();
+  const svg = b.mg.svg();
+  assert.ok(svg.includes(">DEPTH<") && svg.includes(">SLICE<") && svg.includes(">Trigger<"));
+});
+
+test("FLØCK Keys: a MIDI effect device that sends its notes to FLØCK (and passes MIDI through)", () => {
+  const dir = path.join(ROOT, "dist", "FLOCK"), f = fs.readdirSync(dir).find((x) => x.startsWith("FLOCK_Keys_"));
+  const buf = fs.readFileSync(path.join(dir, f));
+  assert.strictEqual(buf.slice(8, 12).toString(), "mmmm", "MIDI effect");
+  const i = buf.indexOf("ptch"), n = buf.readUInt32LE(i + 4);
+  const pj = JSON.parse(buf.slice(i + 8, i + 8 + n).toString("utf8").replace(/\n\0$/, "")).patcher;
+  const t = pj.boxes.map((x) => x.box.text);
+  assert.ok(t.includes("midiin") && t.includes("midiparse") && t.includes("send flock_keys") && t.includes("midiout"));
+  assert.ok(boxes.some((x) => x.text === "receive flock_keys") && boxes.some((x) => x.text === "route agc_restart ktrig knote kon"));
 });

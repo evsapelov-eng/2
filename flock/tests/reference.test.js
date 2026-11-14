@@ -56,6 +56,7 @@ const CASES = [
   ["TIME turned slowly in small steps (pot low-pass + 0.001 hysteresis)", [{ sec: 0.5, knobs: { density: 0.05, time: 0.05, size: 0.5, drywet: 1 } }, { sec: 0.3, knobs: { time: 0.0512 } }, { sec: 0.3, knobs: { time: 0.0505 } }, { sec: 0.3, knobs: { time: 0.0531 } }, { sec: 0.3, knobs: { time: 0.0524 } }]],
   ["R5 AUTO gain on a quiet, swelling source (learning, then slow tracking)", [{ sec: 3, knobs: { agc: 1, density: 0.1, time: 0.05, size: 0.6, drywet: 0.6 } }, { sec: 4, knobs: {} }]],
   ["R5 manual gain ×3 with clipping at ±1", { agc: 0, ingain: 3, density: 0.1, time: 0.05, drywet: 0.6 }],
+  ["MIDI keys (FLØCK Keys): a held key fires grains, +7 st from the note", { seedlatch: 0, ktrig: 1, kon: 1, knote: 7, density: 0.2, time: 0.05, drywet: 1 }],
   ["knobs moving between phases (interpolators)", [{ sec: 0.7, knobs: { density: 0.1, time: 0.05, drywet: 0.3, reverb: 0.1 } }, { sec: 0.7, knobs: { drywet: 0.9, reverb: 0.7, feedback: 0.5, pitch: 0.7 } }, { sec: 0.7, knobs: { drywet: 0.2, reverb: 0.3, feedback: 0 } }]],
 ];
 for (const [name, k] of CASES) {

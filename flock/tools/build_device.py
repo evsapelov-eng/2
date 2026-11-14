@@ -107,16 +107,16 @@ PARAMS = [
     ("pitch", "Pitch", "Pitch", 0, 1, 0.5, 1, "dial"),
     ("size", "Size", "Size", 0, 1, 0.6, 1, "dial"),
     ("shape", "Shape", "Shape", 0, 1, 0.6, 1, "dial"),
-    ("time_amt", "Time Random", "T Rnd", 0, 1, 0.75, 1, "dial"),
-    ("pitch_amt", "Pitch Random", "P Rnd", 0, 1, 0.5, 1, "dial"),
-    ("size_amt", "Size Random", "S Rnd", 0, 1, 0.5, 1, "dial"),
-    ("shape_amt", "Shape Random", "Sh Rnd", 0, 1, 0.5, 1, "dial"),
+    ("time_amt", "Time Spread", "T Spread", 0, 1, 0.75, 1, "dial"),
+    ("pitch_amt", "Pitch Spread", "P Spread", 0, 1, 0.5, 1, "dial"),
+    ("size_amt", "Size Spread", "S Spread", 0, 1, 0.5, 1, "dial"),
+    ("shape_amt", "Shape Spread", "Sh Spread", 0, 1, 0.5, 1, "dial"),
     ("feedback", "Feedback", "Feedback", 0, 1, 0.1, 1, "dial"),
     ("drywet", "Dry/Wet", "Dry/Wet", 0, 1, 0.7, 1, "dial"),
     ("reverb", "Reverb", "Reverb", 0, 1, 0.35, 1, "dial"),
     ("freeze", "Freeze", "Freeze", 0, 1, 0, 0, "toggle"),
-    ("seed", "Seed", "Seed", 0, 1, 0, 0, "toggle"),
-    ("seedlatch", "Latch", "Latch", 0, 1, 1, 0, "toggle"),
+    ("seed", "Trigger", "Trigger", 0, 1, 0, 0, "toggle"),
+    ("seedlatch", "Auto Grains", "AutoGrains", 0, 1, 1, 0, "toggle"),
     ("input", "Input Gain", "Input", -12, 32, 0, 4, "dial"),
     ("output", "Output Gain", "Output", -24, 12, 0, 4, "dial"),
     ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 0, 0, "toggle"),
@@ -124,21 +124,21 @@ PARAMS = [
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]
 DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"]
-for d, lab in [("freeze", "Freeze"), ("seed", "Seed"), ("time", "Time"), ("pitch", "Pitch"), ("size", "Size"), ("shape", "Shape"),
+for d, lab in [("freeze", "Freeze"), ("seed", "Trigger"), ("time", "Time"), ("pitch", "Pitch"), ("size", "Size"), ("shape", "Shape"),
                ("density", "Density"), ("feedback", "Feedback"), ("reverb", "Reverb"), ("drywet", "Dry/Wet")]:
-    PARAMS.append(("dst_" + d, "Mod > " + lab, "M " + lab, 0, 6, 0, 0, ("enum", SOURCES)))
+    PARAMS.append(("dst_" + d, "Mod Source " + lab, "Src " + lab, 0, 6, 0, 0, ("enum", SOURCES)))
 PARAMS += [
-    ("fb_amt", "Mod Feedback Amount", "M FB Amt", 0, 1, 1, 1, "dial"),
-    ("dw_amt", "Mod Dry/Wet Amount", "M DW Amt", 0, 1, 1, 1, "dial"),
-    ("rv_amt", "Mod Reverb Amount", "M Rv Amt", 0, 1, 1, 1, "dial"),
-    ("dn_amt", "Mod Density Amount", "M Dn Amt", 0, 1, 0.5, 1, "dial"),
+    ("fb_amt", "Mod Depth Feedback", "Depth FB", 0, 1, 1, 1, "dial"),
+    ("dw_amt", "Mod Depth Dry/Wet", "Depth DW", 0, 1, 1, 1, "dial"),
+    ("rv_amt", "Mod Depth Reverb", "Depth Rev", 0, 1, 1, 1, "dial"),
+    ("dn_amt", "Mod Depth Density", "Depth Dens", 0, 1, 0.5, 1, "dial"),
 ]
 for i, (rate, shp) in enumerate([(0.4, 0), (0.25, 1)]):
     n = str(i + 1)
     PARAMS += [
         ("l%s_rate" % n, "LFO %s Rate" % n, "LFO%s Rate" % n, 0, 1, rate, 1, "dial"),
         ("l%s_sync" % n, "LFO %s Sync" % n, "LFO%s Sync" % n, 0, 1, 0, 0, "toggle"),
-        ("l%s_shape" % n, "LFO %s Shape" % n, "LFO%s Shp" % n, 0, 3, shp, 0, ("enum", ["sine", "tri", "saw", "square"])),
+        ("l%s_shape" % n, "LFO %s Shape" % n, "LFO%s Shape" % n, 0, 3, shp, 0, ("enum", ["sine", "tri", "saw", "square"])),
         ("l%s_reset" % n, "LFO %s Reset" % n, "LFO%s R" % n, 0, 1, 0, 0, "toggle"),
         ("l%s_amt" % n, "LFO %s Amount" % n, "LFO%s Amt" % n, 0, 1, 1, 1, "dial"),
     ]
@@ -321,13 +321,17 @@ def build():
     rt = P.obj("route " + " ".join(names), 2, len(names) + 1, x=400, y=80, w=700)
     P.connect(ui, 0, rt, 0)
     # messages that are not Live parameters (LEARN = restart the auto gain) go straight to gen~
-    rt2 = P.obj("route agc_restart", 2, 2, x=1200, y=110, w=140)
+    rt2 = P.obj("route agc_restart ktrig knote kon", 5, 5, x=1200, y=110, w=240)
     P.connect(rt, len(names), rt2, 0)
-    plearn = P.obj("prepend agc_restart", 1, 1, x=1200, y=140, w=140)
-    P.connect(rt2, 0, plearn, 0); P.connect(plearn, 0, gen, 0)
+    for k, nm in enumerate(["agc_restart", "ktrig", "knote", "kon"]):
+        pp = P.obj("prepend " + nm, 1, 1, x=1200 + 110 * k, y=140, w=100)
+        P.connect(rt2, k, pp, 0); P.connect(pp, 0, gen, 0)
+    # MIDI keys from the FLØCK Keys device (a MIDI effect on any MIDI track): "note <pitch> <velocity>"
+    rk = P.obj("receive flock_keys", 0, 1, x=1200, y=200, w=120)
+    P.connect(rk, 0, ui, 0)
     if NATIVE:
         tp = P.obj("thispatcher", 1, 2, ["", ""], x=1200, y=170, w=90)
-        P.connect(rt2, 1, tp, 0)   # "script sendbox <name> hidden 0/1" from the panel
+        P.connect(rt2, 4, tp, 0)   # "script sendbox <name> hidden 0/1" from the panel
     for i, spec in enumerate(PARAMS):
         name = spec[0]
         x = 20 + (i % 13) * 100
@@ -376,6 +380,18 @@ def build():
     P.connect(s_g, 0, pag, 0); P.connect(s_l, 0, pag, 1)
     pagi = P.obj("prepend agcinfo", 1, 1, x=940, y=1040)
     P.connect(pag, 0, pagi, 0); P.connect(pagi, 0, ui, 0)
+    # output level meter (peaks every 50 ms) and how much of the buffer is recorded → panel
+    pkl = P.obj("peakamp~ 50", 2, 1, ["float"], x=1100, y=980)
+    pkr = P.obj("peakamp~ 50", 2, 1, ["float"], x=1200, y=980)
+    P.connect(gen, 0, pkl, 0); P.connect(gen, 1, pkr, 0)
+    plv = P.obj("pack 0. 0.", 2, 1, x=1140, y=1010)
+    P.connect(pkl, 0, plv, 0); P.connect(pkr, 0, plv, 1)
+    plev = P.obj("prepend level", 1, 1, x=1140, y=1040)
+    P.connect(plv, 0, plev, 0); P.connect(plev, 0, ui, 0)
+    sfill = P.obj("snapshot~ 100", 2, 1, ["float"], x=1300, y=980)
+    P.connect(gen, 11, sfill, 0)
+    pfill = P.obj("prepend fill", 1, 1, x=1300, y=1010)
+    P.connect(sfill, 0, pfill, 0); P.connect(pfill, 0, ui, 0)
     # sequencer position + transport state → panel (MOD tab)
     s_sq = P.obj("snapshot~ 40", 2, 1, ["float"], x=700, y=980)
     s_run = P.obj("snapshot~ 40", 2, 1, ["float"], x=800, y=980)
@@ -399,6 +415,28 @@ def amxd_bytes(patcher_json, device_type=b"aaaa"):
     payload = json.dumps(patcher_json, indent=1, ensure_ascii=False).encode("utf-8") + b"\n\x00"
     return (b"ampf" + struct.pack("<I", 4) + device_type + b"meta" + struct.pack("<I", 4) + b"\x00\x00\x00\x00" +
             b"ptch" + struct.pack("<I", len(payload)) + payload)
+
+
+def keys_device():
+    """FLØCK Keys: a tiny MIDI effect. Put it on any MIDI track: its notes play FLØCK (every FLØCK in the
+    set listens) — a held key fires grains like TRIGGER, the note transposes from C3. MIDI passes through."""
+    P = Patcher()
+    mi = P.obj("midiin", 1, 1, ["int"], x=20, y=20)
+    mp = P.obj("midiparse", 1, 8, ["", "", "", "int", "int", "", "int", ""], x=20, y=60)
+    P.connect(mi, 0, mp, 0)
+    pn = P.obj("prepend note", 1, 1, x=20, y=100)
+    P.connect(mp, 0, pn, 0)
+    sn = P.obj("send flock_keys", 1, 0, [], x=20, y=140, w=110)
+    P.connect(pn, 0, sn, 0)
+    mo = P.obj("midiout", 1, 0, [], x=200, y=60)
+    P.connect(mi, 0, mo, 0)
+    P.add({"maxclass": "comment", "text": "FLØCK KEYS", "numinlets": 1, "numoutlets": 0, "fontsize": 14.0, "fontface": 1,
+           "patching_rect": [200, 120, 120, 22], "presentation": 1, "presentation_rect": [8, 10, 124, 22]})
+    P.add({"maxclass": "comment", "text": "notes from this track play FLØCK: hold a key = grains, pitch from C3", "numinlets": 1, "numoutlets": 0,
+           "fontsize": 10.0, "linecount": 4, "patching_rect": [200, 150, 120, 60], "presentation": 1, "presentation_rect": [8, 36, 124, 64]})
+    return {"patcher": {"fileversion": 1, "appversion": {"major": 8, "minor": 6, "revision": 0, "architecture": "x64", "modernui": 1},
+                        "classnamespace": "box", "rect": [40, 40, 600, 400], "openinpresentation": 1, "devicewidth": 140.0,
+                        "boxes": P.boxes, "lines": P.lines, "autosave": 0}}
 
 
 def _param_table(p):
@@ -431,6 +469,8 @@ def package(path):
     with open(os.path.join(PKG, AMXDNAME), "wb") as f:
         f.write(amxd_bytes(pj))
     # (the native variant — Live's own controls — is built only on request: python3 tools/build_device.py --native)
+    with open(os.path.join(PKG, "FLOCK_Keys_%s.amxd" % VERSION.replace(".", "_")), "wb") as f:
+        f.write(amxd_bytes(keys_device(), device_type=b"mmmm"))
     shutil.copy(os.path.join(ROOT, "js", "flock_ui.js"), os.path.join(PKG, JSNAME))
     shutil.copy(os.path.join(ROOT, "dist_README.txt"), os.path.join(PKG, "README_FIRST.txt"))
     shutil.copy(os.path.join(ROOT, "LICENSE-BEADS.txt"), os.path.join(PKG, "LICENSE-BEADS.txt"))

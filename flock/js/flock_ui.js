@@ -40,7 +40,7 @@ var SRC = ["LFO 1", "LFO 2", "RANDOM", "ENV", "CLOCK", "SEQ"];
 var SRC_LIGHT = [[0.17, 0.30, 0.61, 1], [0.13, 0.52, 0.50, 1], [0.76, 0.22, 0.38, 1], [0.84, 0.55, 0.13, 1], [0.35, 0.35, 0.33, 1], [0.45, 0.30, 0.62, 1]];
 var SRC_DARK = [[0.36, 0.82, 0.84, 1], [0.55, 0.85, 0.45, 1], [0.95, 0.50, 0.66, 1], [0.98, 0.70, 0.30, 1], [0.75, 0.75, 0.75, 1], [0.70, 0.58, 0.95, 1]];
 var SRC_COL = SRC_LIGHT.slice();
-var DST = [["freeze", "Freeze"], ["seed", "Seed"], ["time", "Time"], ["pitch", "Pitch"], ["size", "Size"], ["shape", "Shape"],
+var DST = [["freeze", "Freeze"], ["seed", "Trigger"], ["time", "Time"], ["pitch", "Pitch"], ["size", "Size"], ["shape", "Shape"],
   ["density", "Density"], ["feedback", "Feedback"], ["reverb", "Reverb"], ["drywet", "Dry/Wet"]];
 var DIVS = ["8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4D", "1/2T", "1/4", "1/8D", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"];
 var SHAPES = ["sine", "tri", "saw", "square"];
@@ -58,6 +58,25 @@ var SHAPES = ["sine", "tri", "saw", "square"];
   for (i = 0; i < 16; i++) P["sq" + i] = d(SQ[i], { lo: -1, hi: 1 });
 })();
 var tab = "SOUND", maxCables = 3, seqPos = -1, running = 0;
+// DICE: what it changes; MIDI keys (FLØCK Keys device): held notes, last one wins
+var DICE_MODES = ["SOUND", "MOD", "ALL"], diceMode = 0;
+var keyStack = [], keyNote = null, keyHeld = false;
+function noteName(n) { var nm = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]; return nm[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 2); }
+// "note <pitch> <velocity>" from [receive flock_keys]: a key held = grains (like holding TRIGGER),
+// the note transposes from C3; the first note turns AUTO GRAINS off so the keys are heard
+function note(pitch, vel) {
+  pitch = +pitch; vel = +vel;
+  var i = keyStack.indexOf(pitch);
+  if (i >= 0) keyStack.splice(i, 1);
+  if (vel > 0) keyStack.push(pitch);
+  if (keyStack.length) {
+    if (P.seedlatch.v > 0.5) send("seedlatch", 0);
+    keyNote = keyStack[keyStack.length - 1];
+    outlet(0, "kon", 1); outlet(0, "knote", keyNote - 60); outlet(0, "ktrig", 1);
+    keyHeld = true;
+  } else { outlet(0, "ktrig", 0); keyHeld = false; }
+  dirty = true;
+}
 var agcGain = 1, agcLearning = 0, learnCount = 0;
 function agcinfo(g, l) { agcGain = +g; agcLearning = +l; dirty = true; }   // from the engine
 function seq(stepIndex, run) { seqPos = +stepIndex; running = +run; dirty = true; }   // from the engine
@@ -132,14 +151,14 @@ function valueText(name) {
   if (name === "density") {
     if (v < 0.48) return (Math.round(130.81278 * Math.pow(2, -v * 16) * 10) / 10) + " /s even";
     if (v > 0.52) return "~" + (Math.round(0.5 * 130.81278 * Math.pow(2, -(1 - v) * 16) * 10) / 10) + " /s random";
-    return P.seedlatch.v > 0.5 ? "no grains" : "1 per SEED";
+    return P.seedlatch.v > 0.5 ? (Math.round(130.81278 * Math.pow(2, -0.479 * 16) * 100) / 100) + " /s even" : "1 per TRIGGER";
   }
   if (name === "pitch") { var st = detune(v); return (st > 0 ? "+" : "") + (Math.round(st * 10) / 10) + " st"; }
-  if (name === "size") return v > 0.99 ? "inf: delay v0.3" : (v < 0.3333333 ? "rev " : "") + fmtMs(grainMs(v));
+  if (name === "size") return (v < 0.3333333 ? "rev " : "") + fmtMs(grainMs(v));
   if (name === "shape") return v < 0.12 ? "square" : v < 0.3 ? "hold+decay" : v < 0.45 ? "decay" : v < 0.6 ? "smooth" : v < 0.85 ? "bell" : "slow attack";
   if (/^(time|pitch|size|shape)_amt$/.test(name)) {
     var a = attenu(v), routed = P["dst_" + name.split("_")[0]].v > 0.5;
-    if (Math.abs(a) < 0.005) return "0";
+    if (Math.abs(a) < 0.005) return "off";
     // with a cable (Beads, CV patched): CW = amount of the CV, CCW = CV-controlled randomness
     if (routed) return (a < 0 ? "CV rnd " : "CV x") + pct(Math.abs(a));
     return (a < 0 ? "peaky " : "even ") + pct(Math.abs(a));
@@ -210,7 +229,7 @@ function showNative() {
   for (var i = 0; i < NATIVE_OBJECTS.length; i++) outlet(0, "script", "sendbox", NATIVE_OBJECTS[i], "hidden", tab === "MOD" ? 1 : 0);
 }
 function native(v) { NATIVE = +v > 0.5; if (NATIVE) style("ableton"); showNative(); dirty = true; }
-function nextStyle() { if (!NATIVE) style(STYLE === "ableton" ? "live" : STYLE === "live" ? "toon" : "ableton"); }
+function nextStyle() { }   // one look now (Ableton); the other styles stay in the code
 // cel shading: base colour with a hard shadow crescent (bottom-right) and a bold outline
 function celCircle(cx, cy, r, base, shade, ow) {
   circle(cx, cy, r, shade, true);
@@ -413,73 +432,86 @@ function paint() {
     rect(3, 3, W0 - 6, H0 - 6, C.line, false, 1);
     rect(4, 4, W0 - 8, H0 - 8, [1, 1, 1, 1], false, 1, 0.55);
   }   // engraved edge: dark line + light line
-  // ---- left: logo, FREEZE / SEED, LATCH
+  // ---- left: logo, tabs, FREEZE / TRIGGER, AUTO GRAINS, DICE
   drawLogo(14, 30, 22);
-  hit({ x: 10, y: 8, w: 130, h: 26, kind: "style", name: "style" });
-  text("granular texture", 15, 42, 7, C.mid);
   for (var ti = 0; ti < 2; ti++) {
     var tn = ti ? "MOD" : "SOUND", tx0 = 14 + ti * 64, on = tab === tn;
-    var tabFill = STYLE === "ableton" ? C.line : C.ink;
-    rect(tx0, 49, 60, 13, tabFill, on, 1);
-    textC(tn, tx0 + 30, 59, 7, on ? (STYLE === "ableton" ? C.ink : C.panel) : C.ink, true);
-    hit({ x: tx0, y: 49, w: 60, h: 13, kind: "tab", name: "tab_" + tn, tab: tn });
+    rect(tx0, 40, 60, 14, C.line, on, 1);
+    textC(tn, tx0 + 30, 51, 8, C.ink, true);
+    hit({ x: tx0, y: 40, w: 60, h: 14, kind: "tab", name: "tab_" + tn, tab: tn });
   }
   if (NATIVE) { paintNativeLeft(); line(152, 12, 152, H0 - 12, C.line); if (tab === "MOD") paintMod(); else paintNativeSound(); return; }
-  roundButton(42, 82, 15, "FREEZE", P.freeze.v > 0.5, "freeze", false);
-  roundButton(110, 82, 15, "SEED", P.seed.v > 0.5 || (P.seedlatch.v > 0.5 && pulseOn()), "seed", true);
-  var lx = 14, ly = 120;
-  rect(lx, ly, 126, 16, STYLE === "ableton" ? C.accent : C.ink, P.seedlatch.v > 0.5, 1);
-  textC(P.seedlatch.v > 0.5 ? "LATCH  ON  (continuous)" : "LATCH  OFF  (hold SEED)", lx + 63, ly + 11, 7, P.seedlatch.v > 0.5 ? C.panel : C.ink, true);
-  hit({ x: lx, y: ly, w: 126, h: 16, kind: "toggle", name: "seedlatch" });
-  rect(14, 141, 84, 17, C.accent, true);
-  textC("DICE  new sound", 56, 153, 7.5, C.panel, true);
-  hit({ x: 14, y: 141, w: 84, h: 17, kind: "dice", name: "dice" });
-  rect(102, 141, 38, 17, C.ink, false, 1, history.length ? 1 : 0.3);
-  textC("BACK", 121, 153, 7, history.length ? C.ink : C.line, true);
-  if (history.length) hit({ x: 102, y: 141, w: 38, h: 17, kind: "back", name: "back" });
+  flatButton(14, 60, 60, 24, "FREEZE", P.freeze.v > 0.5, "toggle", "freeze");
+  flatButton(80, 60, 60, 24, "TRIGGER", P.seed.v > 0.5 || keyHeld || (P.seedlatch.v > 0.5 && pulseOn()), "momentary", "seed");
+  flatButton(14, 90, 126, 16, P.seedlatch.v > 0.5 ? "AUTO GRAINS  ON" : "AUTO GRAINS  OFF", P.seedlatch.v > 0.5, "toggle", "seedlatch");
+  flatButton(14, 112, 58, 18, "DICE", false, "dice", "dice");
+  flatButton(76, 112, 64, 18, "> " + DICE_MODES[diceMode], false, "dicemode", "dicemode");
+  text(lastRecipe ? lastRecipe : "", 16, 145, 8, C.accent, true);
+  flatButton(100, 134, 40, 16, "BACK", false, history.length ? "back" : "none", "back", history.length ? 1 : 0.35);
+  if (keyNote !== null) text("KEYS " + noteName(keyNote), 16, 160, 7.5, C.accent, true);
   line(152, 12, 152, H0 - 12, C.line);
   if (tab === "MOD") { paintMod(); return; }
   // ---- big knobs
   for (var i = 0; i < BIG.length; i++) {
     var b = BIG[i], cx = KX[i];
-    textC(b[1], cx, 18, 9, C.ink, true);
+    textC(b[1], cx, 18, 9.5, C.ink, true);
     knob(cx, KY, KR, b[0], b[0] === "pitch");
-    textC(valueText(b[0]), cx, 98, 8.5, C.ink, true);
-    textC(b[2], cx, 109, 6, C.mid);
+    textC(valueText(b[0]), cx, 94, 9, C.accent, true);
+    textC(b[2], cx, 105, 7, C.mid);
     if (b[0] === "density") {
-      textC("even  <  12h  >  random", cx, 132, 6, C.mid);
-      textC("12h = off (latched)", cx, 142, 6, C.mid);
+      textC("even  <   >  random", cx, 128, 7.5, C.mid);
+      textC("12h = slowest", cx, 139, 7.5, C.mid);
     } else {
-      var an = b[0] + "_amt";
-      knob(cx, 131, 8, an, true);
-      text(P["dst_" + b[0]].v > 0.5 ? "CV" : "RND", cx + 14, 129, 6, P["dst_" + b[0]].v > 0.5 ? C.accent : C.mid, true);
-      text(valueText(an), cx + 14, 138, 6, C.ink);
+      var an = b[0] + "_amt", cv = P["dst_" + b[0]].v > 0.5;
+      knob(cx - 12, 131, 9, an, true);
+      text(cv ? "DEPTH" : "SPREAD", cx + 2, 129, 7.5, cv ? C.accent : C.mid, true);
+      text(valueText(an), cx + 2, 140, 7.5, C.ink);
     }
   }
   line(586, 12, 586, H0 - 12, C.line);
   // ---- mix
   for (var m = 0; m < MIX.length; m++) {
-    var mx = 626 + m * 66;
-    textC(MIX[m][1], mx, 18, 8, C.ink, true);
+    var mx = 622 + m * 62;
+    textC(MIX[m][1], mx, 18, 8.5, C.ink, true);
     knob(mx, 44, 15, MIX[m][0], false);
-    textC(valueText(MIX[m][0]), mx, 76, 8, C.ink, true);
+    textC(valueText(MIX[m][0]), mx, 76, 8.5, C.accent, true);
   }
-  gainBox(812, 18, "input", "IN");
-  pill(836, 37, 26, "AUTO", P.agc.v > 0.5, "toggle", "agc");
-  pill(864, 37, 30, agcLearning ? "..." : "LEARN", agcLearning > 0, "cmd", "learn");
-  gainBox(812, 58, "output", "OUT");
-  // ---- recording quality (MEDIA): held while FREEZE is on, like the module
+  // IN / OUT as knobs, AUTO, output level
+  textC("IN", 818, 18, 8.5, C.ink, true); knob(818, 40, 10, "input", false); textC(valueText("input"), 818, 62, 7.5, C.accent, true);
+  textC("OUT", 858, 18, 8.5, C.ink, true); knob(858, 40, 10, "output", false); textC(valueText("output"), 858, 62, 7.5, C.accent, true);
+  pill(800, 67, 36, "AUTO", P.agc.v > 0.5, "toggle", "agc");
+  meter(884, 12, 66);
+  // ---- recording quality: held while FREEZE is on, like the module
   var qx = 598, qw = [56, 72, 66, 84], qz = P.freeze.v > 0.5;
   for (var qq = 0; qq < 4; qq++) {
     var qon = Math.round(P.quality.v) === qq;
-    rect(qx, 86, qw[qq], 12, qon ? C.accent : C.ink, qon, 1, qz && !qon ? 0.35 : 1);
-    textC(QUAL[qq][0], qx + qw[qq] / 2, 95, 6.5, qon ? C.panel : (qz ? C.line : C.ink), true);
-    hit({ x: qx, y: 86, w: qw[qq], h: 12, kind: "quality", name: "quality_" + qq, val: qq });
+    rect(qx, 84, qw[qq], 14, qon ? C.accent : C.line, qon, 1, qz && !qon ? 0.35 : 1);
+    textC(QUAL[qq][0], qx + qw[qq] / 2, 94.5, 7.5, qon ? C.bg : (qz ? C.line : C.ink), true);
+    hit({ x: qx, y: 84, w: qw[qq], h: 14, kind: "quality", name: "quality_" + qq, val: qq });
     qx += qw[qq] + 4;
   }
-  // ---- tape: record head + where the grains start
-  drawTape(598, 102, 290, 46);
-  text(hoverHelp(), 160, 162, 6.5, hover ? C.ink : C.mid, !!hover);
+  // ---- tape
+  drawTape(598, 102, 290, 48);
+  fitHelp(160, 163, 420);
+}
+// flat button like Live's toggles: label inside, lit when on
+function flatButton(x, y, w, h, label, on, kind, name, alpha) {
+  rect(x, y, w, h, on ? C.accent : C.panel, true, 1, alpha);
+  rect(x, y, w, h, on ? C.accent : C.line, false, 1, alpha);
+  textC(label, x + w / 2, y + h / 2 + 3.5, h >= 20 ? 9 : 8, on ? C.bg : C.ink, true);
+  if (kind !== "none") hit({ x: x, y: y, w: w, h: h, kind: kind, name: name });
+}
+// output level (from the patch: "level <L> <R>", peak, 0..1)
+var levL = 0, levR = 0;
+function level(l, r) { levL = +l; levR = +r; dirty = true; }
+function meter(x, y, h) {
+  var db = function (v) { var d = 20 * Math.log(Math.max(v, 1e-6)) / Math.LN10; return Math.max(0, Math.min(1, (d + 48) / 48)); };
+  var ls = [levL, levR];
+  for (var c = 0; c < 2; c++) {
+    var mx = x + c * 4, f = db(ls[c]);
+    rect(mx, y, 3, h, C.line, true);
+    rect(mx, y + h * (1 - f), 3, h * f, ls[c] > 0.98 ? PINK : C.accent, true);
+  }
 }
 // ================= NATIVE device: what the panel still draws =================
 // (positions of Live's objects: tools/build_device.py NATIVE_LAYOUT — keep in step)
@@ -547,14 +579,15 @@ function smallKnob(cx, cy, name) {
 }
 // thin horizontal amount bar (FEEDBACK / DRY-WET / REVERB CV amounts next to their jacks)
 function amountBar(x, y, w, name) {
-  rect(x, y - 3, w, 6, C.line, true);
-  rect(x, y - 3, w * P[name].v, 6, C.accent, true);
+  rect(x, y - 5, w, 10, C.line, true);
+  rect(x, y - 5, w * P[name].v, 10, C.accent, true);
+  textC(pct(P[name].v), x + w / 2, y + 3, 7, P[name].v > 0.55 ? C.bg : C.ink, true);
   hit({ x: x - 2, y: y - 6, w: w + 4, h: 12, kind: "knob", name: name });
 }
 function pill(x, y, w, label, on, kind, name, extra) {
   if (STYLE === "ableton") { rect(x, y, w, 12, on ? C.accent : C.line, on, 1); if (!on) rect(x, y, w, 12, C.bg, true, 1, 0.35); }
   else rect(x, y, w, 12, C.ink, on, 1);
-  textC(label, x + w / 2, y + 9, 6.5, on ? C.panel : C.ink, true);
+  textC(label, x + w / 2, y + 9.2, 7.5, on ? (STYLE === "ableton" ? C.bg : C.panel) : C.ink, true);
   var o = { x: x, y: y, w: w, h: 12, kind: kind, name: name };
   if (extra) for (var k in extra) o[k] = extra[k];
   hit(o);
@@ -569,35 +602,35 @@ function shapeIcon(x, y, w, h, shp) {
   mgraphics.stroke();
 }
 function paintMod() {
-  text("MODULATORS", 160, 13, 7, C.mid, true);
-  text(running ? "PLAYING (synced to Live)" : "Live stopped: synced sources wait", 260, 13, 6.5, running ? C.accent : C.mid);
+  text("MODULATORS", 160, 13, 8, C.mid, true);
+  text(running ? "PLAYING (synced to Live)" : "Live stopped: synced sources wait", 260, 13, 7.5, running ? C.accent : C.mid);
   for (var i = 0; i < 6; i++) {
     var y = srcY(i);
     text(SRC[i], 160, y + 3, 7.5, C.ink, true);
     if (i < 2) {
       var pre = "l" + (i + 1) + "_";
-      smallKnob(222, y, pre + "rate"); text(valueText(pre + "rate"), 233, y + 3, 6.5, C.ink);
+      smallKnob(222, y, pre + "rate"); text(valueText(pre + "rate"), 233, y + 3, 7.5, C.ink);
       pill(282, y - 6, 28, "SYNC", P[pre + "sync"].v > 0.5, "toggle", pre + "sync");
       rect(314, y - 6, 34, 12, C.ink, false, 1); shapeIcon(317, y - 4, 28, 8, Math.round(P[pre + "shape"].v));
       hit({ x: 314, y: y - 6, w: 34, h: 12, kind: "cycle", name: pre + "shape", n: 4 });
       pill(352, y - 6, 14, "R", P[pre + "reset"].v > 0.5, "toggle", pre + "reset");
-      smallKnob(384, y, pre + "amt"); text("AMT " + pct(P[pre + "amt"].v), 395, y + 3, 6.5, C.ink);
+      smallKnob(384, y, pre + "amt"); text("AMT " + pct(P[pre + "amt"].v), 395, y + 3, 7.5, C.ink);
     } else if (i === 2) {
-      smallKnob(222, y, "rn_rate"); text(valueText("rn_rate"), 233, y + 3, 6.5, C.ink);
+      smallKnob(222, y, "rn_rate"); text(valueText("rn_rate"), 233, y + 3, 7.5, C.ink);
       pill(282, y - 6, 28, "SYNC", P.rn_sync.v > 0.5, "toggle", "rn_sync");
       pill(314, y - 6, 42, P.rn_smooth.v > 0.5 ? "SMOOTH" : "STEPS", P.rn_smooth.v > 0.5, "toggle", "rn_smooth");
-      smallKnob(384, y, "rn_amt"); text("AMT " + pct(P.rn_amt.v), 395, y + 3, 6.5, C.ink);
+      smallKnob(384, y, "rn_amt"); text("AMT " + pct(P.rn_amt.v), 395, y + 3, 7.5, C.ink);
     } else if (i === 3) {
-      smallKnob(222, y, "env_gain"); text("GAIN " + valueText("env_gain"), 233, y + 3, 6.5, C.ink);
-      text("follows the input level", 300, y + 3, 6.5, C.mid);
+      smallKnob(222, y, "env_gain"); text("GAIN " + valueText("env_gain"), 233, y + 3, 7.5, C.ink);
+      text("follows the input level", 300, y + 3, 7.5, C.mid);
     } else if (i === 4) {
-      smallKnob(222, y, "ck_rate"); text(valueText("ck_rate"), 233, y + 3, 6.5, C.ink);
+      smallKnob(222, y, "ck_rate"); text(valueText("ck_rate"), 233, y + 3, 7.5, C.ink);
       pill(282, y - 6, 28, "SYNC", P.ck_sync.v > 0.5, "toggle", "ck_sync");
-      text("pulses -> SEED: LATCH on = DENSITY divides / thins them", 316, y + 3, 6, C.mid);
+      text("pulses -> TRIGGER (AUTO GRAINS on: DENSITY divides / thins)", 316, y + 3, 7, C.mid);
     } else {
-      rect(202, y - 7, 34, 14, C.ink, false, 1); textC(valueText("sq_div"), 219, y + 3, 6.5, C.ink, true);
+      rect(202, y - 7, 34, 14, C.ink, false, 1); textC(valueText("sq_div"), 219, y + 3, 7.5, C.ink, true);
       hit({ x: 202, y: y - 7, w: 34, h: 14, kind: "knob", name: "sq_div" });
-      rect(240, y - 7, 22, 14, C.ink, false, 1); textC(valueText("sq_len"), 251, y + 3, 6.5, C.ink, true);
+      rect(240, y - 7, 22, 14, C.ink, false, 1); textC(valueText("sq_len"), 251, y + 3, 7.5, C.ink, true);
       hit({ x: 240, y: y - 7, w: 22, h: 14, kind: "knob", name: "sq_len" });
       drawSeq(268, y - 10, 290, 20);
     }
@@ -609,23 +642,25 @@ function paintMod() {
   for (var j = 0; j < DST.length; j++) {
     var dy = dstY(j), dn = "dst_" + DST[j][0], si = Math.round(P[dn].v);
     jack(JD_X, dy, si ? SRC_COL[si - 1] : null, !!si);
-    text(DST[j][1], 800, dy + 3, 7, C.ink, si > 0);
+    text(DST[j][1], 800, dy + 3, 7.5, C.ink, si > 0);
     hit({ x: JD_X - 8, y: dy - 7, w: 60, h: 14, kind: "jack_dst", name: dn, dst: j });
     var an = { feedback: "fb_amt", drywet: "dw_amt", reverb: "rv_amt", density: "dn_amt" }[DST[j][0]];
-    if (an) amountBar(852, dy, 30, an);
+    if (an) amountBar(852, dy, 36, an);
   }
+  text("DEPTH", 852, dstY(6) - 8, 7, C.mid, true);
   // cables (drawn last, on top)
   for (var k = 0; k < DST.length; k++) {
     var s2 = Math.round(P["dst_" + DST[k][0]].v);
     if (s2 > 0) cable(JS_X, srcY(s2 - 1), JD_X, dstY(k), SRC_COL[s2 - 1], 1);
   }
   if (drag && drag.kind === "cable") cable(drag.x0, drag.y0, drag.x, drag.y, drag.src ? SRC_COL[drag.src - 1] : C.ink, 0.6);
-  // RANDOM patch / MAX / CLEAR
-  pill(596, 152, 56, "RANDOM", false, "cmd", "random");
-  rect(656, 152, 40, 12, C.ink, false, 1); textC("MAX " + maxCables, 676, 161, 6.5, C.ink, true);
-  hit({ x: 656, y: 152, w: 40, h: 12, kind: "max", name: "maxcables" });
-  pill(700, 152, 50, "CLEAR", false, "cmd", "clear");
-  fitHelp(160, 162, 420);
+  // SLICE / RANDOM patch / MAX / CLEAR
+  pill(560, 151, 44, "SLICE", false, "cmd", "slice");
+  pill(608, 151, 56, "RANDOM", false, "cmd", "random");
+  rect(668, 151, 40, 12, C.line, false, 1); textC("MAX " + maxCables, 688, 160.2, 7.5, C.ink, true);
+  hit({ x: 668, y: 151, w: 40, h: 12, kind: "max", name: "maxcables" });
+  pill(712, 151, 50, "CLEAR", false, "cmd", "clear");
+  fitHelp(160, 163, 390);
 }
 function cable(x1, y1, x2, y2, c, a) {
   col(c, a); mgraphics.set_line_width(2);
@@ -646,7 +681,7 @@ function drawSeq(x, y, w, h) {
   }
 }
 function fitHelp(x, y, w) {
-  var s = hoverHelp(), fs = 6.5;
+  var s = hoverHelp(), fs = 7.5;
   while (tw(s, fs, !!hover) > w && s.length > 8) s = s.substring(0, s.length - 2);
   text(s, x, y, fs, hover ? C.ink : C.mid, !!hover);
 }
@@ -682,6 +717,20 @@ var RECIPES = {
   DRONE: function () { return { density: rr(0.02, 0.07), size: rr(0.78, 0.88), shape: rr(0.55, 0.7), time: rr(0.2, 0.6), time_amt: rr(0.6, 0.75), pitch: pitchKnob(pickOne([0, -12, -12, 7])), pitch_amt: rr(0.5, 0.55), feedback: rr(0.2, 0.45), reverb: rr(0.55, 0.8), drywet: rr(0.85, 1) }; },
   WOBBLE: function () { return { density: rr(0.08, 0.15), size: rr(0.55, 0.65), shape: rr(0.55, 0.7), time: rr(0.05, 0.3), time_amt: 0.75, dst_pitch: 1, l1_sync: 1, l1_rate: pickOne([2, 3, 4]) / 14, l1_shape: pickOne([0, 1]), pitch_amt: CV_AMOUNT.pitch, dst_size: 3, size_amt: CV_AMOUNT.size, rn_rate: rr(0.4, 0.6), reverb: rr(0.3, 0.5), drywet: rr(0.8, 0.95) }; }
 };
+// one randomizer: SOUND = a recipe, MOD = a random patch, ALL = both; BACK undoes any of them
+function diceButton() {
+  if (diceMode === 0) dice();
+  else if (diceMode === 1) { randomPatch(); lastRecipe = "RANDOM PATCH"; }
+  else { dice(); randomPatch(true); lastRecipe += " + PATCH"; }
+  dirty = true;
+}
+// SLICE: one click = the sequencer cuts the recording into rhythmic slices (SEQ -> TRIGGER and TIME)
+function slice() {
+  history.push(snapshot()); if (history.length > 16) history.shift();
+  var o = RECIPES.SLICER();
+  for (var k in o) send(k, Math.round(o[k] * 1000) / 1000);
+  lastRecipe = "SLICE"; dirty = true;
+}
 var RECIPE_NAMES = []; (function () { for (var k in RECIPES) RECIPE_NAMES.push(k); })();
 var lastRecipe = "";
 function dice(name) {
@@ -716,7 +765,8 @@ function patchCable(dst, src) {
 // RANDOM: musical rules — rhythm (CLOCK / SEQ) is the only thing that goes into SEED (and then LATCH
 // off, DENSITY 12h: one grain per pulse); FREEZE is never patched at random; continuous sources go
 // to TIME / PITCH / SIZE / SHAPE (with a working CV amount), DENSITY (limited depth) and the mix.
-function randomPatch() {
+function randomPatch(noHistory) {
+  if (!noHistory) { history.push(snapshot()); if (history.length > 16) history.shift(); }
   var i, n = 1 + Math.floor(Math.random() * maxCables), dests = ["time", "pitch", "size", "shape", "density", "feedback", "reverb", "drywet", "seed"];
   for (i = 0; i < DST.length; i++) send("dst_" + DST[i][0], 0);
   ensureGrains(0);   // a fresh patch starts from running grains; SEED (if chosen below) changes that
@@ -749,47 +799,64 @@ function gainBox(x, y, name, label) {
   hit({ x: x + 24, y: y, w: 58, h: 16, kind: "knob", name: name });
 }
 function drawTape(x, y, w, h) {
-  rect(x, y, w, h, C.panel, true);
+  rect(x, y, w, h, C.bg, true);
   rect(x, y, w, h, C.line, false, 1);
-  text("TAPE  (now  >  " + bufSeconds() + " s ago)   grains " + tapeSt.active + " / 32", x + 4, y + 10, 6, C.mid, true);
+  var secs = bufSeconds();
+  text("TAPE   now  <  " + secs + " s ago      grains " + tapeSt.active + " / 32", x + 4, y + 10, 7, C.mid, true);
+  if (tapeFill < 0.999 && P.time.v > tapeFill + 0.02) text("recording...", x + w - 58, y + 10, 7, PINK, true);
+  // second marks under the tape area
+  var step = secs > 9 ? 4 : secs > 5 ? 2 : 1;
+  for (var t = step; t < secs; t += step) {
+    var sx = x + 2 + t / secs * (w - 6);
+    line(sx, y + h - 6, sx, y + h - 2, C.mid, 1, 0.6);
+    text(t + "s", sx + 1.5, y + h - 2.5, 7, C.mid);
+  }
   // record head at the left edge: "now"; older material to the right
-  line(x + 2, y + 14, x + 2, y + h - 3, C.accent, 2);
-  if (P.freeze.v > 0.5) textC("FROZEN", x + w / 2, y + h - 6, 7, C.accent, true);
+  line(x + 2, y + 13, x + 2, y + h - 3, C.accent, 2);
+  // not recorded yet (after loading): the grains there play silence
+  if (tapeFill < 0.999) {
+    var fx = x + 2 + tapeFill * (w - 6);
+    rect(fx, y + 13, x + w - 2 - fx, h - 16, C.panel, true);
+  }
+  if (P.freeze.v > 0.5) textC("FROZEN", x + w / 2, y + h - 12, 8, C.accent, true);
   if (engineStopped()) {
-    rect(x + 1, y + 14, w - 2, h - 15, C.ink, true, 1, 0.85);
-    textC("ENGINE NOT RUNNING", x + w / 2, y + 30, 8, C.panel, true);
-    textC("Live audio off, or a gen~ error - see Max Console", x + w / 2, y + 44, 6.5, C.panel);
+    rect(x + 1, y + 13, w - 2, h - 14, C.ink, true, 1, 0.85);
+    textC("ENGINE NOT RUNNING", x + w / 2, y + 28, 8.5, C.bg, true);
+    textC("Live audio off, or a gen~ error - see Max Console", x + w / 2, y + 41, 7, C.bg);
   }
   // TIME window
   var tx = x + 2 + P.time.v * (w - 6);
-  line(tx, y + 14, tx, y + h - 3, C.ink, 1, 0.5);
+  line(tx, y + 13, tx, y + h - 8, C.ink, 1, 0.5);
+  // grains: higher = pitched up, pink = reversed
   for (var i = 0; i < grains.length; i++) {
-    var g = grains[i], gx = x + 2 + g.pos * (w - 6), gy = y + h / 2 + 6 - Math.max(-10, Math.min(10, Math.log(Math.abs(g.spd) || 1) / Math.LN2 * 5));
-    circle(gx, gy, 3 + g.age * 0.15, g.spd < 0 ? C.ink : C.accent, true, 1, Math.max(0, 1 - g.age / 24));
+    var g = grains[i], gx = x + 2 + g.pos * (w - 6), gy = y + h / 2 + 3 - Math.max(-9, Math.min(9, Math.log(Math.abs(g.spd) || 1) / Math.LN2 * 4.5));
+    circle(gx, gy, 3 + g.age * 0.15, g.spd < 0 ? PINK : C.accent, true, 1, Math.max(0, 1 - g.age / 24));
   }
 }
+var tapeFill = 1;
+function fill(v) { tapeFill = +v; dirty = true; }
 var HELP = {
   time: "TIME: where the grains start in the recorded buffer - fresh (left) to old (right)",
-  density: "DENSITY: grain rate - CCW even, CW random; 12 o'clock = none (latched) / 1 per SEED",
+  density: "DENSITY: grain rate - CCW even, CW random; 12 o'clock = slowest grains (AUTO GRAINS) / 1 grain per TRIGGER",
   pitch: "PITCH: transposition +-24 st with notches at 1, 3, 4, 7, 12, 24",
-  size: "SIZE: grain length - CCW reversed grains, CW longer up to 4 s; fully CW = delay mode (coming in v0.3)",
+  size: "SIZE: grain length - CCW reversed grains, CW longer (up to 4 s)",
   shape: "SHAPE: grain envelope - square (CCW) > decay > bell > slow attack (CW)",
-  time_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
-  pitch_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
-  size_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
-  shape_amt: "RND: CW even spread inside a window - CCW mostly close, sometimes far (peaky)",
+  time_amt: "SPREAD: random variation per grain - CW even, CCW mostly close, sometimes far. With a cable: DEPTH of the modulation",
+  pitch_amt: "SPREAD: random variation per grain - CW even, CCW mostly close, sometimes far. With a cable: DEPTH of the modulation",
+  size_amt: "SPREAD: random variation per grain - CW even, CCW mostly close, sometimes far. With a cable: DEPTH of the modulation",
+  shape_amt: "SPREAD: random variation per grain - CW even, CCW mostly close, sometimes far. With a cable: DEPTH of the modulation",
   feedback: "FEEDBACK: output fed back into the recording (limited)",
   drywet: "DRY/WET: input vs grains",
   reverb: "REVERB: amount and length of the reverb",
-  input: "IN: input gain - AUTO or drag for manual (the grains record what they hear)",
+  input: "IN: input gain (drag) - or AUTO",
   output: "OUT: output gain",
   freeze: "FREEZE: stop recording - the grains keep playing what is in the buffer",
-  seed: "SEED: hold = grains (LATCH off) · tap = 1 grain at 12h · tap while latched = LATCH off · hold 4 s = LATCH on",
-  seedlatch: "LATCH: grains are generated continuously at the DENSITY rate",
-  dice: "DICE: a new sound from a recipe (cloud, shimmer, reverse swells, stutter, slicer, rain, drone, wobble)",
-  back: "BACK: the sound before the last DICE",
-  agc: "AUTO: the engine hears a level-matched input (up to +32 dB, like the original); the output comes back to the input level",
-  learn: "LEARN: learn the input level again (play the source)", dn_amt: "DENSITY CV amount",
+  seed: "TRIGGER: hold = grains · tap at 12h = one grain · tap with AUTO GRAINS = off · hold 4 s = AUTO GRAINS on",
+  seedlatch: "AUTO GRAINS: grains are generated all the time at the DENSITY rate (off = only while TRIGGER is held)",
+  dice: "DICE: SOUND = a recipe, MOD = a random patch, ALL = both (choose with the button on the right)",
+  back: "BACK: undo the last DICE / RANDOM / SLICE",
+  agc: "AUTO: the engine hears a level-matched input (up to +32 dB); the output stays at the input level",
+  learn: "LEARN: learn the input level again (play the source)", dn_amt: "DENSITY DEPTH: how far the cable moves DENSITY",
   tab_SOUND: "SOUND: the sound controls", tab_MOD: "MOD: modulators and the patch matrix",
   l1_rate: "LFO 1 RATE: Hz, or a tempo division when SYNC is on", l2_rate: "LFO 2 RATE: Hz, or a tempo division when SYNC is on",
   l1_sync: "SYNC: lock to Live's tempo and bar", l2_sync: "SYNC: lock to Live's tempo and bar", rn_sync: "SYNC: lock to Live's tempo and bar", ck_sync: "SYNC: clock divisions of Live's tempo (else Hz)",
@@ -804,17 +871,21 @@ var HELP = {
   style: "click the logo: switch the panel look (Ableton / live hardware / cartoon)",
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
-  fb_amt: "FEEDBACK CV amount (Beads assignable CV)", dw_amt: "DRY/WET CV amount (Beads assignable CV)", rv_amt: "REVERB CV amount (Beads assignable CV)",
-  dst_freeze: "Freeze: freezes while the source is high", dst_seed: "Seed: gate/clock input - LATCH on: DENSITY divides (CCW) or thins (CW) the pulses; LATCH off: grains while high",
-  dst_time: "Time CV: RND knob turns into CV amount (CW) / CV randomness (CCW)", dst_pitch: "Pitch CV: +-12 st per unit, scaled by the PITCH RND knob",
-  dst_size: "Size CV via the SIZE RND knob", dst_shape: "Shape CV via the SHAPE RND knob", dst_density: "Density CV: linear in the middle, exponential FM near the ends",
+  fb_amt: "FEEDBACK DEPTH: how far the cable moves FEEDBACK (drag)", dw_amt: "DRY/WET DEPTH: how far the cable moves DRY/WET (drag)", rv_amt: "REVERB DEPTH: how far the cable moves REVERB (drag)",
+  dicemode: "what DICE changes: SOUND / MOD / ALL (click)", slice: "SLICE: one click - the sequencer cuts the recording into rhythmic slices (SEQ -> TRIGGER + TIME)",
+  dst_freeze: "Freeze: freezes while the source is high", dst_seed: "Trigger: gate/clock input - AUTO GRAINS on: DENSITY divides (CCW) or thins (CW) the pulses; off: grains while high",
+  dst_time: "Time: the SPREAD knob under TIME becomes the DEPTH (CW) / random depth (CCW)", dst_pitch: "Pitch: +-12 st per unit, DEPTH = the knob under PITCH",
+  dst_size: "Size: DEPTH = the knob under SIZE", dst_shape: "Shape: DEPTH = the knob under SHAPE", dst_density: "Density CV: linear in the middle, exponential FM near the ends",
   dst_feedback: "Feedback CV x amount", dst_reverb: "Reverb CV x amount", dst_drywet: "Dry/Wet CV x amount"
 };
 function hoverHelp() {
   var k = hover;
-  if (k && /^sq\d+$/.test(k)) k = "step";
+  if (k && /^sq\d+$/.test(k)) {
+    var si = +k.substring(2), on = stepOn(si), v = stepVal(si);
+    return "STEP " + (si + 1) + ": " + (on ? "on, value " + Math.round(v * 100) + "%  (into TIME: " + (Math.round(v * bufSeconds() * 10) / 10) + " s back)" : "off") + "  ·  click = on/off, drag = value";
+  }
   if (k && /^src\d$/.test(k)) k = "jack_src";
-  if (k && /^quality_\d$/.test(k)) return QUAL[+k.charAt(8)][1] + (P.freeze.v > 0.5 ? "  (unfreeze to change)" : "  - changing it clears the buffer");
+  if (k && /^quality_\d$/.test(k)) return QUAL[+k.charAt(8)][1] + (P.freeze.v > 0.5 ? "  (unfreeze to change)" : "");
   return k && HELP[k] ? HELP[k] : "drag knobs up/down · shift = fine · double-click = default · hover = help";
 }
 
@@ -830,7 +901,10 @@ function denorm(name, n) {
 function onclick(x, y, but, cmd, shift) {
   x /= scaleF; y /= scaleF;
   var h = find(x, y); if (!h) return;
-  if (h.kind === "toggle") send(h.name, P[h.name].v > 0.5 ? 0 : 1);
+  if (h.kind === "toggle") {
+    send(h.name, P[h.name].v > 0.5 ? 0 : 1);
+    if (h.name === "agc" && P.agc.v < 0.5) { learnCount++; outlet(0, "agc_restart", learnCount); }   // AUTO on = learn afresh
+  }
   else if (h.kind === "momentary") {
     if (h.name === "seed" && P.seedlatch.v > 0.5) send("seedlatch", 0);   // short press unlatches (Beads)
     send(h.name, 1);
@@ -847,12 +921,14 @@ function onclick(x, y, but, cmd, shift) {
   else if (h.kind === "cycle") send(h.name, (Math.round(P[h.name].v) + 1) % h.n);
   else if (h.kind === "cmd") {
     if (h.name === "random") randomPatch();
+    else if (h.name === "slice") slice();
     else if (h.name === "learn") { learnCount++; outlet(0, "agc_restart", learnCount); if (P.agc.v < 0.5) send("agc", 1); }
     else { for (var c = 0; c < DST.length; c++) send("dst_" + DST[c][0], 0); ensureGrains(0); }
   }
   else if (h.kind === "quality") { if (P.freeze.v < 0.5) send("quality", h.val); }
   else if (h.kind === "style") nextStyle();
-  else if (h.kind === "dice") dice();
+  else if (h.kind === "dice") diceButton();
+  else if (h.kind === "dicemode") { diceMode = (diceMode + 1) % 3; dirty = true; }
   else if (h.kind === "back") back();
   else if (h.kind === "max") drag = { kind: "max", y0: y, m0: maxCables };
   else if (h.kind === "step") drag = { kind: "step", name: h.name, step: h.step, top: h.top, h2: h.h2, y0: y, moved: false };

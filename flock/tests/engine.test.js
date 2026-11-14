@@ -70,14 +70,16 @@ test("SIZE: below 1/3 grains play reversed (negative speed), above forward; dura
   assert.ok(dur(0.97) > SR * 2, "up to ~4 s");
 });
 
-test("DENSITY (latched): CCW = constant rate, CW = random rate, 12 o'clock = no grains", () => {
+test("DENSITY (latched): CCW = constant rate, CW = random rate, 12 o'clock = slowest even grains (FLØCK: no silent dead zone)", () => {
   const n = SR * 4;
   const iv = (d) => { const s = grainStarts(engine({ density: d }).run(n, [sine(100, n), sine(100, n)])); return s.slice(1).map((v, i) => v - s[i]); };
   const cv = (a) => { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length) / m; };
   const steady = iv(0.2), rnd = iv(0.8);
   assert.ok(steady.length > 10 && cv(steady) < 0.01, "constant: cv " + cv(steady));
   assert.ok(rnd.length > 10 && cv(rnd) > 0.3, "random: cv " + cv(rnd));
-  assert.strictEqual(iv(0.5).length, 0, "12 o'clock: silent");
+  // Beads is silent here; FLØCK plays the slowest even grains (≈ 0.65 /s) so the knob never "switches off"
+  const mid = iv(0.5);
+  assert.ok(mid.length >= 1 && Math.abs(mid[0] - SR / (130.81278 * Math.pow(2, -0.479 * 16))) < 2, "12 o'clock: slowest even rate " + mid);
   const fast = iv(0.02), want = SR / 130.81278 * Math.pow(2, 0.02 * 16);
   assert.ok(Math.abs(fast[3] - want) < 2, `fastest ≈ C3 period: ${fast[3]} vs ${want.toFixed(1)}`);
 });
