@@ -121,11 +121,8 @@ PARAMS = [
     ("output", "Output Gain", "Output", -24, 12, 0, 4, "dial"),
     ("agc", "Input Auto Gain", "Auto Gain", 0, 1, 0, 0, "toggle"),
     ("quality", "Quality", "Quality", 0, 3, 0, 0, ("enum", ["Pristine", "Cold digital", "Sunny tape", "Scorched cassette"])),
-    ("lp_cut", "Low-Pass", "Low-Pass", 0, 1, 1, 1, "dial"),
-    ("hp_cut", "High-Pass", "High-Pass", 0, 1, 0, 1, "dial"),
-    ("lp_slope", "High Cut Strength", "HiCut Str", 0, 1, 1, 1, "dial"),
-    ("hp_slope", "Low Cut Strength", "LoCut Str", 0, 1, 0.33, 1, "dial"),
-    ("flt_all", "Filter All", "Filter All", 0, 1, 0, 0, "toggle"),
+    ("lp_cut", "High Cut", "High Cut", 0, 1, 1, 1, "dial"),
+    ("hp_cut", "Low Cut", "Low Cut", 0, 1, 0, 1, "dial"),
     ("flt_on", "Filter On", "Filter On", 0, 1, 1, 0, "toggle"),
 ]
 SOURCES = ["none", "LFO 1", "LFO 2", "Random", "Env", "Clock", "Seq"]

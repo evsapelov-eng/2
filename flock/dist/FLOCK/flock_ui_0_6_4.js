@@ -495,15 +495,11 @@ function paint() {
     }
   }
   line(586, 12, 586, H0 - 12, C.line);
-  // ---- FILTER: two points like Live's Echo — left = cut the lows, right = cut the highs; across = frequency,
-  // up = resonance. FLØCK's grains sound between them (ALL: the whole output).
-  text("FILTER", 598, 18, 9.5, C.ink, true);
-  pill(692, 8, 44, P.flt_on.v > 0.5 ? "ON" : "OFF", P.flt_on.v > 0.5, "toggle", "flt_on");
-  filterBox(FBX, FBY, FBW, FBH);
-  if (P.flt_on.v < 0.5) { rect(FBX, FBY, FBW, FBH, C.bg, true, 1, 0.6); textC("FILTER OFF", FBX + FBW / 2, FBY + FBH / 2 + 3, 8.5, C.mid, true); }
-  text("LOW " + valueText("hp_cut") + (P.hp_cut.v < 0.001 ? "" : " " + slopeDb(P.hp_slope.v)), 596, 145, 7, PINK, true);
-  text("HIGH " + valueText("lp_cut") + (P.lp_cut.v > 0.999 ? "" : " " + slopeDb(P.lp_slope.v)), 668, 145, 7, C.accent, true);
-  pill(596, 150, 140, P.flt_all.v > 0.5 ? "FILTER ON: ALL OF THE OUTPUT" : "FILTER ON: THE GRAINS", P.flt_all.v > 0.5, "toggle", "flt_all");
+  // ---- FILTER: two knobs (low cut, high cut = Moog-style ladder) and ON / OFF; on the grains
+  textC("FILTER", 666, 18, 9.5, C.ink, true);
+  textC("LOW CUT", 628, 34, 8, C.ink, true); knob(628, 64, 18, "hp_cut", false); textC(valueText("hp_cut"), 628, 98, 8.5, C.accent, true);
+  textC("HIGH CUT", 704, 34, 8, C.ink, true); knob(704, 64, 18, "lp_cut", false); textC(valueText("lp_cut"), 704, 98, 8.5, C.accent, true);
+  flatButton(600, 116, 132, 22, P.flt_on.v > 0.5 ? "FILTER  ON" : "FILTER  OFF", P.flt_on.v > 0.5, "toggle", "flt_on");
   line(746, 12, 746, H0 - 12, C.line);
   // ---- mix
   for (var m = 0; m < MIX.length; m++) {
@@ -975,10 +971,10 @@ var HELP = {
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK DEPTH: how far the cable moves FEEDBACK (drag)", dw_amt: "DRY/WET DEPTH: how far the cable moves DRY/WET (drag)", rv_amt: "REVERB DEPTH: how far the cable moves REVERB (drag)",
-  flt_on: "FILTER ON / OFF: off = no filter at all (the points keep their places)",
+  flt_on: "FILTER ON / OFF: off = no filter at all (the knobs keep their places)",
+  hp_cut: "LOW CUT: removes the lows from the grains (fully CCW = off)", lp_cut: "HIGH CUT: Moog-style ladder - removes the highs from the grains (fully CW = open)",
   fbox: "FILTER (like Echo): pink cuts the lows, blue the highs - across = frequency, up = a stronger cut (6 ... 24 dB/oct); FLØCK sounds between them · double-click = home",
   f_hp: "LOW CUT (pink): across = frequency, up = steeper (6 ... 24 dB/oct) · double-click = off", f_lp: "HIGH CUT (blue, Moog ladder): across = frequency, up = steeper (6 ... 24 dB/oct) · double-click = open",
-  lp_cut: "LOW-PASS: Moog-style 24 dB ladder - cuts the highs (fully CW = open)",
   hp_cut: "HIGH-PASS: 12 dB - cuts the lows (fully CCW = off)", flt_all: "FILTER on the GRAINS only (the dry signal stays clean) or on ALL of the output (click)",
   dst_cutoff: "Cutoff: moves the low-pass cutoff (up to +-5 octaves x DEPTH) - LFO here = wah / sweeps", ct_amt: "CUTOFF DEPTH: how far the cable moves the cutoff (drag)",
   dicemode: "what DICE changes: SOUND / MOD / ALL (click)", slice: "SLICE: one click - the sequencer cuts the recording into rhythmic slices (SEQ -> TRIGGER + TIME)",

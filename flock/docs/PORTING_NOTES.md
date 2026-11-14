@@ -270,3 +270,10 @@ Up = steeper: 6 → 24 dB/oct, with no resonance.
 - Low cut: four TPT one-pole high-pass stages blended the same way.
 - Measured: 6 / 12 / 18 / 24 dB/oct for both cuts, −3·order dB at the cutoff.
 - Live parameters `lp_slope` (default 24 dB) and `hp_slope` (default 12 dB).
+
+## v0.6.4 — the filter as two knobs (user's request: "simpler, two knobs and on/off")
+- The graphic box with points is gone from the panel: LOW CUT (`hp_cut`) and HIGH CUT (`lp_cut`)
+  knobs and a FILTER ON/OFF button (`flt_on`).
+- The slopes are fixed at the engine defaults (high cut 24 dB/oct, low cut 12 dB/oct).
+  `lp_slope`, `hp_slope` and `flt_all` are no longer Live parameters; the filter is on the wet signal.
+- The engine is unchanged (the Params keep their defaults), so no differential-test impact.
