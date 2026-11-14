@@ -14,7 +14,7 @@ const decl = parse(fs.readFileSync(path.join(ROOT, "gen", "flock.genexpr"), "utf
 
 test("every Live parameter reaches an existing gen~ Param and the panel; panel outputs route to the parameters", () => {
   const params = boxes.filter((b) => b.parameter_enable);
-  assert.strictEqual(params.length, 75);
+  assert.strictEqual(params.length, 73);
   const byId = Object.fromEntries(boxes.map((b) => [b.id, b]));
   const outsOf = (id) => patch.lines.filter((l) => l.patchline.source[0] === id).map((l) => byId[l.patchline.destination[0]]);
   for (const p of params) {
@@ -302,24 +302,22 @@ test("RANDOM never puts a stepped source (CLOCK, SEQ, square / saw LFO, STEPS ra
   }
 });
 
-test("FILTER box: drag a point = frequency across, resonance up; click picks the nearest point; double-click = home", () => {
+test("FILTER box: drag a point left / right = its frequency (no resonance); click picks the nearest point; double-click = home", () => {
   const b = boot(); b.draw();
   const box = b.ctx.hits.find((h) => h.name === "fbox");
   assert.ok(box && box.w > 100, "the box");
-  const X = (f) => box.x + 6 + Math.log(f / 20) / Math.log(1000) * (box.w - 12), Y = (r) => box.y + box.h - 8 - r * (box.h - 22);
-  // grab the high-cut point (right edge, open) and pull it to 2 kHz, half resonance
-  const pl = b.ctx.hits.find((h) => h.name === "f_lp");
-  b.out.length = 0; b.ctx.onclick(pl.x + 8, pl.y + 8, 1); b.ctx.ondrag(X(2000), Y(0.5), 1);
+  const X = (f) => box.x + 6 + Math.log(f / 20) / Math.log(1000) * (box.w - 12);
   const last = (n) => b.out.filter((m) => m[1] === n).pop()[2];
-  assert.ok(Math.abs(last("lp_cut") - Math.log(100) / Math.log(1000)) < 0.01 && Math.abs(last("lp_res") - 0.5) < 0.01);
-  b.ctx.ondrag(X(2000), Y(0.5), 0);
-  b.ctx.p("lp_cut", last("lp_cut")); b.ctx.p("lp_res", 0.5); b.draw();
-  // a click near the left = the low-cut point moves there
-  b.out.length = 0; b.ctx.onclick(X(150), Y(0), 1); b.ctx.ondrag(X(150), Y(0), 0);
+  const pl = b.ctx.hits.find((h) => h.name === "f_lp");
+  b.out.length = 0; b.ctx.onclick(pl.x + 8, pl.y + 8, 1); b.ctx.ondrag(X(2000), box.y + 5, 1);
+  assert.ok(Math.abs(last("lp_cut") - Math.log(100) / Math.log(1000)) < 0.01);
+  assert.ok(!b.out.some((m) => /_res$/.test(m[1])), "no resonance parameter");
+  b.ctx.ondrag(X(2000), box.y + 5, 0);
+  b.ctx.p("lp_cut", last("lp_cut")); b.draw();
+  b.out.length = 0; b.ctx.onclick(X(150), box.y + box.h - 5, 1); b.ctx.ondrag(X(150), box.y + box.h - 5, 0);
   assert.ok(Math.abs(last("hp_cut") - Math.log(7.5) / Math.log(1000)) < 0.01, "low cut to 150 Hz");
-  // double-click on the high-cut point: open again
   b.draw(); const p2 = b.ctx.hits.find((h) => h.name === "f_lp");
   b.out.length = 0; b.ctx.ondblclick(p2.x + 8, p2.y + 8);
-  assert.ok(last("lp_cut") === 1 && last("lp_res") === 0);
+  assert.strictEqual(last("lp_cut"), 1);
   assert.strictEqual(b.ctx.valueText("hp_cut"), "off"); b.ctx.p("lp_cut", Math.log(100) / Math.log(1000)); assert.strictEqual(b.ctx.valueText("lp_cut"), "2 kHz");
 });

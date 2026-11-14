@@ -256,3 +256,10 @@ A box like Live's Echo with two points.
   in GenExpr: the later assignment wins). The filter state blew up. All filter locals now carry an
   `fq_` prefix.
 - The panel is 1060 px wide now.
+
+## v0.6.1 — filter without resonance (user's request: "a bell shape")
+- The ladder runs with k = 0 (its rounded knee, −12 dB at the cutoff).
+- The high-pass has Q 0.5 (no bump).
+- The points move left / right only and sit on the curve.
+- `lp_res` / `hp_res` are removed.
+- Tests check a monotonic fall and the bell (the maximum inside the band, ≤ 0 dB).

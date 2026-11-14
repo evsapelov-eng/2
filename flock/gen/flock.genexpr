@@ -183,9 +183,7 @@ Param rv_amt(1, min=0, max=1);
 // FILTER (FLØCK, not Beads): Moog-style 24 dB ladder low-pass + 12 dB high-pass on the grains (or on
 // everything with flt_all). Defaults = fully open = bypassed (bit-exact as without the filter).
 Param lp_cut(1, min=0, max=1);
-Param lp_res(0, min=0, max=1);
 Param hp_cut(0, min=0, max=1);
-Param hp_res(0, min=0, max=1);
 Param flt_all(0, min=0, max=1);
 Param dst_cutoff(0, min=0, max=7);
 Param ct_amt(0.5, min=0, max=1);
@@ -334,9 +332,7 @@ History g_rst(0);
 History lastpos(0);
 History lastspd(1);
 History fl_c(1);
-History fl_r(0);
 History fl_h(0);
-History fl_hr(0);
 History c_ct(0);
 History la1(0);
 History la2(0);
@@ -977,10 +973,8 @@ dryl = qi > 0.5 && qi < 1.5 ? trunc(inl * 4096) / 4096 : qi > 2.5 ? mulaw(inl) :
 dryr = qi > 0.5 && qi < 1.5 ? trunc(inr * 4096) / 4096 : qi > 2.5 ? mulaw(inr) : inr;
 // ---- FILTER (FLØCK): knobs smoothed per sample (≈10 ms), cutoff modulation in octaves (±5 × depth)
 fq_nc = init < 0.5 ? lp_cut : fl_c + (lp_cut - fl_c) * 0.002;
-fq_nr = init < 0.5 ? lp_res : fl_r + (lp_res - fl_r) * 0.002;
 fq_nh = init < 0.5 ? hp_cut : fl_h + (hp_cut - fl_h) * 0.002;
-fq_nhr = init < 0.5 ? hp_res : fl_hr + (hp_res - fl_hr) * 0.002;
-fq_lpon = fq_nc < 0.999 || fq_nr > 0.001 || dst_cutoff > 0.5;
+fq_lpon = fq_nc < 0.999 || dst_cutoff > 0.5;
 fq_hpon = fq_nh > 0.001;
 fq_xl = flt_all > 0.5 ? dry * dryl + wet * outl : outl;
 fq_xr = flt_all > 0.5 ? dry * dryr + wet * outr : outr;
@@ -988,7 +982,8 @@ fq_xr = flt_all > 0.5 ? dry * dryr + wet * outr : outr;
 fq_fc = clamp(20 * pow(1000, fq_nc) * pow(2, (dst_cutoff > 0.5 ? cv_ct * ct_amt * 5 : 0)), 20, 0.45 * FS);
 fq_g = tan(pi * fq_fc / FS);
 fq_G = fq_g / (1 + fq_g);
-fq_k = 4 * fq_nr;
+// no resonance: a smooth, bell-shaped band (the ladder's rounded knee, −12 dB at the cutoff)
+fq_k = 0;
 fq_G2 = fq_G * fq_G;
 fq_G4 = fq_G2 * fq_G2;
 fq_le = (fq_G4 * fq_xl + fq_G2 * fq_G * la1 / (1 + fq_g) + fq_G2 * la2 / (1 + fq_g) + fq_G * la3 / (1 + fq_g) + la4 / (1 + fq_g)) / (1 + fq_k * fq_G4);
@@ -1013,10 +1008,10 @@ fq_rv4 = (fq_ry3 - lb4) * fq_G;
 fq_ry4 = fq_rv4 + lb4;
 fq_ll = fq_lpon ? fq_ly4 * (1 + 0.5 * fq_k) : fq_xl;
 fq_lr = fq_lpon ? fq_ry4 * (1 + 0.5 * fq_k) : fq_xr;
-// high-pass: TPT state-variable, 20 Hz ... 20 kHz (same axis as the low-pass), Q 0.707 ... ≈4.7 (hp_res)
+// high-pass: TPT state-variable, 20 Hz ... 20 kHz (same axis as the low-pass), Q 0.5 (no bump: bell-shaped band)
 fq_hc = min(20 * pow(1000, fq_nh), 0.45 * FS);
 fq_hg = tan(pi * fq_hc / FS);
-fq_hR = 0.7071 - 0.6 * fq_nhr;
+fq_hR = 1;
 fq_hhl = (fq_ll - (2 * fq_hR + fq_hg) * hl1 - hl2) / (1 + 2 * fq_hR * fq_hg + fq_hg * fq_hg);
 fq_hbl = fq_hg * fq_hhl + hl1;
 fq_nhl1 = fq_hg * fq_hhl + fq_hbl;
@@ -1334,9 +1329,7 @@ br2 = nbr2;
 qc = qi;
 nwr = nwr1;
 fl_c = fq_nc;
-fl_r = fq_nr;
 fl_h = fq_nh;
-fl_hr = fq_nhr;
 c_ct = cv_ct;
 la1 = fq_ly1 + fq_lv1;
 la2 = fq_ly2 + fq_lv2;

@@ -48,7 +48,7 @@ var SHAPES = ["sine", "tri", "saw", "square"];
   var i, d = function (v, extra) { var o = { v: v, d: v }; if (extra) for (var k in extra) o[k] = extra[k]; return o; };
   for (i = 0; i < DST.length; i++) P["dst_" + DST[i][0]] = d(0, { lo: 0, hi: 6, int: 1 });
   P.fb_amt = d(1); P.dw_amt = d(1); P.rv_amt = d(1); P.dn_amt = d(0.5); P.ct_amt = d(0.5);
-  P.lp_cut = d(1); P.lp_res = d(0); P.hp_cut = d(0); P.hp_res = d(0); P.flt_all = d(0);
+  P.lp_cut = d(1); P.hp_cut = d(0); P.flt_all = d(0);
   P.l1_rate = d(0.4); P.l1_sync = d(0); P.l1_shape = d(0, { lo: 0, hi: 3, int: 1 }); P.l1_reset = d(0); P.l1_amt = d(1);
   P.l2_rate = d(0.25); P.l2_sync = d(0); P.l2_shape = d(1, { lo: 0, hi: 3, int: 1 }); P.l2_reset = d(0); P.l2_amt = d(1);
   P.rn_rate = d(0.4); P.rn_sync = d(0); P.rn_smooth = d(1); P.rn_amt = d(1);
@@ -528,11 +528,18 @@ function paint() {
   drawTape(758, 102, 290, 48);
   fitHelp(160, 163, 420);
 }
-// ---- the filter box: axis 20 Hz ... 20 kHz (log) across, resonance up
+// ---- the filter box: axis 20 Hz ... 20 kHz (log) across; no resonance — a smooth, bell-shaped band
 var FBX = 596, FBY = 24, FBW = 140, FBH = 108;
-function fpt(which) {   // a point's position in the box
-  var xf = which === "hp" ? P.hp_cut.v : P.lp_cut.v, yf = which === "hp" ? P.hp_res.v : P.lp_res.v;
-  return [FBX + 6 + xf * (FBW - 12), FBY + FBH - 8 - yf * (FBH - 22)];
+function fresp(f) {   // |H| of the band: 4-pole ladder (k = 0) × 2-pole high-pass (Q 0.5), in dB
+  var fc = 20 * Math.pow(1000, P.lp_cut.v), fh = 20 * Math.pow(1000, P.hp_cut.v), wl = f / fc, wh = f / fh;
+  var lp = P.lp_cut.v > 0.999 ? 1 : 1 / Math.pow(1 + wl * wl, 2);
+  var hp = P.hp_cut.v < 0.001 ? 1 : wh * wh / (1 + wh * wh);
+  return 20 * Math.log(Math.max(lp * hp, 1e-6)) / Math.LN10;
+}
+function fy(db) { return Math.max(FBY + 2, Math.min(FBY + FBH - 2, FBY + FBH * 0.3 - db / 36 * FBH * 0.7)); }
+function fpt(which) {   // a point sits on the curve at its frequency
+  var xf = which === "hp" ? P.hp_cut.v : P.lp_cut.v, f = 20 * Math.pow(1000, xf);
+  return [FBX + 6 + xf * (FBW - 12), fy(fresp(f))];
 }
 function filterBox(x, y, w, h) {
   rect(x, y, w, h, C.bg, true);
@@ -543,43 +550,31 @@ function filterBox(x, y, w, h) {
     line(gx, y + 2, gx, y + h - 2, C.line, 1, 0.7);
     text(fl[g][1], gx + 2, y + 10, 7, C.mid);
   }
-  // response: 4-pole ladder (resonance) × 2-pole high-pass (Q from its point)
-  var fc = 20 * Math.pow(1000, P.lp_cut.v), k = 4 * P.lp_res.v, fh = 20 * Math.pow(1000, P.hp_cut.v), R = 0.7071 - 0.6 * P.hp_res.v;
   var pts = [];
-  for (var i = 0; i <= 48; i++) {
-    var f = 20 * Math.pow(1000, i / 48), wl = f / fc, wh = f / fh, re = 1, im = 0;
-    for (var q = 0; q < 4; q++) { var nr = re - im * wl, ni = im + re * wl; re = nr; im = ni; }
-    var lp = P.lp_cut.v > 0.999 && P.lp_res.v < 0.001 ? 1 : (1 + 0.5 * k) / Math.sqrt((re + k) * (re + k) + im * im);
-    var hp = P.hp_cut.v < 0.001 ? 1 : wh * wh / Math.sqrt((1 - wh * wh) * (1 - wh * wh) + 4 * R * R * wh * wh);
-    var db = 20 * Math.log(Math.max(lp * hp, 1e-6)) / Math.LN10;
-    pts.push([x + 6 + (w - 12) * i / 48, Math.max(y + 2, Math.min(y + h - 2, y + h * 0.45 - db / 36 * h * 0.55))]);
-  }
+  for (var i = 0; i <= 48; i++) pts.push([x + 6 + (w - 12) * i / 48, fy(fresp(20 * Math.pow(1000, i / 48)))]);
   // the band where FLØCK sounds: filled under the curve
   col(C.accent, 0.16); mgraphics.move_to(pts[0][0], y + h - 2);
   for (var p = 0; p < pts.length; p++) mgraphics.line_to(pts[p][0], pts[p][1]);
-  mgraphics.line_to(pts[pts.length - 1][0], y + h - 2); mgraphics.close_path ? mgraphics.close_path() : 0; mgraphics.fill();
+  mgraphics.line_to(pts[pts.length - 1][0], y + h - 2); if (mgraphics.close_path) mgraphics.close_path(); mgraphics.fill();
   col(C.accent); mgraphics.set_line_width(1.4);
   for (p = 0; p < pts.length; p++) { if (p === 0) mgraphics.move_to(pts[p][0], pts[p][1]); else mgraphics.line_to(pts[p][0], pts[p][1]); }
   mgraphics.stroke();
-  // the two points
   var ph = fpt("hp"), pl = fpt("lp");
   var actH = (drag && drag.which === "hp") || hover === "f_hp", actL = (drag && drag.which === "lp") || hover === "f_lp";
   circle(ph[0], ph[1], actH ? 6.5 : 5, PINK, true); circle(ph[0], ph[1], actH ? 6.5 : 5, C.bg, false, 1.2);
   circle(pl[0], pl[1], actL ? 6.5 : 5, C.accent, true); circle(pl[0], pl[1], actL ? 6.5 : 5, C.bg, false, 1.2);
-  // the whole box picks the nearest point (drawn hit areas for the points first: hover help)
   hit({ x: x, y: y, w: w, h: h, kind: "fbox", name: "fbox" });
   hit({ x: ph[0] - 8, y: ph[1] - 8, w: 16, h: 16, kind: "fbox", name: "f_hp" });
   hit({ x: pl[0] - 8, y: pl[1] - 8, w: 16, h: 16, kind: "fbox", name: "f_lp" });
 }
 // move a point to (x, y) in the box
-function fmove(which, x, y) {
-  var xf = Math.max(0, Math.min(1, (x - FBX - 6) / (FBW - 12))), yf = Math.max(0, Math.min(1, (FBY + FBH - 8 - y) / (FBH - 22)));
-  if (which === "hp") { send("hp_cut", Math.round(xf * 1000) / 1000); send("hp_res", Math.round(yf * 1000) / 1000); }
-  else { send("lp_cut", Math.round(xf * 1000) / 1000); send("lp_res", Math.round(yf * 1000) / 1000); }
+function fmove(which, x, y) {   // across only: the frequency
+  var xf = Math.max(0, Math.min(1, (x - FBX - 6) / (FBW - 12)));
+  send(which === "hp" ? "hp_cut" : "lp_cut", Math.round(xf * 1000) / 1000);
 }
 function fnearest(x, y) {
   var ph = fpt("hp"), pl = fpt("lp");
-  var dh = Math.abs(x - ph[0]) + Math.abs(y - ph[1]) * 0.3, dl = Math.abs(x - pl[0]) + Math.abs(y - pl[1]) * 0.3;
+  var dh = Math.abs(x - ph[0]), dl = Math.abs(x - pl[0]);
   return dh < dl ? "hp" : "lp";
 }
 // flat button like Live's toggles: label inside, lit when on
@@ -968,10 +963,9 @@ var HELP = {
   jack_src: "drag from a source to a destination to patch a cable", jack_dst: "drag to a source to patch · click a patched jack = remove the cable",
   random: "RANDOM: a random patch with up to MAX cables", maxcables: "MAX: drag = maximum number of cables for RANDOM", clear: "CLEAR: remove all cables",
   fb_amt: "FEEDBACK DEPTH: how far the cable moves FEEDBACK (drag)", dw_amt: "DRY/WET DEPTH: how far the cable moves DRY/WET (drag)", rv_amt: "REVERB DEPTH: how far the cable moves REVERB (drag)",
-  fbox: "FILTER: drag the points - pink cuts the lows, blue cuts the highs (Moog ladder); up = resonance; FLØCK sounds between them · double-click = home",
-  f_hp: "LOW CUT (pink): across = frequency, up = resonance · double-click = off", f_lp: "HIGH CUT (blue, Moog ladder): across = frequency, up = resonance (sings near the top) · double-click = open",
+  fbox: "FILTER: drag the points left / right - pink cuts the lows, blue cuts the highs (smooth Moog ladder); FLØCK sounds between them · double-click = home",
+  f_hp: "LOW CUT (pink): drag left / right · double-click = off", f_lp: "HIGH CUT (blue, smooth Moog ladder): drag left / right · double-click = open",
   lp_cut: "LOW-PASS: Moog-style 24 dB ladder - cuts the highs (fully CW = open)",
-  lp_res: "RES: resonance of the low-pass - a peak at the cutoff, sings / self-oscillates near the max, thins the bass like a Moog",
   hp_cut: "HIGH-PASS: 12 dB - cuts the lows (fully CCW = off)", flt_all: "FILTER on the GRAINS only (the dry signal stays clean) or on ALL of the output (click)",
   dst_cutoff: "Cutoff: moves the low-pass cutoff (up to +-5 octaves x DEPTH) - LFO here = wah / sweeps", ct_amt: "CUTOFF DEPTH: how far the cable moves the cutoff (drag)",
   dicemode: "what DICE changes: SOUND / MOD / ALL (click)", slice: "SLICE: one click - the sequencer cuts the recording into rhythmic slices (SEQ -> TRIGGER + TIME)",
@@ -1080,7 +1074,7 @@ function ondblclick(x, y) {
   var h = find(x, y); if (h && h.kind === "knob") send(h.name, P[h.name].d);
   if (h && h.kind === "fbox") {   // double-click: the point goes home (low: off, high: open), no resonance
     var wh = h.name === "f_hp" ? "hp" : h.name === "f_lp" ? "lp" : fnearest(x, y);
-    if (wh === "hp") { send("hp_cut", 0); send("hp_res", 0); } else { send("lp_cut", 1); send("lp_res", 0); }
+    if (wh === "hp") send("hp_cut", 0); else send("lp_cut", 1);
     drag = null;
   }
 }
