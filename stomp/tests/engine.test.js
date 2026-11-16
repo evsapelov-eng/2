@@ -99,7 +99,8 @@ test("never above 0 dBFS and never NaN, even with every knob at max (44.1 / 48 /
   const all = {};
   for (const n of ["amp_len", "amp_att", "amp_crv", "pit_swp", "pit_time", "pit_crv", "clk_amt", "clk_tone", "nz_amt", "nz_col", "nz_dec",
     "hm_amt", "hm_spr", "dr_amt", "dr_knee", "fm_amt", "fm_rat", "fm_dec", "wd_amt", "sp_amt", "sp_time", "level", "tune",
-    "amp_phs", "sub_lvl", "sub_len", "sub_crv", "clk_bw", "dr_asym", "glue"]) all[n] = 1;
+    "amp_phs", "sub_lvl", "sub_len", "sub_crv", "clk_bw", "dr_asym", "glue", "nz_lfo", "nz_lrt",
+    "rmb_amt", "rmb_dec", "rmb_drv", "rmb_tone", "rmb_duck"]) all[n] = 1;
   for (const sr of [44100, 48000, 96000]) {
     for (const p0 of [all, Object.fromEntries(Object.keys(all).map((k) => [k, 0]))]) for (const sw of [0, 1]) {
       const g = eng(Object.assign({}, p0, { p808: sw, dr_pre: sw }), sr);
@@ -271,4 +272,33 @@ test("noise LFO runs on its own: every hit catches it somewhere else; LFO 0 = th
   const o = g.run(SR);
   let up = 0; for (let i = 1; i < SR; i++) if (o[3][i - 1] < 0 && o[3][i] >= 0) up++;
   assert.strictEqual(up, 1, "1 Hz, running before any hit");
+});
+
+// ---------------- v0.4 RUMBLE ----------------
+function rumbleOnly(p, n = SR * 2) {
+  const a = eng(Object.assign({}, clean, p, { rmb_amt: 0 }), SR, 4).hit(36, 1, n)[0], b = eng(Object.assign({}, clean, p), SR, 4).hit(36, 1, n)[0];
+  return b.map((v, i) => v - a[i]);
+}
+test("RUMBLE 0 = nothing at all (the kick is untouched)", () => {
+  const a = eng(clean).hit(36, 1, SR)[0], b = eng(Object.assign({}, clean, { rmb_amt: 0, rmb_dec: 1, rmb_drv: 1 })).hit(36, 1, SR)[0];
+  for (let i = 0; i < SR; i++) assert.strictEqual(a[i], b[i]);
+});
+test("RUMBLE: a low, long tail after the kick; DECAY makes it longer; TONE = how high it reaches", () => {
+  const p = { rmb_amt: 0.8, amp_len: 0.4 };
+  const short = rumbleOnly(Object.assign({ rmb_dec: 0.2 }, p)), long = rumbleOnly(Object.assign({ rmb_dec: 0.8 }, p));
+  assert.ok(rms(long, SR * 0.4, SR * 0.7) > 0.03, "audible after the kick");
+  assert.ok(rms(long, SR * 1.2, SR * 1.6) > 4 * rms(short, SR * 1.2, SR * 1.6), "DECAY: longer");
+  const lo = (x, f) => harm(x, SR * 0.3, SR * 0.8, f);
+  const dark = rumbleOnly(Object.assign({ rmb_tone: 0.1 }, p)), bright = rumbleOnly(Object.assign({ rmb_tone: 0.9 }, p));
+  const hiShare = (x) => lo(x, 600) / lo(x, 70);
+  assert.ok(hiShare(bright) > 3 * hiShare(dark), `TONE: 600 Hz vs 70 Hz ${hiShare(dark).toFixed(4)} / ${hiShare(bright).toFixed(4)}`);
+});
+test("RUMBLE ducks under the kick and swells after it (DUCK); mono", () => {
+  const p = { rmb_amt: 0.8, amp_len: 0.5, amp_crv: 0.8, rmb_dec: 0.6 };
+  const during = (x) => rms(x, SR * 0.1, SR * 0.25), after = (x) => rms(x, SR * 0.45, SR * 0.6);
+  const ducked = rumbleOnly(Object.assign({ rmb_duck: 1 }, p)), open = rumbleOnly(Object.assign({ rmb_duck: 0 }, p));
+  assert.ok(during(ducked) < 0.35 * during(open), `under the kick: ${during(ducked).toFixed(3)} vs ${during(open).toFixed(3)}`);
+  assert.ok(after(ducked) > 0.6 * after(open), "after the kick it is back");
+  const o = eng(Object.assign({}, clean, p)).hit(36, 1, SR);
+  for (let i = 0; i < SR; i += 13) assert.ok(Math.abs(o[0][i] - o[1][i]) < 1e-12);
 });

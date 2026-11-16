@@ -214,8 +214,64 @@ poke(room, sendL * 0.3 + rl3_n * rfb, rw, 2);
 poke(room, sendR * 0.3 + rl4_n * rfb, rw, 3);
 rwi_n = wrapi(rw + 1, 8192);
 spm = e_sp_amt * 0.7;
-outL = yL_n + (c1 + c3) * spm;
-outR = yR_n + (c2 + c4) * spm;
+outL0 = yL_n + (c1 + c3) * spm;
+outR0 = yR_n + (c2 + c4) * spm;
+
+// ---- RUMBLE (techno): the kick into a long dark reverb -> drive -> low-pass (TONE) -> ducked by the kick ----
+// 4 damped combs + 2 allpasses (decay 0.5 .. 6 s), tanh drive, 2-pole low-pass 40 .. 400 Hz + 30 Hz high-pass,
+// then the gain dips while the kick sounds (DUCK) and swells back after it. Mono: the low end stays centred.
+rin = (yLd + yRd) * 0.5;
+rT = 0.5 * pw2(e_rmb_dec * 3.585);                // 0.5 .. 6 s
+rsz = (1 + 0.5 * e_rmb_dec) * samplerate / 44100;
+rq = rqi;
+rD1 = floor(1557 * rsz);
+rD2 = floor(1617 * rsz);
+rD3 = floor(1491 * rsz);
+rD4 = floor(1422 * rsz);
+ry1 = peek(rbuf, wrapi(rq - rD1, 16384), 0);
+ry2 = peek(rbuf, wrapi(rq - rD2, 16384), 1);
+ry3 = peek(rbuf, wrapi(rq - rD3, 16384), 2);
+ry4 = peek(rbuf, wrapi(rq - rD4, 16384), 3);
+rk1_n = rk1 + (ry1 - rk1) * 0.3;
+rk2_n = rk2 + (ry2 - rk2) * 0.3;
+rk3_n = rk3 + (ry3 - rk3) * 0.3;
+rk4_n = rk4 + (ry4 - rk4) * 0.3;
+rg1 = exp(-6.9078 * rD1 / (rT * samplerate));
+rg2 = exp(-6.9078 * rD2 / (rT * samplerate));
+rg3 = exp(-6.9078 * rD3 / (rT * samplerate));
+rg4 = exp(-6.9078 * rD4 / (rT * samplerate));
+rw1 = rin * 0.25 + rk1_n * rg1;
+rw2 = rin * 0.25 + rk2_n * rg2;
+rw3 = rin * 0.25 + rk3_n * rg3;
+rw4 = rin * 0.25 + rk4_n * rg4;
+poke(rbuf, abs(rw1) < 0.000000001 ? 0 : rw1, rq, 0);
+poke(rbuf, abs(rw2) < 0.000000001 ? 0 : rw2, rq, 1);
+poke(rbuf, abs(rw3) < 0.000000001 ? 0 : rw3, rq, 2);
+poke(rbuf, abs(rw4) < 0.000000001 ? 0 : rw4, rq, 3);
+rsum = ry1 + ry2 + ry3 + ry4;
+ro5 = peek(rbuf, wrapi(rq - floor(556 * rsz), 16384), 4);
+rv5 = rsum + 0.5 * ro5;
+ra5 = ro5 - 0.5 * rv5;
+ro6 = peek(rbuf, wrapi(rq - floor(441 * rsz), 16384), 5);
+rv6 = ra5 + 0.5 * ro6;
+ra6 = ro6 - 0.5 * rv6;
+poke(rbuf, abs(rv5) < 0.000000001 ? 0 : rv5, rq, 4);
+poke(rbuf, abs(rv6) < 0.000000001 ? 0 : rv6, rq, 5);
+rqi_n = wrapi(rq + 1, 16384);
+rdg = pw2(e_rmb_drv * 5);
+rdr = tanh(rdg * ra6) / rdg * (1 + e_rmb_drv * 3);   // more drive = denser, a little louder
+rfc = 40 * pw2(e_rmb_tone * 3.32);                // TONE 40 .. 400 Hz
+rla = 1 - exp(-twopi * rfc * dt);
+rl1_0 = rlp1 + (rdr - rlp1) * rla;
+rl2_0 = rlp2 + (rl1_0 - rlp2) * rla;
+rha = 1 - exp(-twopi * 30 * dt);
+rh_0 = rhp + (rl2_0 - rhp) * rha;
+rbody = rl2_0 - rh_0;
+rfol = min(1, env + senv);
+rdk_n = max(rfol, rdk * exp(-1 / (0.06 * samplerate)));   // follows the kick, lets go in ~60 ms
+rumb = rbody * (1 - e_rmb_duck * rdk_n) * e_rmb_amt * 2.5;
+outL = outL0 + rumb;
+outR = outR0 + rumb;
 
 // ---- GLUE: up to +20 dB into a clipper (louder, same peak), then LEVEL (-30 .. +6 dB), soft knee ----
 gin = pw2(e_glue * 3.32);
@@ -256,6 +312,15 @@ dbR = dbR_n;
 dcL = dcL_n;
 dcR = dcR_n;
 yL = yLd;
+rk1 = abs(rk1_n) < 0.000000001 ? 0 : rk1_n;
+rk2 = abs(rk2_n) < 0.000000001 ? 0 : rk2_n;
+rk3 = abs(rk3_n) < 0.000000001 ? 0 : rk3_n;
+rk4 = abs(rk4_n) < 0.000000001 ? 0 : rk4_n;
+rqi = rqi_n;
+rlp1 = abs(rl1_0) < 0.000000001 ? 0 : rl1_0;
+rlp2 = abs(rl2_0) < 0.000000001 ? 0 : rl2_0;
+rhp = abs(rh_0) < 0.000000001 ? 0 : rh_0;
+rdk = rdk_n;
 yR = yRd;
 wla = abs(wla_n) < 0.000000001 ? 0 : wla_n;
 wlb = abs(wlb_n) < 0.000000001 ? 0 : wlb_n;

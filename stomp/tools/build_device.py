@@ -29,7 +29,10 @@ VU = VERSION.replace(".", "_")
 JSNAME = "stomp_ui_%s.js" % VU          # versioned: Max finds files by name
 AMXDNAME = "STOMP_%s.amxd" % VU          # ASCII only (FLØCK: the Ø in a file name kept a device silent)
 CODE = open(os.path.join(ROOT, "gen", "stomp.genexpr"), encoding="utf-8").read()
-W, H = 1334, 169
+# the panel computes its own width from its columns (js/stomp_ui.js W0): ask it
+import subprocess  # noqa: E402
+W = int(subprocess.check_output(["node", "-e", "process.stdout.write(String(require('./tools/preview').boot().ctx.W0))"], cwd=ROOT))
+H = 169
 SIG = "signal"
 
 
@@ -171,7 +174,7 @@ def build():
     names = [p[0] for p in PARAMS]
     rt = P.obj("route " + " ".join(names), 2, len(names) + 1, x=400, y=80, w=700)
     P.connect(ui, 0, rt, 0)
-    rt2 = P.obj("route knote kvel hit", 4, 4, x=1200, y=240, w=160)
+    rt2 = P.obj("route knote kvel hit slotdata", 5, 5, x=1200, y=240, w=200)
     P.connect(rt, len(names), rt2, 0)
     pn2 = P.obj("prepend knote", 1, 1, x=1360, y=270, w=100)
     pv2 = P.obj("prepend kvel", 1, 1, x=1470, y=270, w=90)
@@ -189,6 +192,23 @@ def build():
         P.connect(d, 0, to_ui, 0); P.connect(to_ui, 0, ui, 0)
         to_gen = P.obj("prepend " + name, 1, 1, x=x, y=y + 82, w=90)
         P.connect(d, 0, to_gen, 0); P.connect(to_gen, 0, gen, 0)
+
+    # ---- USER SLOTS: kept by a [pattr] that is a Live parameter of type blob ("stored only"): saved with the
+    # Live set and in device presets. The panel sends "slotdata <s>", the pattr stores and returns "slots <s>".
+    pslot = P.add({"maxclass": "newobj", "text": "pattr stomp_slots", "numinlets": 1, "numoutlets": 3,
+                   "outlettype": ["", "", ""], "patching_rect": [1200, 420, 120, 22], "varname": "stomp_slots",
+                   "parameter_enable": 1,
+                   "saved_attribute_attributes": {"valueof": {"parameter_longname": "User Slots", "parameter_shortname": "Slots",
+                                                              "parameter_type": 3, "parameter_invisible": 1}}})
+    pss = P.obj("prepend slots", 1, 1, x=1200, y=390, w=100)
+    P.connect(rt2, 3, pss, 0)
+    P.connect(pss, 0, pslot, 0)
+    P.connect(pslot, 0, ui, 0)
+    lbs = P.obj("deferlow", 1, 1, x=1330, y=390, w=70)      # after loading: send the stored slots to the panel
+    P.connect(lb, 0, lbs, 0)
+    bng = P.msg("bang", 1330, 420)
+    P.connect(lbs, 0, bng, 0)
+    P.connect(bng, 0, pslot, 0)
 
     # ---- output meter (peaks every 50 ms) and the sample rate → panel ----
     pkl = P.obj("peakamp~ 50", 2, 1, ["float"], x=300, y=1000)

@@ -44,6 +44,12 @@ KNOBS = [
     # v0.3 (at the end: the random index of the knobs above stays the same)
     ("nz_lfo", "NOISE", "LFO", "Noise LFO", 0.0),
     ("nz_lrt", "NOISE", "RATE", "Noise LFO Rate", 0.5),
+    # v0.4 RUMBLE
+    ("rmb_amt", "RUMBLE", "RUMBLE", "Rumble", 0.0),
+    ("rmb_dec", "RUMBLE", "DECAY", "Rumble Decay", 0.45),
+    ("rmb_drv", "RUMBLE", "DRIVE", "Rumble Drive", 0.4),
+    ("rmb_tone", "RUMBLE", "TONE", "Rumble Tone", 0.45),
+    ("rmb_duck", "RUMBLE", "DUCK", "Rumble Duck", 0.8),
 ]
 NAMES = [k[0] for k in KNOBS]
 

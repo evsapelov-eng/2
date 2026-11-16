@@ -23,7 +23,7 @@ function makeShim(w, h) {
     text_measure(s) { return [s.length * font * 0.58, font]; },
     show_text(s) { els.push(`<text x="${tx[0]}" y="${tx[1]}" font-family="Arial,Helvetica,sans-serif" font-size="${font}" font-weight="${bold ? 700 : 400}" fill="${color()}">${s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>`); d = ""; },
   };
-  g.svg = () => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs>${defs.join("")}</defs>${els.join("")}</svg>`;
+  g.svg = () => `<svg xmlns="http://www.w3.org/2000/svg" width="${g.size[0]}" height="${h}" viewBox="0 0 ${g.size[0]} ${h}"><defs>${defs.join("")}</defs>${els.join("")}</svg>`;
   g.reset = () => { els.length = 0; defs.length = 0; };
   return g;
 }

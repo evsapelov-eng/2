@@ -29,7 +29,7 @@ test("PLAY pad: the last MIDI note at full velocity, then a hit", () => {
 
 test("PATCH: click a knob = cable from the source (depth 50 %), drag = depth, double-click = cut", () => {
   const ui = boot();
-  ui.svg(); ui.ctx.onclick(1284, 80);           // RND (third source) → patch mode, RANDOM selected
+  ui.svg(); ui.ctx.onclick(ui.ctx.SX + 18, 80);           // RND (third source) → patch mode, RANDOM selected
   assert.ok(ui.ctx.patchMode && ui.ctx.selSrc === 2);
   const [x, y] = center(ui, "fm_amt");
   ui.ctx.onclick(x, y);
@@ -117,4 +117,35 @@ test("the screen shows the REAL last hit: the panel's velocity / note / random =
     const want = 0.05 * Math.pow(2, ui.ctx.eff("amp_len") * 5.32) * 48000;
     assert.ok(Math.abs(end - want) < 3, `hit ${n}: engine ${end} panel ${want.toFixed(0)}`);
   }
+});
+
+// ---------------- v0.4 user slots ----------------
+test("SAVE + a slot stores the whole kick (knobs, switches, cables); a click on it brings it back exactly", () => {
+  const ui = boot("p('amp_len', 0.613); p('p808', 1); p('k_amp_len', -0.4); p('rnd_amt', 0.25); p('rmb_amt', 0.7);");
+  ui.svg();
+  const slotHit = (i) => Array.from(ui.ctx.hits).filter((h) => h.kind === "slot" && h.slot === i)[0];
+  const save = Array.from(ui.ctx.hits).filter((h) => h.kind === "save")[0];
+  ui.ctx.onclick(save.x + 2, save.y + 2); assert.ok(ui.ctx.saveArmed);
+  ui.out.length = 0; ui.ctx.onclick(slotHit(2).x + 2, slotHit(2).y + 2);
+  const out = sent(ui).filter((m) => m[0] === "slotdata")[0];
+  assert.ok(out && /^x_x_a[0-9]+_x_x_x_x_x$/.test(out[1]), "slot 3 filled: " + String(out && out[1]).slice(0, 30));
+  // the [pattr] gives it back on load: a fresh panel, the stored string, a click on slot 3
+  const ui2 = boot(); ui2.ctx.slots(out[1]); ui2.svg();
+  const h = Array.from(ui2.ctx.hits).filter((q) => q.kind === "slot" && q.slot === 2)[0];
+  ui2.out.length = 0; ui2.ctx.onclick(h.x + 2, h.y + 2);
+  const m = Object.fromEntries(sent(ui2));
+  assert.strictEqual(m.amp_len, 0.613); assert.strictEqual(m.p808, 1); assert.strictEqual(m.k_amp_len, -0.4);
+  assert.strictEqual(m.rnd_amt, 0.25); assert.strictEqual(m.rmb_amt, 0.7);
+  assert.strictEqual(Object.keys(m).length, ui2.ctx.ORDER.length, "every value");
+  assert.strictEqual(ui2.ctx.presetName, "USER 3");
+  // alt-click clears it
+  ui2.out.length = 0; ui2.ctx.onclick(h.x + 2, h.y + 2, 1, 0, 0, 0, 1);
+  assert.strictEqual(sent(ui2).pop()[1], "x_x_x_x_x_x_x_x");
+});
+test("a slot saved by an older version (fewer values) still loads; missing values = defaults", () => {
+  const ui = boot(), full = ui.ctx.encodeSlot(ui.ctx.snapshot());
+  const old = full.slice(0, 1 + 4 * 10);   // only the first 10 values
+  const set = ui.ctx.decodeSlot(old);
+  assert.strictEqual(Object.keys(set).length, ui.ctx.ORDER.length);
+  assert.strictEqual(set.rmb_duck, 0.8);
 });

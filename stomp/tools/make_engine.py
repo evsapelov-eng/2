@@ -31,7 +31,7 @@ hsh(n, k) { x = n * 0.7548776662466927 + k * 0.5698402909980532 + 0.5; x = x - f
 
 VOICE_HIST = ["act", "tt", "ph", "pm", "p2", "p3", "p4", "p5", "nlL", "nlR", "nhL", "nhR", "dcL", "dcR",
               "yL", "yR", "slL", "slR", "rl1", "rl2", "rl3", "rl4", "rwi",
-              "cbL1", "cbL2", "cbR1", "cbR2", "gph", "gf", "ga", "gtm", "la", "lf", "dbL", "dbR", "nlf", "wla", "wlb", "wlc", "wwi"]
+              "cbL1", "cbL2", "cbR1", "cbR2", "gph", "gf", "ga", "gtm", "la", "lf", "dbL", "dbR", "nlf", "wla", "wlb", "wlc", "wwi", "rk1", "rk2", "rk3", "rk4", "rqi", "rlp1", "rlp2", "rhp", "rdk"]
 
 
 def engine():
@@ -49,6 +49,7 @@ def engine():
         o.append("Param %s(%g, min=-1, max=1);" % (n, DEPTH_DEFAULTS.get(n, 0)))
     o.append("Data room(8192, 4);")
     o.append("Data wbuf(4096, 3);")
+    o.append("Data rbuf(16384, 6);")
     o.append("History init(0);")
     o.append("History lastk(0);")
     for n, _s, _l, _ln, d in KNOBS:

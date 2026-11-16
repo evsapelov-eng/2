@@ -10,6 +10,7 @@ function boot(setup) {
     "delete Array.prototype.includes; delete Array.prototype.find; delete Array.prototype.fill; delete Array.prototype.findIndex; delete String.prototype.includes;" +
     "delete String.prototype.padStart; delete String.prototype.repeat; delete Object.assign; delete Object.entries; delete Object.values;", ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "stomp_ui.js"), "utf8"), ctx);
+  mg.size = [ctx.W0, 169];   // the jsui box is as wide as the panel says (tools/build_device.py)
   if (setup) vm.runInContext(setup, ctx);
   return { ctx, mg, out, svg() { mg.reset(); ctx.paint(); return mg.svg(); } };
 }

@@ -55,11 +55,23 @@ test("gen~ codebox holds the engine (ASCII, no comments) and the panel is a vers
   const ui = pat.boxes.map((b) => b.box).find((b) => b.maxclass === "jsui");
   const v = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"))).version.replace(/\./g, "_");
   assert.strictEqual(ui.filename, "stomp_ui_" + v + ".js");
-  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 1334, 169]);
-  assert.strictEqual(pat.devicewidth, 1334);
+  const W = require("../tools/preview").boot().ctx.W0;   // the panel's own width
+  assert.deepStrictEqual(ui.presentation_rect, [0, 0, W, 169]);
+  assert.strictEqual(pat.devicewidth, W);
 });
 
 test("the .amxd container says instrument ('iiii')", () => {
   const b = cp.execFileSync("python3", ["-c", "import sys;sys.path.insert(0,'tools');import build_device as d;sys.stdout.buffer.write(d.amxd_bytes({'patcher':{}})[:12])"], { cwd: ROOT });
   assert.strictEqual(b.toString("latin1"), "ampf\x04\x00\x00\x00iiii");
+});
+
+test("user slots live in a [pattr] Live parameter of type blob (saved with the set); panel <-> pattr wired", () => {
+  const ps = one("pattr stomp_slots");
+  assert.strictEqual(ps.parameter_enable, 1);
+  assert.strictEqual(ps.saved_attribute_attributes.valueof.parameter_type, 3);
+  const ui = pat.boxes.map((b) => b.box).find((b) => b.maxclass === "jsui");
+  assert.ok(links(ps, 0).includes(ui), "pattr -> panel");
+  const rt2 = one("route knote kvel hit slotdata");
+  assert.strictEqual(links(rt2, 3)[0].text, "prepend slots");
+  assert.ok(links(links(rt2, 3)[0], 0).includes(ps), "panel -> pattr");
 });
