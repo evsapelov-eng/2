@@ -53,8 +53,8 @@ test("gen~ codebox holds the engine (ASCII, no comments) and the panel is a vers
   const ui = pat.boxes.map((b) => b.box).find((b) => b.maxclass === "jsui");
   const v = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"))).version.replace(/\./g, "_");
   assert.strictEqual(ui.filename, "stomp_ui_" + v + ".js");
-  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 1290, 169]);
-  assert.strictEqual(pat.devicewidth, 1290);
+  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 1334, 169]);
+  assert.strictEqual(pat.devicewidth, 1334);
 });
 
 test("the .amxd container says instrument ('iiii')", () => {

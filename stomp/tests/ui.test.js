@@ -29,7 +29,7 @@ test("PLAY pad: the last MIDI note at full velocity, then a hit", () => {
 
 test("PATCH: click a knob = cable from the source (depth 50 %), drag = depth, double-click = cut", () => {
   const ui = boot();
-  ui.svg(); ui.ctx.onclick(1240, 80);           // RND (third source) → patch mode, RANDOM selected
+  ui.svg(); ui.ctx.onclick(1284, 80);           // RND (third source) → patch mode, RANDOM selected
   assert.ok(ui.ctx.patchMode && ui.ctx.selSrc === 2);
   const [x, y] = center(ui, "fm_amt");
   ui.ctx.onclick(x, y);

@@ -244,3 +244,19 @@ test("CLICK BAND: narrow = a pitched tick at TONE, wide = noise", () => {
   assert.ok(ratio(n) > 2 * ratio(w), `narrow ${ratio(n).toFixed(2)} wide ${ratio(w).toFixed(2)}`);
   assert.ok(peak(n) > 0.1 && peak(w) > 0.1, "both audible");
 });
+
+// ---------------- v0.3 ----------------
+test("noise LFO: the noise swings at RATE (restarts on every hit); LFO 0 = steady noise", () => {
+  const base = Object.assign({}, clean, { nz_amt: 0.8, nz_dec: 1, amp_len: 0.8, nz_lrt: 0.5 });   // RATE 8 Hz
+  const noiseOnly = (p) => { const a = eng(Object.assign({}, base, p), SR, 9).hit(36, 1, SR / 2)[0], b = eng(Object.assign({}, base, p, { nz_amt: 0 }), SR, 9).hit(36, 1, SR / 2)[0]; return a.map((v, i) => v - b[i]); };
+  const win = (x) => { const r = []; for (let a = 0; a + 960 <= 19200; a += 480) r.push(rms(x, a, a + 960)); return r; };   // 20 ms windows
+  const plain = win(noiseOnly({ nz_lfo: 0 })), mod = win(noiseOnly({ nz_lfo: 1 }));
+  const ratio = mod.map((v, i) => v / plain[i]);
+  assert.ok(Math.max(...ratio) > 1.5 && Math.min(...ratio) < 0.4, `swing ${Math.min(...ratio).toFixed(2)} .. ${Math.max(...ratio).toFixed(2)}`);
+  // 8 Hz sine from 0: up at 31 ms, down at 94 ms, up again at 156 ms (window i is centred at (i + 1) * 10 ms)
+  const at = (ms) => ratio[Math.round(ms / 10) - 1];
+  assert.ok(at(30) > 1.4 && at(160) > 1.4, `peaks ${at(30).toFixed(2)} ${at(160).toFixed(2)}`);
+  assert.ok(at(90) < 0.5 && at(220) < 0.5, `troughs ${at(90).toFixed(2)} ${at(220).toFixed(2)}`);
+  const steady = plain.slice(1, 8).map((v, i) => v / plain[i + 2]);
+  assert.ok(Math.max(...steady) < 1.6, "no LFO: no swing");
+});

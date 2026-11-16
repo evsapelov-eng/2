@@ -31,7 +31,7 @@ hsh(n, k) { x = n * 0.7548776662466927 + k * 0.5698402909980532 + 0.5; x = x - f
 
 VOICE_HIST = ["act", "tt", "ph", "pm", "p2", "p3", "p4", "p5", "nlL", "nlR", "nhL", "nhR", "dcL", "dcR",
               "yL", "yR", "slL", "slR", "rl1", "rl2", "rl3", "rl4", "rwi",
-              "cbL1", "cbL2", "cbR1", "cbR2", "gph", "gf", "ga", "gtm", "la", "lf", "dbL", "dbR"]
+              "cbL1", "cbL2", "cbR1", "cbR2", "gph", "gf", "ga", "gtm", "la", "lf", "dbL", "dbR", "nlf"]
 
 
 def engine():

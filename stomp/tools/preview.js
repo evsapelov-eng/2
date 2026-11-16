@@ -3,7 +3,7 @@
 const fs = require("fs"), path = require("path"), vm = require("vm");
 const { makeShim } = require("../tests/shim");
 function boot(setup) {
-  const mg = makeShim(1290, 169), out = [];
+  const mg = makeShim(1334, 169), out = [];
   const ctx = vm.createContext({ mgraphics: mg, outlet(...a) { out.push(a); }, post() {}, Task: function () { this.repeat = () => {}; this.cancel = () => {}; } });
   // Max's [jsui] is ES5: remove what it does not have, so the tests fail where Max would
   vm.runInContext("['tanh','sinh','cosh','log10','log2','sign','cbrt','hypot','trunc','fround','expm1','log1p'].forEach(function (k) { delete Math[k]; });" +

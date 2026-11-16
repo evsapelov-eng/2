@@ -16,7 +16,7 @@
    900
   ],
   "openinpresentation": 1,
-  "devicewidth": 1290.0,
+  "devicewidth": 1334.0,
   "boxes": [
    {
     "box": {
@@ -88,7 +88,7 @@
        {
         "box": {
          "maxclass": "codebox",
-         "code": "sknee(x) { ax = abs(x); return ax < 0.9 ? x : (x < 0 ? -1 : 1) * (0.9 + 0.1 * tanh((ax - 0.9) / 0.1)); }\npw2(x) { return exp(x * 0.69314718); }\nshapep(v) { return pw2((0.5 - v) * 6); }\nwrapi(i, n) { return i < 0 ? i + n : (i >= n ? i - n : i); }\nshp(x, dg, dtg, knee, asym, amt) { xs = x < 0 ? x * (1 + 3 * asym) : x; sf = x < 0 ? tanh(dg * xs) / tanh(dg * (1 + 3 * asym)) * (1 - 0.45 * asym) : tanh(dg * x) / dtg; hd = clamp(dg * xs, -1, 1); y = sf + (hd - sf) * knee; return x + (y - x) * amt; }\ngclip(x) { ax = abs(x); return ax < 0.7 ? x : (x < 0 ? -1 : 1) * (0.7 + 0.3 * tanh((ax - 0.7) / 0.3)); }\nhsh(n, k) { x = n * 0.7548776662466927 + k * 0.5698402909980532 + 0.5; x = x - floor(x); x = x * (x + 33.33) * 17; x = x - floor(x); x = x * (x + 11.7) * 29; return x - floor(x); }\nParam ktrig(0);\nParam knote(36, min=0, max=127);\nParam kvel(1, min=0, max=1);\nParam amp_len(0.52, min=0, max=1);\nParam amp_att(0, min=0, max=1);\nParam amp_crv(0.38, min=0, max=1);\nParam pit_swp(0.55, min=0, max=1);\nParam pit_time(0.42, min=0, max=1);\nParam pit_crv(0.62, min=0, max=1);\nParam clk_amt(0.35, min=0, max=1);\nParam clk_tone(0.45, min=0, max=1);\nParam nz_amt(0.12, min=0, max=1);\nParam nz_col(0.55, min=0, max=1);\nParam nz_dec(0.25, min=0, max=1);\nParam hm_amt(0.15, min=0, max=1);\nParam hm_spr(0, min=0, max=1);\nParam dr_amt(0.35, min=0, max=1);\nParam dr_knee(0.25, min=0, max=1);\nParam fm_amt(0.08, min=0, max=1);\nParam fm_rat(0.2, min=0, max=1);\nParam fm_dec(0.35, min=0, max=1);\nParam wd_amt(0, min=0, max=1);\nParam sp_amt(0, min=0, max=1);\nParam sp_time(0.35, min=0, max=1);\nParam level(0.75, min=0, max=1);\nParam tune(0.5, min=0, max=1);\nParam amp_phs(0, min=0, max=1);\nParam sub_lvl(0, min=0, max=1);\nParam sub_len(0.66, min=0, max=1);\nParam sub_crv(0.55, min=0, max=1);\nParam clk_bw(0.5, min=0, max=1);\nParam dr_asym(0, min=0, max=1);\nParam glue(0, min=0, max=1);\nParam p808(0, min=0, max=1);\nParam dr_pre(0, min=0, max=1);\nParam vel_amt(0.5, min=0, max=1);\nParam note_amt(0.5, min=0, max=1);\nParam rnd_amt(0.5, min=0, max=1);\nParam v_amp_len(0, min=-1, max=1);\nParam v_amp_att(0, min=-1, max=1);\nParam v_amp_crv(0, min=-1, max=1);\nParam v_pit_swp(0, min=-1, max=1);\nParam v_pit_time(0, min=-1, max=1);\nParam v_pit_crv(0, min=-1, max=1);\nParam v_clk_amt(0.6, min=-1, max=1);\nParam v_clk_tone(0, min=-1, max=1);\nParam v_nz_amt(0, min=-1, max=1);\nParam v_nz_col(0, min=-1, max=1);\nParam v_nz_dec(0, min=-1, max=1);\nParam v_hm_amt(0, min=-1, max=1);\nParam v_hm_spr(0, min=-1, max=1);\nParam v_dr_amt(0.3, min=-1, max=1);\nParam v_dr_knee(0, min=-1, max=1);\nParam v_fm_amt(0, min=-1, max=1);\nParam v_fm_rat(0, min=-1, max=1);\nParam v_fm_dec(0, min=-1, max=1);\nParam v_wd_amt(0, min=-1, max=1);\nParam v_sp_amt(0, min=-1, max=1);\nParam v_sp_time(0, min=-1, max=1);\nParam v_level(1, min=-1, max=1);\nParam v_tune(0, min=-1, max=1);\nParam v_amp_phs(0, min=-1, max=1);\nParam v_sub_lvl(0, min=-1, max=1);\nParam v_sub_len(0, min=-1, max=1);\nParam v_sub_crv(0, min=-1, max=1);\nParam v_clk_bw(0, min=-1, max=1);\nParam v_dr_asym(0, min=-1, max=1);\nParam v_glue(0, min=-1, max=1);\nParam k_amp_len(0, min=-1, max=1);\nParam k_amp_att(0, min=-1, max=1);\nParam k_amp_crv(0, min=-1, max=1);\nParam k_pit_swp(0, min=-1, max=1);\nParam k_pit_time(0, min=-1, max=1);\nParam k_pit_crv(0, min=-1, max=1);\nParam k_clk_amt(0, min=-1, max=1);\nParam k_clk_tone(0, min=-1, max=1);\nParam k_nz_amt(0, min=-1, max=1);\nParam k_nz_col(0, min=-1, max=1);\nParam k_nz_dec(0, min=-1, max=1);\nParam k_hm_amt(0, min=-1, max=1);\nParam k_hm_spr(0, min=-1, max=1);\nParam k_dr_amt(0, min=-1, max=1);\nParam k_dr_knee(0, min=-1, max=1);\nParam k_fm_amt(0, min=-1, max=1);\nParam k_fm_rat(0, min=-1, max=1);\nParam k_fm_dec(0, min=-1, max=1);\nParam k_wd_amt(0, min=-1, max=1);\nParam k_sp_amt(0, min=-1, max=1);\nParam k_sp_time(0, min=-1, max=1);\nParam k_level(0, min=-1, max=1);\nParam k_tune(0, min=-1, max=1);\nParam k_amp_phs(0, min=-1, max=1);\nParam k_sub_lvl(0, min=-1, max=1);\nParam k_sub_len(0, min=-1, max=1);\nParam k_sub_crv(0, min=-1, max=1);\nParam k_clk_bw(0, min=-1, max=1);\nParam k_dr_asym(0, min=-1, max=1);\nParam k_glue(0, min=-1, max=1);\nParam r_amp_len(0, min=-1, max=1);\nParam r_amp_att(0, min=-1, max=1);\nParam r_amp_crv(0, min=-1, max=1);\nParam r_pit_swp(0.1, min=-1, max=1);\nParam r_pit_time(0, min=-1, max=1);\nParam r_pit_crv(0, min=-1, max=1);\nParam r_clk_amt(0, min=-1, max=1);\nParam r_clk_tone(0.3, min=-1, max=1);\nParam r_nz_amt(0, min=-1, max=1);\nParam r_nz_col(0.3, min=-1, max=1);\nParam r_nz_dec(0, min=-1, max=1);\nParam r_hm_amt(0, min=-1, max=1);\nParam r_hm_spr(0, min=-1, max=1);\nParam r_dr_amt(0, min=-1, max=1);\nParam r_dr_knee(0, min=-1, max=1);\nParam r_fm_amt(0, min=-1, max=1);\nParam r_fm_rat(0, min=-1, max=1);\nParam r_fm_dec(0, min=-1, max=1);\nParam r_wd_amt(0, min=-1, max=1);\nParam r_sp_amt(0, min=-1, max=1);\nParam r_sp_time(0, min=-1, max=1);\nParam r_level(0, min=-1, max=1);\nParam r_tune(0, min=-1, max=1);\nParam r_amp_phs(0, min=-1, max=1);\nParam r_sub_lvl(0, min=-1, max=1);\nParam r_sub_len(0, min=-1, max=1);\nParam r_sub_crv(0, min=-1, max=1);\nParam r_clk_bw(0, min=-1, max=1);\nParam r_dr_asym(0, min=-1, max=1);\nParam r_glue(0, min=-1, max=1);\nData room(8192, 4);\nHistory init(0);\nHistory lastk(0);\nHistory s_amp_len(0.52);\nHistory o_amp_len(0);\nHistory s_amp_att(0);\nHistory o_amp_att(0);\nHistory s_amp_crv(0.38);\nHistory o_amp_crv(0);\nHistory s_pit_swp(0.55);\nHistory o_pit_swp(0);\nHistory s_pit_time(0.42);\nHistory o_pit_time(0);\nHistory s_pit_crv(0.62);\nHistory o_pit_crv(0);\nHistory s_clk_amt(0.35);\nHistory o_clk_amt(0);\nHistory s_clk_tone(0.45);\nHistory o_clk_tone(0);\nHistory s_nz_amt(0.12);\nHistory o_nz_amt(0);\nHistory s_nz_col(0.55);\nHistory o_nz_col(0);\nHistory s_nz_dec(0.25);\nHistory o_nz_dec(0);\nHistory s_hm_amt(0.15);\nHistory o_hm_amt(0);\nHistory s_hm_spr(0);\nHistory o_hm_spr(0);\nHistory s_dr_amt(0.35);\nHistory o_dr_amt(0);\nHistory s_dr_knee(0.25);\nHistory o_dr_knee(0);\nHistory s_fm_amt(0.08);\nHistory o_fm_amt(0);\nHistory s_fm_rat(0.2);\nHistory o_fm_rat(0);\nHistory s_fm_dec(0.35);\nHistory o_fm_dec(0);\nHistory s_wd_amt(0);\nHistory o_wd_amt(0);\nHistory s_sp_amt(0);\nHistory o_sp_amt(0);\nHistory s_sp_time(0.35);\nHistory o_sp_time(0);\nHistory s_level(0.75);\nHistory o_level(0);\nHistory s_tune(0.5);\nHistory o_tune(0);\nHistory s_amp_phs(0);\nHistory o_amp_phs(0);\nHistory s_sub_lvl(0);\nHistory o_sub_lvl(0);\nHistory s_sub_len(0.66);\nHistory o_sub_len(0);\nHistory s_sub_crv(0.55);\nHistory o_sub_crv(0);\nHistory s_clk_bw(0.5);\nHistory o_clk_bw(0);\nHistory s_dr_asym(0);\nHistory o_dr_asym(0);\nHistory s_glue(0);\nHistory o_glue(0);\nHistory act(0);\nHistory tt(0);\nHistory ph(0);\nHistory pm(0);\nHistory p2(0);\nHistory p3(0);\nHistory p4(0);\nHistory p5(0);\nHistory nlL(0);\nHistory nlR(0);\nHistory nhL(0);\nHistory nhR(0);\nHistory dcL(0);\nHistory dcR(0);\nHistory yL(0);\nHistory yR(0);\nHistory slL(0);\nHistory slR(0);\nHistory rl1(0);\nHistory rl2(0);\nHistory rl3(0);\nHistory rl4(0);\nHistory rwi(0);\nHistory cbL1(0);\nHistory cbL2(0);\nHistory cbR1(0);\nHistory cbR2(0);\nHistory gph(0);\nHistory gf(0);\nHistory ga(0);\nHistory gtm(0);\nHistory la(0);\nHistory lf(0);\nHistory dbL(0);\nHistory dbR(0);\ntrig = init > 0.5 && ktrig != lastk;\nvsrc = kvel - 1;\nksrc = clamp((knote - 36) / 24, -1, 1);\nsk = init > 0.5 ? 0.002 : 1;\nsm_amp_len = s_amp_len + (amp_len - s_amp_len) * sk;\nq_amp_len = trig ? (v_amp_len * vel_amt * vsrc + k_amp_len * note_amt * ksrc + r_amp_len * rnd_amt * (hsh(ktrig, 0) - 0.5)) : o_amp_len;\ne_amp_len = clamp(sm_amp_len + q_amp_len, 0, 1);\nsm_amp_att = s_amp_att + (amp_att - s_amp_att) * sk;\nq_amp_att = trig ? (v_amp_att * vel_amt * vsrc + k_amp_att * note_amt * ksrc + r_amp_att * rnd_amt * (hsh(ktrig, 1) - 0.5)) : o_amp_att;\ne_amp_att = clamp(sm_amp_att + q_amp_att, 0, 1);\nsm_amp_crv = s_amp_crv + (amp_crv - s_amp_crv) * sk;\nq_amp_crv = trig ? (v_amp_crv * vel_amt * vsrc + k_amp_crv * note_amt * ksrc + r_amp_crv * rnd_amt * (hsh(ktrig, 2) - 0.5)) : o_amp_crv;\ne_amp_crv = clamp(sm_amp_crv + q_amp_crv, 0, 1);\nsm_pit_swp = s_pit_swp + (pit_swp - s_pit_swp) * sk;\nq_pit_swp = trig ? (v_pit_swp * vel_amt * vsrc + k_pit_swp * note_amt * ksrc + r_pit_swp * rnd_amt * (hsh(ktrig, 3) - 0.5)) : o_pit_swp;\ne_pit_swp = clamp(sm_pit_swp + q_pit_swp, 0, 1);\nsm_pit_time = s_pit_time + (pit_time - s_pit_time) * sk;\nq_pit_time = trig ? (v_pit_time * vel_amt * vsrc + k_pit_time * note_amt * ksrc + r_pit_time * rnd_amt * (hsh(ktrig, 4) - 0.5)) : o_pit_time;\ne_pit_time = clamp(sm_pit_time + q_pit_time, 0, 1);\nsm_pit_crv = s_pit_crv + (pit_crv - s_pit_crv) * sk;\nq_pit_crv = trig ? (v_pit_crv * vel_amt * vsrc + k_pit_crv * note_amt * ksrc + r_pit_crv * rnd_amt * (hsh(ktrig, 5) - 0.5)) : o_pit_crv;\ne_pit_crv = clamp(sm_pit_crv + q_pit_crv, 0, 1);\nsm_clk_amt = s_clk_amt + (clk_amt - s_clk_amt) * sk;\nq_clk_amt = trig ? (v_clk_amt * vel_amt * vsrc + k_clk_amt * note_amt * ksrc + r_clk_amt * rnd_amt * (hsh(ktrig, 6) - 0.5)) : o_clk_amt;\ne_clk_amt = clamp(sm_clk_amt + q_clk_amt, 0, 1);\nsm_clk_tone = s_clk_tone + (clk_tone - s_clk_tone) * sk;\nq_clk_tone = trig ? (v_clk_tone * vel_amt * vsrc + k_clk_tone * note_amt * ksrc + r_clk_tone * rnd_amt * (hsh(ktrig, 7) - 0.5)) : o_clk_tone;\ne_clk_tone = clamp(sm_clk_tone + q_clk_tone, 0, 1);\nsm_nz_amt = s_nz_amt + (nz_amt - s_nz_amt) * sk;\nq_nz_amt = trig ? (v_nz_amt * vel_amt * vsrc + k_nz_amt * note_amt * ksrc + r_nz_amt * rnd_amt * (hsh(ktrig, 8) - 0.5)) : o_nz_amt;\ne_nz_amt = clamp(sm_nz_amt + q_nz_amt, 0, 1);\nsm_nz_col = s_nz_col + (nz_col - s_nz_col) * sk;\nq_nz_col = trig ? (v_nz_col * vel_amt * vsrc + k_nz_col * note_amt * ksrc + r_nz_col * rnd_amt * (hsh(ktrig, 9) - 0.5)) : o_nz_col;\ne_nz_col = clamp(sm_nz_col + q_nz_col, 0, 1);\nsm_nz_dec = s_nz_dec + (nz_dec - s_nz_dec) * sk;\nq_nz_dec = trig ? (v_nz_dec * vel_amt * vsrc + k_nz_dec * note_amt * ksrc + r_nz_dec * rnd_amt * (hsh(ktrig, 10) - 0.5)) : o_nz_dec;\ne_nz_dec = clamp(sm_nz_dec + q_nz_dec, 0, 1);\nsm_hm_amt = s_hm_amt + (hm_amt - s_hm_amt) * sk;\nq_hm_amt = trig ? (v_hm_amt * vel_amt * vsrc + k_hm_amt * note_amt * ksrc + r_hm_amt * rnd_amt * (hsh(ktrig, 11) - 0.5)) : o_hm_amt;\ne_hm_amt = clamp(sm_hm_amt + q_hm_amt, 0, 1);\nsm_hm_spr = s_hm_spr + (hm_spr - s_hm_spr) * sk;\nq_hm_spr = trig ? (v_hm_spr * vel_amt * vsrc + k_hm_spr * note_amt * ksrc + r_hm_spr * rnd_amt * (hsh(ktrig, 12) - 0.5)) : o_hm_spr;\ne_hm_spr = clamp(sm_hm_spr + q_hm_spr, 0, 1);\nsm_dr_amt = s_dr_amt + (dr_amt - s_dr_amt) * sk;\nq_dr_amt = trig ? (v_dr_amt * vel_amt * vsrc + k_dr_amt * note_amt * ksrc + r_dr_amt * rnd_amt * (hsh(ktrig, 13) - 0.5)) : o_dr_amt;\ne_dr_amt = clamp(sm_dr_amt + q_dr_amt, 0, 1);\nsm_dr_knee = s_dr_knee + (dr_knee - s_dr_knee) * sk;\nq_dr_knee = trig ? (v_dr_knee * vel_amt * vsrc + k_dr_knee * note_amt * ksrc + r_dr_knee * rnd_amt * (hsh(ktrig, 14) - 0.5)) : o_dr_knee;\ne_dr_knee = clamp(sm_dr_knee + q_dr_knee, 0, 1);\nsm_fm_amt = s_fm_amt + (fm_amt - s_fm_amt) * sk;\nq_fm_amt = trig ? (v_fm_amt * vel_amt * vsrc + k_fm_amt * note_amt * ksrc + r_fm_amt * rnd_amt * (hsh(ktrig, 15) - 0.5)) : o_fm_amt;\ne_fm_amt = clamp(sm_fm_amt + q_fm_amt, 0, 1);\nsm_fm_rat = s_fm_rat + (fm_rat - s_fm_rat) * sk;\nq_fm_rat = trig ? (v_fm_rat * vel_amt * vsrc + k_fm_rat * note_amt * ksrc + r_fm_rat * rnd_amt * (hsh(ktrig, 16) - 0.5)) : o_fm_rat;\ne_fm_rat = clamp(sm_fm_rat + q_fm_rat, 0, 1);\nsm_fm_dec = s_fm_dec + (fm_dec - s_fm_dec) * sk;\nq_fm_dec = trig ? (v_fm_dec * vel_amt * vsrc + k_fm_dec * note_amt * ksrc + r_fm_dec * rnd_amt * (hsh(ktrig, 17) - 0.5)) : o_fm_dec;\ne_fm_dec = clamp(sm_fm_dec + q_fm_dec, 0, 1);\nsm_wd_amt = s_wd_amt + (wd_amt - s_wd_amt) * sk;\nq_wd_amt = trig ? (v_wd_amt * vel_amt * vsrc + k_wd_amt * note_amt * ksrc + r_wd_amt * rnd_amt * (hsh(ktrig, 18) - 0.5)) : o_wd_amt;\ne_wd_amt = clamp(sm_wd_amt + q_wd_amt, 0, 1);\nsm_sp_amt = s_sp_amt + (sp_amt - s_sp_amt) * sk;\nq_sp_amt = trig ? (v_sp_amt * vel_amt * vsrc + k_sp_amt * note_amt * ksrc + r_sp_amt * rnd_amt * (hsh(ktrig, 19) - 0.5)) : o_sp_amt;\ne_sp_amt = clamp(sm_sp_amt + q_sp_amt, 0, 1);\nsm_sp_time = s_sp_time + (sp_time - s_sp_time) * sk;\nq_sp_time = trig ? (v_sp_time * vel_amt * vsrc + k_sp_time * note_amt * ksrc + r_sp_time * rnd_amt * (hsh(ktrig, 20) - 0.5)) : o_sp_time;\ne_sp_time = clamp(sm_sp_time + q_sp_time, 0, 1);\nsm_level = s_level + (level - s_level) * sk;\nq_level = trig ? (v_level * vel_amt * vsrc + k_level * note_amt * ksrc + r_level * rnd_amt * (hsh(ktrig, 21) - 0.5)) : o_level;\ne_level = clamp(sm_level + q_level, 0, 1);\nsm_tune = s_tune + (tune - s_tune) * sk;\nq_tune = trig ? (v_tune * vel_amt * vsrc + k_tune * note_amt * ksrc + r_tune * rnd_amt * (hsh(ktrig, 22) - 0.5)) : o_tune;\ne_tune = clamp(sm_tune + q_tune, 0, 1);\nsm_amp_phs = s_amp_phs + (amp_phs - s_amp_phs) * sk;\nq_amp_phs = trig ? (v_amp_phs * vel_amt * vsrc + k_amp_phs * note_amt * ksrc + r_amp_phs * rnd_amt * (hsh(ktrig, 23) - 0.5)) : o_amp_phs;\ne_amp_phs = clamp(sm_amp_phs + q_amp_phs, 0, 1);\nsm_sub_lvl = s_sub_lvl + (sub_lvl - s_sub_lvl) * sk;\nq_sub_lvl = trig ? (v_sub_lvl * vel_amt * vsrc + k_sub_lvl * note_amt * ksrc + r_sub_lvl * rnd_amt * (hsh(ktrig, 24) - 0.5)) : o_sub_lvl;\ne_sub_lvl = clamp(sm_sub_lvl + q_sub_lvl, 0, 1);\nsm_sub_len = s_sub_len + (sub_len - s_sub_len) * sk;\nq_sub_len = trig ? (v_sub_len * vel_amt * vsrc + k_sub_len * note_amt * ksrc + r_sub_len * rnd_amt * (hsh(ktrig, 25) - 0.5)) : o_sub_len;\ne_sub_len = clamp(sm_sub_len + q_sub_len, 0, 1);\nsm_sub_crv = s_sub_crv + (sub_crv - s_sub_crv) * sk;\nq_sub_crv = trig ? (v_sub_crv * vel_amt * vsrc + k_sub_crv * note_amt * ksrc + r_sub_crv * rnd_amt * (hsh(ktrig, 26) - 0.5)) : o_sub_crv;\ne_sub_crv = clamp(sm_sub_crv + q_sub_crv, 0, 1);\nsm_clk_bw = s_clk_bw + (clk_bw - s_clk_bw) * sk;\nq_clk_bw = trig ? (v_clk_bw * vel_amt * vsrc + k_clk_bw * note_amt * ksrc + r_clk_bw * rnd_amt * (hsh(ktrig, 27) - 0.5)) : o_clk_bw;\ne_clk_bw = clamp(sm_clk_bw + q_clk_bw, 0, 1);\nsm_dr_asym = s_dr_asym + (dr_asym - s_dr_asym) * sk;\nq_dr_asym = trig ? (v_dr_asym * vel_amt * vsrc + k_dr_asym * note_amt * ksrc + r_dr_asym * rnd_amt * (hsh(ktrig, 28) - 0.5)) : o_dr_asym;\ne_dr_asym = clamp(sm_dr_asym + q_dr_asym, 0, 1);\nsm_glue = s_glue + (glue - s_glue) * sk;\nq_glue = trig ? (v_glue * vel_amt * vsrc + k_glue * note_amt * ksrc + r_glue * rnd_amt * (hsh(ktrig, 29) - 0.5)) : o_glue;\ne_glue = clamp(sm_glue + q_glue, 0, 1);\ndt = 1 / samplerate;\nnyq = samplerate * 0.45;\nact_n = trig ? 1 : act;\ntt_n = trig ? 0 : min(tt + dt, 60);\nm808 = p808 > 0.5;\nalen = 0.05 * pw2(e_amp_len * 5.32);\naatt = 0.03 * e_amp_att * e_amp_att;\nax_ = clamp((tt_n - aatt) / alen, 0, 1);\nadec = m808 ? exp(-ax_ * 6.9078 * shapep(e_amp_crv)) : pow(1 - ax_, shapep(e_amp_crv));\nafade = min(1, (1 - ax_) * alen / 0.003);\naatk = aatt > 0.00002 ? min(1, tt_n / aatt) : 1;\nenv = act_n * aatk * adec * afade;\nslen = 0.05 * pw2(e_sub_len * 5.32);\nsx_ = clamp((tt_n - aatt) / slen, 0, 1);\nsdec = m808 ? exp(-sx_ * 6.9078 * shapep(e_sub_crv)) : pow(1 - sx_, shapep(e_sub_crv));\nsfade = min(1, (1 - sx_) * slen / 0.003);\nsenv = act_n * aatk * sdec * sfade * e_sub_lvl;\nfnote = 440 * pw2((knote - 69 + (e_tune - 0.5) * 48) / 12);\nptim = 0.005 * pw2(e_pit_time * 6);\npy_ = min(tt_n / ptim, 1);\npesw = pow(1 - py_, shapep(e_pit_crv));\npe8 = pow(adec, 8 * pw2(-e_pit_time * 6));\npe = m808 ? pe8 : pesw;\nfreq = min(fnote * pw2(e_pit_swp * 72 * pe / 12), nyq);\nph_n = trig ? 0 : fract(ph + freq * dt);\nphs = e_amp_phs * 0.25;\nfmr = 0.5 + e_fm_rat * 7.5;\npm_n = trig ? 0 : fract(pm + min(freq * fmr, nyq) * dt);\nfidx = 6 * e_fm_amt * e_fm_amt * exp(-tt_n / (0.005 * pw2(e_fm_dec * 6)));\nbosc = sin(twopi * (ph_n + phs) + fidx * sin(twopi * pm_n));\nsosc = sin(twopi * (ph_n + phs));\ndg = pw2(e_dr_amt * 5);\ndtg = tanh(dg);\ndmix = min(1, (e_dr_amt + e_dr_asym) * 5);\npre = dr_pre > 0.5;\ngph_n = trig ? fract(ph + lf * dt) : fract(gph + gf * dt);\ngf_n = trig ? lf : gf;\nga_n = trig ? la : ga;\ngtm_n = trig ? 0 : min(gtm + dt, 1);\ngfade = max(0, 1 - gtm_n / 0.005);\ngosc = sin(twopi * (gph_n + phs));\nbodyv = (pre ? shp(bosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : bosc) * env;\nsubv = (pre ? shp(sosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : sosc) * senv;\nghost = (pre ? shp(gosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : gosc) * ga_n * gfade;\nla_n = env + senv;\nlf_n = freq;\nhsp = 1 + e_hm_spr * 0.6;\nf2 = freq * exp(0.69314718 * hsp);\nf3 = freq * exp(1.09861229 * hsp);\nf4 = freq * exp(1.38629436 * hsp);\nf5 = freq * exp(1.60943791 * hsp);\np2_n = trig ? 0 : fract(p2 + min(f2, nyq) * dt);\np3_n = trig ? 0 : fract(p3 + min(f3, nyq) * dt);\np4_n = trig ? 0 : fract(p4 + min(f4, nyq) * dt);\np5_n = trig ? 0 : fract(p5 + min(f5, nyq) * dt);\nenv2 = env * env;\nhg = e_hm_amt * 0.9;\nha2 = (f2 < nyq) * 0.5 * sin(twopi * p2_n) * env2 * hg;\nha3 = (f3 < nyq) * 0.35 * sin(twopi * p3_n) * env2 * env * hg;\nha4 = (f4 < nyq) * 0.25 * sin(twopi * p4_n) * env2 * env2 * hg;\nha5 = (f5 < nyq) * 0.2 * sin(twopi * p5_n) * env2 * env2 * env * hg;\nwid = e_wd_amt;\nhL = ha2 + ha4 + (ha3 + ha5) * (1 - wid);\nhR = ha3 + ha5 + (ha2 + ha4) * (1 - wid);\nnz1 = noise();\nnz2 = noise();\nnL = nz1;\nnR = nz1 * (1 - wid) + nz2 * wid;\nncf = min(200 * pw2(e_nz_col * 6.3), nyq);\nnca = 1 - exp(-twopi * ncf * dt);\nhpa = 1 - exp(-twopi * 120 * dt);\nnlL_n = nlL + (nL - nlL) * nca;\nnlR_n = nlR + (nR - nlR) * nca;\nnhL_n = nhL + (nlL_n - nhL) * hpa;\nnhR_n = nhR + (nlR_n - nhR) * hpa;\nnenv = act_n * exp(-tt_n / (0.01 * pw2(e_nz_dec * 6.3))) * afade * min(1, tt_n / 0.0005 + 0.05);\nng = 0.9 * e_nz_amt * e_nz_amt * nenv;\nnoL = (nlL_n - nhL_n) * ng;\nnoR = (nlR_n - nhR_n) * ng;\nctone = min(1500 * pw2(e_clk_tone * 3), nyq * 0.9);\ncbw = 0.25 + e_clk_bw * 3.75;\nck_ = 2 * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw)) / 2;\ncg_ = tan(pi * ctone * dt);\nca1 = 1 / (1 + cg_ * (cg_ + ck_));\nca2 = cg_ * ca1;\nca3 = cg_ * ca2;\ncxL = nz1;\ncxR = nz1 * (1 - wid) + nz2 * wid;\ncv3L = cxL - cbL2;\ncv1L = ca1 * cbL1 + ca2 * cv3L;\ncv2L = cbL2 + ca2 * cbL1 + ca3 * cv3L;\ncv3R = cxR - cbR2;\ncv1R = ca1 * cbR1 + ca2 * cv3R;\ncv2R = cbR2 + ca2 * cbR1 + ca3 * cv3R;\ncbL1_n = 2 * cv1L - cbL1;\ncbL2_n = 2 * cv2L - cbL2;\ncbR1_n = 2 * cv1R - cbR1;\ncbR2_n = 2 * cv2R - cbR2;\ncbhz = ctone * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw));\ncnorm = min(6, pow(0.5 * samplerate / cbhz, 0.35)) * 0.55;\ncenv = act_n * exp(-tt_n / 0.0025) * 2.7 * e_clk_amt * afade * (tt_n < 0.05);\nckL = cenv * ck_ * cv1L * cnorm;\nckR = cenv * ck_ * cv1R * cnorm;\npreL = bodyv + subv + ghost + hL + noL + ckL;\npreR = bodyv + subv + ghost + hR + noR + ckR;\ndrL = pre ? preL : shp(preL, dg, dtg, e_dr_knee, e_dr_asym, dmix);\ndrR = pre ? preR : shp(preR, dg, dtg, e_dr_knee, e_dr_asym, dmix);\nd8 = 1 - exp(-twopi * 8 * dt);\ndbL0 = dbL + (drL - dbL) * d8;\ndbR0 = dbR + (drR - dbR) * d8;\ndbL_n = abs(dbL0) < 0.000000001 ? 0 : dbL0;\ndbR_n = abs(dbR0) < 0.000000001 ? 0 : dbR0;\namix = min(1, e_dr_asym * 10);\nxL = drL - dbL_n * amix;\nxR = drR - dbR_n * amix;\ndk = exp(-1 / (0.0015 * samplerate));\ngpost = pre ? ghost : shp(ghost, dg, dtg, e_dr_knee, e_dr_asym, dmix);\ndcL_n = trig ? (yL - gpost) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);\ndcR_n = trig ? (yR - gpost) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);\nyL_n = xL + dcL_n;\nyR_n = xR + dcR_n;\nsla = 1 - exp(-twopi * 180 * dt);\nslL0 = slL + (yL_n - slL) * sla;\nslR0 = slR + (yR_n - slR) * sla;\nslL_n = abs(slL0) < 0.000000001 ? 0 : slL0;\nslR_n = abs(slR0) < 0.000000001 ? 0 : slR0;\nsendL = yL_n - slL_n;\nsendR = yR_n - slR_n;\nrsc = (0.55 + 0.9 * e_sp_time) * samplerate / 44100;\nrfb = 0.62 + 0.3 * e_sp_time;\nrw = rwi;\nc1 = peek(room, wrapi(rw - floor(1116 * rsc), 8192), 0);\nc2 = peek(room, wrapi(rw - floor(1188 * rsc), 8192), 1);\nc3 = peek(room, wrapi(rw - floor(1277 * rsc), 8192), 2);\nc4 = peek(room, wrapi(rw - floor(1356 * rsc), 8192), 3);\nrl1_n = rl1 + (c1 - rl1) * 0.45;\nrl2_n = rl2 + (c2 - rl2) * 0.45;\nrl3_n = rl3 + (c3 - rl3) * 0.45;\nrl4_n = rl4 + (c4 - rl4) * 0.45;\npoke(room, sendL * 0.3 + rl1_n * rfb, rw, 0);\npoke(room, sendR * 0.3 + rl2_n * rfb, rw, 1);\npoke(room, sendL * 0.3 + rl3_n * rfb, rw, 2);\npoke(room, sendR * 0.3 + rl4_n * rfb, rw, 3);\nrwi_n = wrapi(rw + 1, 8192);\nspm = e_sp_amt * 0.7;\noutL = yL_n + (c1 + c3) * spm;\noutR = yR_n + (c2 + c4) * spm;\ngin = pw2(e_glue * 3.32);\ngmix = min(1, e_glue * 20);\ngL = outL + (gclip(outL * gin) - outL) * gmix;\ngR = outR + (gclip(outR * gin) - outR) * gmix;\nlvl = pw2((-30 + 36 * e_level) / 6.0206);\nout1 = sknee(gL * lvl);\nout2 = sknee(gR * lvl);\nout3 = env;\nact = act_n;\ntt = tt_n;\nph = ph_n;\npm = pm_n;\np2 = p2_n;\np3 = p3_n;\np4 = p4_n;\np5 = p5_n;\nnlL = nlL_n;\nnlR = nlR_n;\nnhL = nhL_n;\nnhR = nhR_n;\ncbL1 = cbL1_n;\ncbL2 = cbL2_n;\ncbR1 = cbR1_n;\ncbR2 = cbR2_n;\ngph = gph_n;\ngf = gf_n;\nga = ga_n;\ngtm = gtm_n;\nla = la_n;\nlf = lf_n;\ndbL = dbL_n;\ndbR = dbR_n;\ndcL = dcL_n;\ndcR = dcR_n;\nyL = yL_n;\nyR = yR_n;\nslL = slL_n;\nslR = slR_n;\nrl1 = rl1_n;\nrl2 = rl2_n;\nrl3 = rl3_n;\nrl4 = rl4_n;\nrwi = rwi_n;\ninit = 1;\nlastk = ktrig;\ns_amp_len = sm_amp_len;\no_amp_len = q_amp_len;\ns_amp_att = sm_amp_att;\no_amp_att = q_amp_att;\ns_amp_crv = sm_amp_crv;\no_amp_crv = q_amp_crv;\ns_pit_swp = sm_pit_swp;\no_pit_swp = q_pit_swp;\ns_pit_time = sm_pit_time;\no_pit_time = q_pit_time;\ns_pit_crv = sm_pit_crv;\no_pit_crv = q_pit_crv;\ns_clk_amt = sm_clk_amt;\no_clk_amt = q_clk_amt;\ns_clk_tone = sm_clk_tone;\no_clk_tone = q_clk_tone;\ns_nz_amt = sm_nz_amt;\no_nz_amt = q_nz_amt;\ns_nz_col = sm_nz_col;\no_nz_col = q_nz_col;\ns_nz_dec = sm_nz_dec;\no_nz_dec = q_nz_dec;\ns_hm_amt = sm_hm_amt;\no_hm_amt = q_hm_amt;\ns_hm_spr = sm_hm_spr;\no_hm_spr = q_hm_spr;\ns_dr_amt = sm_dr_amt;\no_dr_amt = q_dr_amt;\ns_dr_knee = sm_dr_knee;\no_dr_knee = q_dr_knee;\ns_fm_amt = sm_fm_amt;\no_fm_amt = q_fm_amt;\ns_fm_rat = sm_fm_rat;\no_fm_rat = q_fm_rat;\ns_fm_dec = sm_fm_dec;\no_fm_dec = q_fm_dec;\ns_wd_amt = sm_wd_amt;\no_wd_amt = q_wd_amt;\ns_sp_amt = sm_sp_amt;\no_sp_amt = q_sp_amt;\ns_sp_time = sm_sp_time;\no_sp_time = q_sp_time;\ns_level = sm_level;\no_level = q_level;\ns_tune = sm_tune;\no_tune = q_tune;\ns_amp_phs = sm_amp_phs;\no_amp_phs = q_amp_phs;\ns_sub_lvl = sm_sub_lvl;\no_sub_lvl = q_sub_lvl;\ns_sub_len = sm_sub_len;\no_sub_len = q_sub_len;\ns_sub_crv = sm_sub_crv;\no_sub_crv = q_sub_crv;\ns_clk_bw = sm_clk_bw;\no_clk_bw = q_clk_bw;\ns_dr_asym = sm_dr_asym;\no_dr_asym = q_dr_asym;\ns_glue = sm_glue;\no_glue = q_glue;\n",
+         "code": "sknee(x) { ax = abs(x); return ax < 0.9 ? x : (x < 0 ? -1 : 1) * (0.9 + 0.1 * tanh((ax - 0.9) / 0.1)); }\npw2(x) { return exp(x * 0.69314718); }\nshapep(v) { return pw2((0.5 - v) * 6); }\nwrapi(i, n) { return i < 0 ? i + n : (i >= n ? i - n : i); }\nshp(x, dg, dtg, knee, asym, amt) { xs = x < 0 ? x * (1 + 3 * asym) : x; sf = x < 0 ? tanh(dg * xs) / tanh(dg * (1 + 3 * asym)) * (1 - 0.45 * asym) : tanh(dg * x) / dtg; hd = clamp(dg * xs, -1, 1); y = sf + (hd - sf) * knee; return x + (y - x) * amt; }\ngclip(x) { ax = abs(x); return ax < 0.7 ? x : (x < 0 ? -1 : 1) * (0.7 + 0.3 * tanh((ax - 0.7) / 0.3)); }\nhsh(n, k) { x = n * 0.7548776662466927 + k * 0.5698402909980532 + 0.5; x = x - floor(x); x = x * (x + 33.33) * 17; x = x - floor(x); x = x * (x + 11.7) * 29; return x - floor(x); }\nParam ktrig(0);\nParam knote(36, min=0, max=127);\nParam kvel(1, min=0, max=1);\nParam amp_len(0.52, min=0, max=1);\nParam amp_att(0, min=0, max=1);\nParam amp_crv(0.38, min=0, max=1);\nParam pit_swp(0.55, min=0, max=1);\nParam pit_time(0.42, min=0, max=1);\nParam pit_crv(0.62, min=0, max=1);\nParam clk_amt(0.35, min=0, max=1);\nParam clk_tone(0.45, min=0, max=1);\nParam nz_amt(0.12, min=0, max=1);\nParam nz_col(0.55, min=0, max=1);\nParam nz_dec(0.25, min=0, max=1);\nParam hm_amt(0.15, min=0, max=1);\nParam hm_spr(0, min=0, max=1);\nParam dr_amt(0.35, min=0, max=1);\nParam dr_knee(0.25, min=0, max=1);\nParam fm_amt(0.08, min=0, max=1);\nParam fm_rat(0.2, min=0, max=1);\nParam fm_dec(0.35, min=0, max=1);\nParam wd_amt(0, min=0, max=1);\nParam sp_amt(0, min=0, max=1);\nParam sp_time(0.35, min=0, max=1);\nParam level(0.75, min=0, max=1);\nParam tune(0.5, min=0, max=1);\nParam amp_phs(0, min=0, max=1);\nParam sub_lvl(0, min=0, max=1);\nParam sub_len(0.66, min=0, max=1);\nParam sub_crv(0.55, min=0, max=1);\nParam clk_bw(0.5, min=0, max=1);\nParam dr_asym(0, min=0, max=1);\nParam glue(0, min=0, max=1);\nParam nz_lfo(0, min=0, max=1);\nParam nz_lrt(0.5, min=0, max=1);\nParam p808(0, min=0, max=1);\nParam dr_pre(0, min=0, max=1);\nParam vel_amt(0.5, min=0, max=1);\nParam note_amt(0.5, min=0, max=1);\nParam rnd_amt(0.5, min=0, max=1);\nParam v_amp_len(0, min=-1, max=1);\nParam v_amp_att(0, min=-1, max=1);\nParam v_amp_crv(0, min=-1, max=1);\nParam v_pit_swp(0, min=-1, max=1);\nParam v_pit_time(0, min=-1, max=1);\nParam v_pit_crv(0, min=-1, max=1);\nParam v_clk_amt(0.6, min=-1, max=1);\nParam v_clk_tone(0, min=-1, max=1);\nParam v_nz_amt(0, min=-1, max=1);\nParam v_nz_col(0, min=-1, max=1);\nParam v_nz_dec(0, min=-1, max=1);\nParam v_hm_amt(0, min=-1, max=1);\nParam v_hm_spr(0, min=-1, max=1);\nParam v_dr_amt(0.3, min=-1, max=1);\nParam v_dr_knee(0, min=-1, max=1);\nParam v_fm_amt(0, min=-1, max=1);\nParam v_fm_rat(0, min=-1, max=1);\nParam v_fm_dec(0, min=-1, max=1);\nParam v_wd_amt(0, min=-1, max=1);\nParam v_sp_amt(0, min=-1, max=1);\nParam v_sp_time(0, min=-1, max=1);\nParam v_level(1, min=-1, max=1);\nParam v_tune(0, min=-1, max=1);\nParam v_amp_phs(0, min=-1, max=1);\nParam v_sub_lvl(0, min=-1, max=1);\nParam v_sub_len(0, min=-1, max=1);\nParam v_sub_crv(0, min=-1, max=1);\nParam v_clk_bw(0, min=-1, max=1);\nParam v_dr_asym(0, min=-1, max=1);\nParam v_glue(0, min=-1, max=1);\nParam v_nz_lfo(0, min=-1, max=1);\nParam v_nz_lrt(0, min=-1, max=1);\nParam k_amp_len(0, min=-1, max=1);\nParam k_amp_att(0, min=-1, max=1);\nParam k_amp_crv(0, min=-1, max=1);\nParam k_pit_swp(0, min=-1, max=1);\nParam k_pit_time(0, min=-1, max=1);\nParam k_pit_crv(0, min=-1, max=1);\nParam k_clk_amt(0, min=-1, max=1);\nParam k_clk_tone(0, min=-1, max=1);\nParam k_nz_amt(0, min=-1, max=1);\nParam k_nz_col(0, min=-1, max=1);\nParam k_nz_dec(0, min=-1, max=1);\nParam k_hm_amt(0, min=-1, max=1);\nParam k_hm_spr(0, min=-1, max=1);\nParam k_dr_amt(0, min=-1, max=1);\nParam k_dr_knee(0, min=-1, max=1);\nParam k_fm_amt(0, min=-1, max=1);\nParam k_fm_rat(0, min=-1, max=1);\nParam k_fm_dec(0, min=-1, max=1);\nParam k_wd_amt(0, min=-1, max=1);\nParam k_sp_amt(0, min=-1, max=1);\nParam k_sp_time(0, min=-1, max=1);\nParam k_level(0, min=-1, max=1);\nParam k_tune(0, min=-1, max=1);\nParam k_amp_phs(0, min=-1, max=1);\nParam k_sub_lvl(0, min=-1, max=1);\nParam k_sub_len(0, min=-1, max=1);\nParam k_sub_crv(0, min=-1, max=1);\nParam k_clk_bw(0, min=-1, max=1);\nParam k_dr_asym(0, min=-1, max=1);\nParam k_glue(0, min=-1, max=1);\nParam k_nz_lfo(0, min=-1, max=1);\nParam k_nz_lrt(0, min=-1, max=1);\nParam r_amp_len(0, min=-1, max=1);\nParam r_amp_att(0, min=-1, max=1);\nParam r_amp_crv(0, min=-1, max=1);\nParam r_pit_swp(0.1, min=-1, max=1);\nParam r_pit_time(0, min=-1, max=1);\nParam r_pit_crv(0, min=-1, max=1);\nParam r_clk_amt(0, min=-1, max=1);\nParam r_clk_tone(0.3, min=-1, max=1);\nParam r_nz_amt(0, min=-1, max=1);\nParam r_nz_col(0.3, min=-1, max=1);\nParam r_nz_dec(0, min=-1, max=1);\nParam r_hm_amt(0, min=-1, max=1);\nParam r_hm_spr(0, min=-1, max=1);\nParam r_dr_amt(0, min=-1, max=1);\nParam r_dr_knee(0, min=-1, max=1);\nParam r_fm_amt(0, min=-1, max=1);\nParam r_fm_rat(0, min=-1, max=1);\nParam r_fm_dec(0, min=-1, max=1);\nParam r_wd_amt(0, min=-1, max=1);\nParam r_sp_amt(0, min=-1, max=1);\nParam r_sp_time(0, min=-1, max=1);\nParam r_level(0, min=-1, max=1);\nParam r_tune(0, min=-1, max=1);\nParam r_amp_phs(0, min=-1, max=1);\nParam r_sub_lvl(0, min=-1, max=1);\nParam r_sub_len(0, min=-1, max=1);\nParam r_sub_crv(0, min=-1, max=1);\nParam r_clk_bw(0, min=-1, max=1);\nParam r_dr_asym(0, min=-1, max=1);\nParam r_glue(0, min=-1, max=1);\nParam r_nz_lfo(0, min=-1, max=1);\nParam r_nz_lrt(0, min=-1, max=1);\nData room(8192, 4);\nHistory init(0);\nHistory lastk(0);\nHistory s_amp_len(0.52);\nHistory o_amp_len(0);\nHistory s_amp_att(0);\nHistory o_amp_att(0);\nHistory s_amp_crv(0.38);\nHistory o_amp_crv(0);\nHistory s_pit_swp(0.55);\nHistory o_pit_swp(0);\nHistory s_pit_time(0.42);\nHistory o_pit_time(0);\nHistory s_pit_crv(0.62);\nHistory o_pit_crv(0);\nHistory s_clk_amt(0.35);\nHistory o_clk_amt(0);\nHistory s_clk_tone(0.45);\nHistory o_clk_tone(0);\nHistory s_nz_amt(0.12);\nHistory o_nz_amt(0);\nHistory s_nz_col(0.55);\nHistory o_nz_col(0);\nHistory s_nz_dec(0.25);\nHistory o_nz_dec(0);\nHistory s_hm_amt(0.15);\nHistory o_hm_amt(0);\nHistory s_hm_spr(0);\nHistory o_hm_spr(0);\nHistory s_dr_amt(0.35);\nHistory o_dr_amt(0);\nHistory s_dr_knee(0.25);\nHistory o_dr_knee(0);\nHistory s_fm_amt(0.08);\nHistory o_fm_amt(0);\nHistory s_fm_rat(0.2);\nHistory o_fm_rat(0);\nHistory s_fm_dec(0.35);\nHistory o_fm_dec(0);\nHistory s_wd_amt(0);\nHistory o_wd_amt(0);\nHistory s_sp_amt(0);\nHistory o_sp_amt(0);\nHistory s_sp_time(0.35);\nHistory o_sp_time(0);\nHistory s_level(0.75);\nHistory o_level(0);\nHistory s_tune(0.5);\nHistory o_tune(0);\nHistory s_amp_phs(0);\nHistory o_amp_phs(0);\nHistory s_sub_lvl(0);\nHistory o_sub_lvl(0);\nHistory s_sub_len(0.66);\nHistory o_sub_len(0);\nHistory s_sub_crv(0.55);\nHistory o_sub_crv(0);\nHistory s_clk_bw(0.5);\nHistory o_clk_bw(0);\nHistory s_dr_asym(0);\nHistory o_dr_asym(0);\nHistory s_glue(0);\nHistory o_glue(0);\nHistory s_nz_lfo(0);\nHistory o_nz_lfo(0);\nHistory s_nz_lrt(0.5);\nHistory o_nz_lrt(0);\nHistory act(0);\nHistory tt(0);\nHistory ph(0);\nHistory pm(0);\nHistory p2(0);\nHistory p3(0);\nHistory p4(0);\nHistory p5(0);\nHistory nlL(0);\nHistory nlR(0);\nHistory nhL(0);\nHistory nhR(0);\nHistory dcL(0);\nHistory dcR(0);\nHistory yL(0);\nHistory yR(0);\nHistory slL(0);\nHistory slR(0);\nHistory rl1(0);\nHistory rl2(0);\nHistory rl3(0);\nHistory rl4(0);\nHistory rwi(0);\nHistory cbL1(0);\nHistory cbL2(0);\nHistory cbR1(0);\nHistory cbR2(0);\nHistory gph(0);\nHistory gf(0);\nHistory ga(0);\nHistory gtm(0);\nHistory la(0);\nHistory lf(0);\nHistory dbL(0);\nHistory dbR(0);\nHistory nlf(0);\ntrig = init > 0.5 && ktrig != lastk;\nvsrc = kvel - 1;\nksrc = clamp((knote - 36) / 24, -1, 1);\nsk = init > 0.5 ? 0.002 : 1;\nsm_amp_len = s_amp_len + (amp_len - s_amp_len) * sk;\nq_amp_len = trig ? (v_amp_len * vel_amt * vsrc + k_amp_len * note_amt * ksrc + r_amp_len * rnd_amt * (hsh(ktrig, 0) - 0.5)) : o_amp_len;\ne_amp_len = clamp(sm_amp_len + q_amp_len, 0, 1);\nsm_amp_att = s_amp_att + (amp_att - s_amp_att) * sk;\nq_amp_att = trig ? (v_amp_att * vel_amt * vsrc + k_amp_att * note_amt * ksrc + r_amp_att * rnd_amt * (hsh(ktrig, 1) - 0.5)) : o_amp_att;\ne_amp_att = clamp(sm_amp_att + q_amp_att, 0, 1);\nsm_amp_crv = s_amp_crv + (amp_crv - s_amp_crv) * sk;\nq_amp_crv = trig ? (v_amp_crv * vel_amt * vsrc + k_amp_crv * note_amt * ksrc + r_amp_crv * rnd_amt * (hsh(ktrig, 2) - 0.5)) : o_amp_crv;\ne_amp_crv = clamp(sm_amp_crv + q_amp_crv, 0, 1);\nsm_pit_swp = s_pit_swp + (pit_swp - s_pit_swp) * sk;\nq_pit_swp = trig ? (v_pit_swp * vel_amt * vsrc + k_pit_swp * note_amt * ksrc + r_pit_swp * rnd_amt * (hsh(ktrig, 3) - 0.5)) : o_pit_swp;\ne_pit_swp = clamp(sm_pit_swp + q_pit_swp, 0, 1);\nsm_pit_time = s_pit_time + (pit_time - s_pit_time) * sk;\nq_pit_time = trig ? (v_pit_time * vel_amt * vsrc + k_pit_time * note_amt * ksrc + r_pit_time * rnd_amt * (hsh(ktrig, 4) - 0.5)) : o_pit_time;\ne_pit_time = clamp(sm_pit_time + q_pit_time, 0, 1);\nsm_pit_crv = s_pit_crv + (pit_crv - s_pit_crv) * sk;\nq_pit_crv = trig ? (v_pit_crv * vel_amt * vsrc + k_pit_crv * note_amt * ksrc + r_pit_crv * rnd_amt * (hsh(ktrig, 5) - 0.5)) : o_pit_crv;\ne_pit_crv = clamp(sm_pit_crv + q_pit_crv, 0, 1);\nsm_clk_amt = s_clk_amt + (clk_amt - s_clk_amt) * sk;\nq_clk_amt = trig ? (v_clk_amt * vel_amt * vsrc + k_clk_amt * note_amt * ksrc + r_clk_amt * rnd_amt * (hsh(ktrig, 6) - 0.5)) : o_clk_amt;\ne_clk_amt = clamp(sm_clk_amt + q_clk_amt, 0, 1);\nsm_clk_tone = s_clk_tone + (clk_tone - s_clk_tone) * sk;\nq_clk_tone = trig ? (v_clk_tone * vel_amt * vsrc + k_clk_tone * note_amt * ksrc + r_clk_tone * rnd_amt * (hsh(ktrig, 7) - 0.5)) : o_clk_tone;\ne_clk_tone = clamp(sm_clk_tone + q_clk_tone, 0, 1);\nsm_nz_amt = s_nz_amt + (nz_amt - s_nz_amt) * sk;\nq_nz_amt = trig ? (v_nz_amt * vel_amt * vsrc + k_nz_amt * note_amt * ksrc + r_nz_amt * rnd_amt * (hsh(ktrig, 8) - 0.5)) : o_nz_amt;\ne_nz_amt = clamp(sm_nz_amt + q_nz_amt, 0, 1);\nsm_nz_col = s_nz_col + (nz_col - s_nz_col) * sk;\nq_nz_col = trig ? (v_nz_col * vel_amt * vsrc + k_nz_col * note_amt * ksrc + r_nz_col * rnd_amt * (hsh(ktrig, 9) - 0.5)) : o_nz_col;\ne_nz_col = clamp(sm_nz_col + q_nz_col, 0, 1);\nsm_nz_dec = s_nz_dec + (nz_dec - s_nz_dec) * sk;\nq_nz_dec = trig ? (v_nz_dec * vel_amt * vsrc + k_nz_dec * note_amt * ksrc + r_nz_dec * rnd_amt * (hsh(ktrig, 10) - 0.5)) : o_nz_dec;\ne_nz_dec = clamp(sm_nz_dec + q_nz_dec, 0, 1);\nsm_hm_amt = s_hm_amt + (hm_amt - s_hm_amt) * sk;\nq_hm_amt = trig ? (v_hm_amt * vel_amt * vsrc + k_hm_amt * note_amt * ksrc + r_hm_amt * rnd_amt * (hsh(ktrig, 11) - 0.5)) : o_hm_amt;\ne_hm_amt = clamp(sm_hm_amt + q_hm_amt, 0, 1);\nsm_hm_spr = s_hm_spr + (hm_spr - s_hm_spr) * sk;\nq_hm_spr = trig ? (v_hm_spr * vel_amt * vsrc + k_hm_spr * note_amt * ksrc + r_hm_spr * rnd_amt * (hsh(ktrig, 12) - 0.5)) : o_hm_spr;\ne_hm_spr = clamp(sm_hm_spr + q_hm_spr, 0, 1);\nsm_dr_amt = s_dr_amt + (dr_amt - s_dr_amt) * sk;\nq_dr_amt = trig ? (v_dr_amt * vel_amt * vsrc + k_dr_amt * note_amt * ksrc + r_dr_amt * rnd_amt * (hsh(ktrig, 13) - 0.5)) : o_dr_amt;\ne_dr_amt = clamp(sm_dr_amt + q_dr_amt, 0, 1);\nsm_dr_knee = s_dr_knee + (dr_knee - s_dr_knee) * sk;\nq_dr_knee = trig ? (v_dr_knee * vel_amt * vsrc + k_dr_knee * note_amt * ksrc + r_dr_knee * rnd_amt * (hsh(ktrig, 14) - 0.5)) : o_dr_knee;\ne_dr_knee = clamp(sm_dr_knee + q_dr_knee, 0, 1);\nsm_fm_amt = s_fm_amt + (fm_amt - s_fm_amt) * sk;\nq_fm_amt = trig ? (v_fm_amt * vel_amt * vsrc + k_fm_amt * note_amt * ksrc + r_fm_amt * rnd_amt * (hsh(ktrig, 15) - 0.5)) : o_fm_amt;\ne_fm_amt = clamp(sm_fm_amt + q_fm_amt, 0, 1);\nsm_fm_rat = s_fm_rat + (fm_rat - s_fm_rat) * sk;\nq_fm_rat = trig ? (v_fm_rat * vel_amt * vsrc + k_fm_rat * note_amt * ksrc + r_fm_rat * rnd_amt * (hsh(ktrig, 16) - 0.5)) : o_fm_rat;\ne_fm_rat = clamp(sm_fm_rat + q_fm_rat, 0, 1);\nsm_fm_dec = s_fm_dec + (fm_dec - s_fm_dec) * sk;\nq_fm_dec = trig ? (v_fm_dec * vel_amt * vsrc + k_fm_dec * note_amt * ksrc + r_fm_dec * rnd_amt * (hsh(ktrig, 17) - 0.5)) : o_fm_dec;\ne_fm_dec = clamp(sm_fm_dec + q_fm_dec, 0, 1);\nsm_wd_amt = s_wd_amt + (wd_amt - s_wd_amt) * sk;\nq_wd_amt = trig ? (v_wd_amt * vel_amt * vsrc + k_wd_amt * note_amt * ksrc + r_wd_amt * rnd_amt * (hsh(ktrig, 18) - 0.5)) : o_wd_amt;\ne_wd_amt = clamp(sm_wd_amt + q_wd_amt, 0, 1);\nsm_sp_amt = s_sp_amt + (sp_amt - s_sp_amt) * sk;\nq_sp_amt = trig ? (v_sp_amt * vel_amt * vsrc + k_sp_amt * note_amt * ksrc + r_sp_amt * rnd_amt * (hsh(ktrig, 19) - 0.5)) : o_sp_amt;\ne_sp_amt = clamp(sm_sp_amt + q_sp_amt, 0, 1);\nsm_sp_time = s_sp_time + (sp_time - s_sp_time) * sk;\nq_sp_time = trig ? (v_sp_time * vel_amt * vsrc + k_sp_time * note_amt * ksrc + r_sp_time * rnd_amt * (hsh(ktrig, 20) - 0.5)) : o_sp_time;\ne_sp_time = clamp(sm_sp_time + q_sp_time, 0, 1);\nsm_level = s_level + (level - s_level) * sk;\nq_level = trig ? (v_level * vel_amt * vsrc + k_level * note_amt * ksrc + r_level * rnd_amt * (hsh(ktrig, 21) - 0.5)) : o_level;\ne_level = clamp(sm_level + q_level, 0, 1);\nsm_tune = s_tune + (tune - s_tune) * sk;\nq_tune = trig ? (v_tune * vel_amt * vsrc + k_tune * note_amt * ksrc + r_tune * rnd_amt * (hsh(ktrig, 22) - 0.5)) : o_tune;\ne_tune = clamp(sm_tune + q_tune, 0, 1);\nsm_amp_phs = s_amp_phs + (amp_phs - s_amp_phs) * sk;\nq_amp_phs = trig ? (v_amp_phs * vel_amt * vsrc + k_amp_phs * note_amt * ksrc + r_amp_phs * rnd_amt * (hsh(ktrig, 23) - 0.5)) : o_amp_phs;\ne_amp_phs = clamp(sm_amp_phs + q_amp_phs, 0, 1);\nsm_sub_lvl = s_sub_lvl + (sub_lvl - s_sub_lvl) * sk;\nq_sub_lvl = trig ? (v_sub_lvl * vel_amt * vsrc + k_sub_lvl * note_amt * ksrc + r_sub_lvl * rnd_amt * (hsh(ktrig, 24) - 0.5)) : o_sub_lvl;\ne_sub_lvl = clamp(sm_sub_lvl + q_sub_lvl, 0, 1);\nsm_sub_len = s_sub_len + (sub_len - s_sub_len) * sk;\nq_sub_len = trig ? (v_sub_len * vel_amt * vsrc + k_sub_len * note_amt * ksrc + r_sub_len * rnd_amt * (hsh(ktrig, 25) - 0.5)) : o_sub_len;\ne_sub_len = clamp(sm_sub_len + q_sub_len, 0, 1);\nsm_sub_crv = s_sub_crv + (sub_crv - s_sub_crv) * sk;\nq_sub_crv = trig ? (v_sub_crv * vel_amt * vsrc + k_sub_crv * note_amt * ksrc + r_sub_crv * rnd_amt * (hsh(ktrig, 26) - 0.5)) : o_sub_crv;\ne_sub_crv = clamp(sm_sub_crv + q_sub_crv, 0, 1);\nsm_clk_bw = s_clk_bw + (clk_bw - s_clk_bw) * sk;\nq_clk_bw = trig ? (v_clk_bw * vel_amt * vsrc + k_clk_bw * note_amt * ksrc + r_clk_bw * rnd_amt * (hsh(ktrig, 27) - 0.5)) : o_clk_bw;\ne_clk_bw = clamp(sm_clk_bw + q_clk_bw, 0, 1);\nsm_dr_asym = s_dr_asym + (dr_asym - s_dr_asym) * sk;\nq_dr_asym = trig ? (v_dr_asym * vel_amt * vsrc + k_dr_asym * note_amt * ksrc + r_dr_asym * rnd_amt * (hsh(ktrig, 28) - 0.5)) : o_dr_asym;\ne_dr_asym = clamp(sm_dr_asym + q_dr_asym, 0, 1);\nsm_glue = s_glue + (glue - s_glue) * sk;\nq_glue = trig ? (v_glue * vel_amt * vsrc + k_glue * note_amt * ksrc + r_glue * rnd_amt * (hsh(ktrig, 29) - 0.5)) : o_glue;\ne_glue = clamp(sm_glue + q_glue, 0, 1);\nsm_nz_lfo = s_nz_lfo + (nz_lfo - s_nz_lfo) * sk;\nq_nz_lfo = trig ? (v_nz_lfo * vel_amt * vsrc + k_nz_lfo * note_amt * ksrc + r_nz_lfo * rnd_amt * (hsh(ktrig, 30) - 0.5)) : o_nz_lfo;\ne_nz_lfo = clamp(sm_nz_lfo + q_nz_lfo, 0, 1);\nsm_nz_lrt = s_nz_lrt + (nz_lrt - s_nz_lrt) * sk;\nq_nz_lrt = trig ? (v_nz_lrt * vel_amt * vsrc + k_nz_lrt * note_amt * ksrc + r_nz_lrt * rnd_amt * (hsh(ktrig, 31) - 0.5)) : o_nz_lrt;\ne_nz_lrt = clamp(sm_nz_lrt + q_nz_lrt, 0, 1);\ndt = 1 / samplerate;\nnyq = samplerate * 0.45;\nact_n = trig ? 1 : act;\ntt_n = trig ? 0 : min(tt + dt, 60);\nm808 = p808 > 0.5;\nalen = 0.05 * pw2(e_amp_len * 5.32);\naatt = 0.03 * e_amp_att * e_amp_att;\nax_ = clamp((tt_n - aatt) / alen, 0, 1);\nadec = m808 ? exp(-ax_ * 6.9078 * shapep(e_amp_crv)) : pow(1 - ax_, shapep(e_amp_crv));\nafade = min(1, (1 - ax_) * alen / 0.003);\naatk = aatt > 0.00002 ? min(1, tt_n / aatt) : 1;\nenv = act_n * aatk * adec * afade;\nslen = 0.05 * pw2(e_sub_len * 5.32);\nsx_ = clamp((tt_n - aatt) / slen, 0, 1);\nsdec = m808 ? exp(-sx_ * 6.9078 * shapep(e_sub_crv)) : pow(1 - sx_, shapep(e_sub_crv));\nsfade = min(1, (1 - sx_) * slen / 0.003);\nsenv = act_n * aatk * sdec * sfade * e_sub_lvl;\nfnote = 440 * pw2((knote - 69 + (e_tune - 0.5) * 48) / 12);\nptim = 0.005 * pw2(e_pit_time * 6);\npy_ = min(tt_n / ptim, 1);\npesw = pow(1 - py_, shapep(e_pit_crv));\npe8 = pow(adec, 8 * pw2(-e_pit_time * 6));\npe = m808 ? pe8 : pesw;\nfreq = min(fnote * pw2(e_pit_swp * 72 * pe / 12), nyq);\nph_n = trig ? 0 : fract(ph + freq * dt);\nphs = e_amp_phs * 0.25;\nfmr = 0.5 + e_fm_rat * 7.5;\npm_n = trig ? 0 : fract(pm + min(freq * fmr, nyq) * dt);\nfidx = 6 * e_fm_amt * e_fm_amt * exp(-tt_n / (0.005 * pw2(e_fm_dec * 6)));\nbosc = sin(twopi * (ph_n + phs) + fidx * sin(twopi * pm_n));\nsosc = sin(twopi * (ph_n + phs));\ndg = pw2(e_dr_amt * 5);\ndtg = tanh(dg);\ndmix = min(1, (e_dr_amt + e_dr_asym) * 5);\npre = dr_pre > 0.5;\ngph_n = trig ? fract(ph + lf * dt) : fract(gph + gf * dt);\ngf_n = trig ? lf : gf;\nga_n = trig ? la : ga;\ngtm_n = trig ? 0 : min(gtm + dt, 1);\ngfade = max(0, 1 - gtm_n / 0.005);\ngosc = sin(twopi * (gph_n + phs));\nbodyv = (pre ? shp(bosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : bosc) * env;\nsubv = (pre ? shp(sosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : sosc) * senv;\nghost = (pre ? shp(gosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : gosc) * ga_n * gfade;\nla_n = env + senv;\nlf_n = freq;\nhsp = 1 + e_hm_spr * 0.6;\nf2 = freq * exp(0.69314718 * hsp);\nf3 = freq * exp(1.09861229 * hsp);\nf4 = freq * exp(1.38629436 * hsp);\nf5 = freq * exp(1.60943791 * hsp);\np2_n = trig ? 0 : fract(p2 + min(f2, nyq) * dt);\np3_n = trig ? 0 : fract(p3 + min(f3, nyq) * dt);\np4_n = trig ? 0 : fract(p4 + min(f4, nyq) * dt);\np5_n = trig ? 0 : fract(p5 + min(f5, nyq) * dt);\nenv2 = env * env;\nhg = e_hm_amt * 0.9;\nha2 = (f2 < nyq) * 0.5 * sin(twopi * p2_n) * env2 * hg;\nha3 = (f3 < nyq) * 0.35 * sin(twopi * p3_n) * env2 * env * hg;\nha4 = (f4 < nyq) * 0.25 * sin(twopi * p4_n) * env2 * env2 * hg;\nha5 = (f5 < nyq) * 0.2 * sin(twopi * p5_n) * env2 * env2 * env * hg;\nwid = e_wd_amt;\nhL = ha2 + ha4 + (ha3 + ha5) * (1 - wid);\nhR = ha3 + ha5 + (ha2 + ha4) * (1 - wid);\nnz1 = noise();\nnz2 = noise();\nnL = nz1;\nnR = nz1 * (1 - wid) + nz2 * wid;\nnlf_n = trig ? 0 : fract(nlf + pw2(e_nz_lrt * 6) * dt);\nnlv = sin(twopi * nlf_n) * e_nz_lfo;\nncf = min(200 * pw2(e_nz_col * 6.3 + 2 * nlv), nyq);\nnca = 1 - exp(-twopi * ncf * dt);\nhpa = 1 - exp(-twopi * 120 * dt);\nnlL_n = nlL + (nL - nlL) * nca;\nnlR_n = nlR + (nR - nlR) * nca;\nnhL_n = nhL + (nlL_n - nhL) * hpa;\nnhR_n = nhR + (nlR_n - nhR) * hpa;\nnenv = act_n * exp(-tt_n / (0.01 * pw2(e_nz_dec * 6.3))) * afade * min(1, tt_n / 0.0005 + 0.05);\nng = 0.9 * e_nz_amt * e_nz_amt * nenv * (1 + nlv);\nnoL = (nlL_n - nhL_n) * ng;\nnoR = (nlR_n - nhR_n) * ng;\nctone = min(1500 * pw2(e_clk_tone * 3), nyq * 0.9);\ncbw = 0.25 + e_clk_bw * 3.75;\nck_ = 2 * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw)) / 2;\ncg_ = tan(pi * ctone * dt);\nca1 = 1 / (1 + cg_ * (cg_ + ck_));\nca2 = cg_ * ca1;\nca3 = cg_ * ca2;\ncxL = nz1;\ncxR = nz1 * (1 - wid) + nz2 * wid;\ncv3L = cxL - cbL2;\ncv1L = ca1 * cbL1 + ca2 * cv3L;\ncv2L = cbL2 + ca2 * cbL1 + ca3 * cv3L;\ncv3R = cxR - cbR2;\ncv1R = ca1 * cbR1 + ca2 * cv3R;\ncv2R = cbR2 + ca2 * cbR1 + ca3 * cv3R;\ncbL1_n = 2 * cv1L - cbL1;\ncbL2_n = 2 * cv2L - cbL2;\ncbR1_n = 2 * cv1R - cbR1;\ncbR2_n = 2 * cv2R - cbR2;\ncbhz = ctone * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw));\ncnorm = min(6, pow(0.5 * samplerate / cbhz, 0.35)) * 0.55;\ncenv = act_n * exp(-tt_n / 0.0025) * 2.7 * e_clk_amt * afade * (tt_n < 0.05);\nckL = cenv * ck_ * cv1L * cnorm;\nckR = cenv * ck_ * cv1R * cnorm;\npreL = bodyv + subv + ghost + hL + noL + ckL;\npreR = bodyv + subv + ghost + hR + noR + ckR;\ndrL = pre ? preL : shp(preL, dg, dtg, e_dr_knee, e_dr_asym, dmix);\ndrR = pre ? preR : shp(preR, dg, dtg, e_dr_knee, e_dr_asym, dmix);\nd8 = 1 - exp(-twopi * 8 * dt);\ndbL0 = dbL + (drL - dbL) * d8;\ndbR0 = dbR + (drR - dbR) * d8;\ndbL_n = abs(dbL0) < 0.000000001 ? 0 : dbL0;\ndbR_n = abs(dbR0) < 0.000000001 ? 0 : dbR0;\namix = min(1, e_dr_asym * 10);\nxL = drL - dbL_n * amix;\nxR = drR - dbR_n * amix;\ndk = exp(-1 / (0.0015 * samplerate));\ngpost = pre ? ghost : shp(ghost, dg, dtg, e_dr_knee, e_dr_asym, dmix);\ndcL_n = trig ? (yL - gpost) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);\ndcR_n = trig ? (yR - gpost) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);\nyL_n = xL + dcL_n;\nyR_n = xR + dcR_n;\nsla = 1 - exp(-twopi * 180 * dt);\nslL0 = slL + (yL_n - slL) * sla;\nslR0 = slR + (yR_n - slR) * sla;\nslL_n = abs(slL0) < 0.000000001 ? 0 : slL0;\nslR_n = abs(slR0) < 0.000000001 ? 0 : slR0;\nsendL = yL_n - slL_n;\nsendR = yR_n - slR_n;\nrsc = (0.55 + 0.9 * e_sp_time) * samplerate / 44100;\nrfb = 0.62 + 0.3 * e_sp_time;\nrw = rwi;\nc1 = peek(room, wrapi(rw - floor(1116 * rsc), 8192), 0);\nc2 = peek(room, wrapi(rw - floor(1188 * rsc), 8192), 1);\nc3 = peek(room, wrapi(rw - floor(1277 * rsc), 8192), 2);\nc4 = peek(room, wrapi(rw - floor(1356 * rsc), 8192), 3);\nrl1_n = rl1 + (c1 - rl1) * 0.45;\nrl2_n = rl2 + (c2 - rl2) * 0.45;\nrl3_n = rl3 + (c3 - rl3) * 0.45;\nrl4_n = rl4 + (c4 - rl4) * 0.45;\npoke(room, sendL * 0.3 + rl1_n * rfb, rw, 0);\npoke(room, sendR * 0.3 + rl2_n * rfb, rw, 1);\npoke(room, sendL * 0.3 + rl3_n * rfb, rw, 2);\npoke(room, sendR * 0.3 + rl4_n * rfb, rw, 3);\nrwi_n = wrapi(rw + 1, 8192);\nspm = e_sp_amt * 0.7;\noutL = yL_n + (c1 + c3) * spm;\noutR = yR_n + (c2 + c4) * spm;\ngin = pw2(e_glue * 3.32);\ngmix = min(1, e_glue * 20);\ngL = outL + (gclip(outL * gin) - outL) * gmix;\ngR = outR + (gclip(outR * gin) - outR) * gmix;\nlvl = pw2((-30 + 36 * e_level) / 6.0206);\nout1 = sknee(gL * lvl);\nout2 = sknee(gR * lvl);\nout3 = env;\nact = act_n;\ntt = tt_n;\nph = ph_n;\npm = pm_n;\np2 = p2_n;\np3 = p3_n;\np4 = p4_n;\np5 = p5_n;\nnlL = nlL_n;\nnlf = nlf_n;\nnlR = nlR_n;\nnhL = nhL_n;\nnhR = nhR_n;\ncbL1 = cbL1_n;\ncbL2 = cbL2_n;\ncbR1 = cbR1_n;\ncbR2 = cbR2_n;\ngph = gph_n;\ngf = gf_n;\nga = ga_n;\ngtm = gtm_n;\nla = la_n;\nlf = lf_n;\ndbL = dbL_n;\ndbR = dbR_n;\ndcL = dcL_n;\ndcR = dcR_n;\nyL = yL_n;\nyR = yR_n;\nslL = slL_n;\nslR = slR_n;\nrl1 = rl1_n;\nrl2 = rl2_n;\nrl3 = rl3_n;\nrl4 = rl4_n;\nrwi = rwi_n;\ninit = 1;\nlastk = ktrig;\ns_amp_len = sm_amp_len;\no_amp_len = q_amp_len;\ns_amp_att = sm_amp_att;\no_amp_att = q_amp_att;\ns_amp_crv = sm_amp_crv;\no_amp_crv = q_amp_crv;\ns_pit_swp = sm_pit_swp;\no_pit_swp = q_pit_swp;\ns_pit_time = sm_pit_time;\no_pit_time = q_pit_time;\ns_pit_crv = sm_pit_crv;\no_pit_crv = q_pit_crv;\ns_clk_amt = sm_clk_amt;\no_clk_amt = q_clk_amt;\ns_clk_tone = sm_clk_tone;\no_clk_tone = q_clk_tone;\ns_nz_amt = sm_nz_amt;\no_nz_amt = q_nz_amt;\ns_nz_col = sm_nz_col;\no_nz_col = q_nz_col;\ns_nz_dec = sm_nz_dec;\no_nz_dec = q_nz_dec;\ns_hm_amt = sm_hm_amt;\no_hm_amt = q_hm_amt;\ns_hm_spr = sm_hm_spr;\no_hm_spr = q_hm_spr;\ns_dr_amt = sm_dr_amt;\no_dr_amt = q_dr_amt;\ns_dr_knee = sm_dr_knee;\no_dr_knee = q_dr_knee;\ns_fm_amt = sm_fm_amt;\no_fm_amt = q_fm_amt;\ns_fm_rat = sm_fm_rat;\no_fm_rat = q_fm_rat;\ns_fm_dec = sm_fm_dec;\no_fm_dec = q_fm_dec;\ns_wd_amt = sm_wd_amt;\no_wd_amt = q_wd_amt;\ns_sp_amt = sm_sp_amt;\no_sp_amt = q_sp_amt;\ns_sp_time = sm_sp_time;\no_sp_time = q_sp_time;\ns_level = sm_level;\no_level = q_level;\ns_tune = sm_tune;\no_tune = q_tune;\ns_amp_phs = sm_amp_phs;\no_amp_phs = q_amp_phs;\ns_sub_lvl = sm_sub_lvl;\no_sub_lvl = q_sub_lvl;\ns_sub_len = sm_sub_len;\no_sub_len = q_sub_len;\ns_sub_crv = sm_sub_crv;\no_sub_crv = q_sub_crv;\ns_clk_bw = sm_clk_bw;\no_clk_bw = q_clk_bw;\ns_dr_asym = sm_dr_asym;\no_dr_asym = q_dr_asym;\ns_glue = sm_glue;\no_glue = q_glue;\ns_nz_lfo = sm_nz_lfo;\no_nz_lfo = q_nz_lfo;\ns_nz_lrt = sm_nz_lrt;\no_nz_lrt = q_nz_lrt;\n",
          "numinlets": 1,
          "numoutlets": 3,
          "outlettype": [
@@ -230,7 +230,7 @@
    {
     "box": {
      "maxclass": "jsui",
-     "filename": "stomp_ui_0_2_0.js",
+     "filename": "stomp_ui_0_3_0.js",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -241,14 +241,14 @@
      "patching_rect": [
       400,
       600,
-      1290,
+      1334,
       169
      ],
      "presentation": 1,
      "presentation_rect": [
       0,
       0,
-      1290,
+      1334,
       169
      ],
      "varname": "stomp_ui",
@@ -501,10 +501,18 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "route amp_len amp_att amp_crv pit_swp pit_time pit_crv clk_amt clk_tone nz_amt nz_col nz_dec hm_amt hm_spr dr_amt dr_knee fm_amt fm_rat fm_dec wd_amt sp_amt sp_time level tune amp_phs sub_lvl sub_len sub_crv clk_bw dr_asym glue p808 dr_pre vel_amt note_amt rnd_amt v_amp_len v_amp_att v_amp_crv v_pit_swp v_pit_time v_pit_crv v_clk_amt v_clk_tone v_nz_amt v_nz_col v_nz_dec v_hm_amt v_hm_spr v_dr_amt v_dr_knee v_fm_amt v_fm_rat v_fm_dec v_wd_amt v_sp_amt v_sp_time v_level v_tune v_amp_phs v_sub_lvl v_sub_len v_sub_crv v_clk_bw v_dr_asym v_glue k_amp_len k_amp_att k_amp_crv k_pit_swp k_pit_time k_pit_crv k_clk_amt k_clk_tone k_nz_amt k_nz_col k_nz_dec k_hm_amt k_hm_spr k_dr_amt k_dr_knee k_fm_amt k_fm_rat k_fm_dec k_wd_amt k_sp_amt k_sp_time k_level k_tune k_amp_phs k_sub_lvl k_sub_len k_sub_crv k_clk_bw k_dr_asym k_glue r_amp_len r_amp_att r_amp_crv r_pit_swp r_pit_time r_pit_crv r_clk_amt r_clk_tone r_nz_amt r_nz_col r_nz_dec r_hm_amt r_hm_spr r_dr_amt r_dr_knee r_fm_amt r_fm_rat r_fm_dec r_wd_amt r_sp_amt r_sp_time r_level r_tune r_amp_phs r_sub_lvl r_sub_len r_sub_crv r_clk_bw r_dr_asym r_glue",
+     "text": "route amp_len amp_att amp_crv pit_swp pit_time pit_crv clk_amt clk_tone nz_amt nz_col nz_dec hm_amt hm_spr dr_amt dr_knee fm_amt fm_rat fm_dec wd_amt sp_amt sp_time level tune amp_phs sub_lvl sub_len sub_crv clk_bw dr_asym glue nz_lfo nz_lrt p808 dr_pre vel_amt note_amt rnd_amt v_amp_len v_amp_att v_amp_crv v_pit_swp v_pit_time v_pit_crv v_clk_amt v_clk_tone v_nz_amt v_nz_col v_nz_dec v_hm_amt v_hm_spr v_dr_amt v_dr_knee v_fm_amt v_fm_rat v_fm_dec v_wd_amt v_sp_amt v_sp_time v_level v_tune v_amp_phs v_sub_lvl v_sub_len v_sub_crv v_clk_bw v_dr_asym v_glue v_nz_lfo v_nz_lrt k_amp_len k_amp_att k_amp_crv k_pit_swp k_pit_time k_pit_crv k_clk_amt k_clk_tone k_nz_amt k_nz_col k_nz_dec k_hm_amt k_hm_spr k_dr_amt k_dr_knee k_fm_amt k_fm_rat k_fm_dec k_wd_amt k_sp_amt k_sp_time k_level k_tune k_amp_phs k_sub_lvl k_sub_len k_sub_crv k_clk_bw k_dr_asym k_glue k_nz_lfo k_nz_lrt r_amp_len r_amp_att r_amp_crv r_pit_swp r_pit_time r_pit_crv r_clk_amt r_clk_tone r_nz_amt r_nz_col r_nz_dec r_hm_amt r_hm_spr r_dr_amt r_dr_knee r_fm_amt r_fm_rat r_fm_dec r_wd_amt r_sp_amt r_sp_time r_level r_tune r_amp_phs r_sub_lvl r_sub_len r_sub_crv r_clk_bw r_dr_asym r_glue r_nz_lfo r_nz_lrt",
      "numinlets": 2,
-     "numoutlets": 126,
+     "numoutlets": 134,
      "outlettype": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
       "",
       "",
       "",
@@ -2800,6 +2808,146 @@
    },
    {
     "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "nz_lfo",
+     "parameter_enable": 1,
+     "patching_rect": [
+      220,
+      380,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Noise LFO",
+       "parameter_shortname": "Noise LFO",
+       "parameter_mmin": 0,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0.0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-112"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p nz_lfo",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      220,
+      436,
+      90,
+      22
+     ],
+     "id": "obj-113"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend nz_lfo",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      220,
+      462,
+      90,
+      22
+     ],
+     "id": "obj-114"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "nz_lrt",
+     "parameter_enable": 1,
+     "patching_rect": [
+      320,
+      380,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Noise LFO Rate",
+       "parameter_shortname": "Noise LFO Ra",
+       "parameter_mmin": 0,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0.5
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-115"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p nz_lrt",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      320,
+      436,
+      90,
+      22
+     ],
+     "id": "obj-116"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend nz_lrt",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      320,
+      462,
+      90,
+      22
+     ],
+     "id": "obj-117"
+    }
+   },
+   {
+    "box": {
      "maxclass": "live.toggle",
      "numinlets": 1,
      "numoutlets": 1,
@@ -2809,7 +2957,7 @@
      "varname": "p808",
      "parameter_enable": 1,
      "patching_rect": [
-      220,
+      420,
       380,
       44,
       48
@@ -2832,7 +2980,7 @@
        ]
       }
      },
-     "id": "obj-112"
+     "id": "obj-118"
     }
    },
    {
@@ -2845,12 +2993,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      420,
       436,
       90,
       22
      ],
-     "id": "obj-113"
+     "id": "obj-119"
     }
    },
    {
@@ -2863,12 +3011,12 @@
       ""
      ],
      "patching_rect": [
-      220,
+      420,
       462,
       90,
       22
      ],
-     "id": "obj-114"
+     "id": "obj-120"
     }
    },
    {
@@ -2882,7 +3030,7 @@
      "varname": "dr_pre",
      "parameter_enable": 1,
      "patching_rect": [
-      320,
+      520,
       380,
       44,
       48
@@ -2905,153 +3053,13 @@
        ]
       }
      },
-     "id": "obj-115"
-    }
-   },
-   {
-    "box": {
-     "maxclass": "newobj",
-     "text": "prepend p dr_pre",
-     "numinlets": 1,
-     "numoutlets": 1,
-     "outlettype": [
-      ""
-     ],
-     "patching_rect": [
-      320,
-      436,
-      90,
-      22
-     ],
-     "id": "obj-116"
-    }
-   },
-   {
-    "box": {
-     "maxclass": "newobj",
-     "text": "prepend dr_pre",
-     "numinlets": 1,
-     "numoutlets": 1,
-     "outlettype": [
-      ""
-     ],
-     "patching_rect": [
-      320,
-      462,
-      90,
-      22
-     ],
-     "id": "obj-117"
-    }
-   },
-   {
-    "box": {
-     "maxclass": "live.dial",
-     "numinlets": 1,
-     "numoutlets": 2,
-     "outlettype": [
-      "",
-      "float"
-     ],
-     "varname": "vel_amt",
-     "parameter_enable": 1,
-     "patching_rect": [
-      420,
-      380,
-      44,
-      48
-     ],
-     "saved_attribute_attributes": {
-      "valueof": {
-       "parameter_longname": "Velocity Amount",
-       "parameter_shortname": "Velocity Amo",
-       "parameter_mmin": 0,
-       "parameter_mmax": 1,
-       "parameter_initial": [
-        0.5
-       ],
-       "parameter_initial_enable": 1,
-       "parameter_type": 0,
-       "parameter_unitstyle": 1
-      }
-     },
-     "id": "obj-118"
-    }
-   },
-   {
-    "box": {
-     "maxclass": "newobj",
-     "text": "prepend p vel_amt",
-     "numinlets": 1,
-     "numoutlets": 1,
-     "outlettype": [
-      ""
-     ],
-     "patching_rect": [
-      420,
-      436,
-      90,
-      22
-     ],
-     "id": "obj-119"
-    }
-   },
-   {
-    "box": {
-     "maxclass": "newobj",
-     "text": "prepend vel_amt",
-     "numinlets": 1,
-     "numoutlets": 1,
-     "outlettype": [
-      ""
-     ],
-     "patching_rect": [
-      420,
-      462,
-      90,
-      22
-     ],
-     "id": "obj-120"
-    }
-   },
-   {
-    "box": {
-     "maxclass": "live.dial",
-     "numinlets": 1,
-     "numoutlets": 2,
-     "outlettype": [
-      "",
-      "float"
-     ],
-     "varname": "note_amt",
-     "parameter_enable": 1,
-     "patching_rect": [
-      520,
-      380,
-      44,
-      48
-     ],
-     "saved_attribute_attributes": {
-      "valueof": {
-       "parameter_longname": "Note Amount",
-       "parameter_shortname": "Note Amount",
-       "parameter_mmin": 0,
-       "parameter_mmax": 1,
-       "parameter_initial": [
-        0.5
-       ],
-       "parameter_initial_enable": 1,
-       "parameter_type": 0,
-       "parameter_unitstyle": 1
-      }
-     },
      "id": "obj-121"
     }
    },
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p note_amt",
+     "text": "prepend p dr_pre",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3069,7 +3077,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend note_amt",
+     "text": "prepend dr_pre",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3093,7 +3101,7 @@
       "",
       "float"
      ],
-     "varname": "rnd_amt",
+     "varname": "vel_amt",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -3103,8 +3111,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Random Amount",
-       "parameter_shortname": "Random Amoun",
+       "parameter_longname": "Velocity Amount",
+       "parameter_shortname": "Velocity Amo",
        "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3121,7 +3129,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p rnd_amt",
+     "text": "prepend p vel_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3139,7 +3147,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend rnd_amt",
+     "text": "prepend vel_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3163,7 +3171,7 @@
       "",
       "float"
      ],
-     "varname": "v_amp_len",
+     "varname": "note_amt",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -3173,12 +3181,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Length",
-       "parameter_shortname": "V>Length",
-       "parameter_mmin": -1,
+       "parameter_longname": "Note Amount",
+       "parameter_shortname": "Note Amount",
+       "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        0.5
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -3191,7 +3199,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_amp_len",
+     "text": "prepend p note_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3209,7 +3217,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_amp_len",
+     "text": "prepend note_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3233,7 +3241,7 @@
       "",
       "float"
      ],
-     "varname": "v_amp_att",
+     "varname": "rnd_amt",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -3243,12 +3251,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Attack",
-       "parameter_shortname": "V>Attack",
-       "parameter_mmin": -1,
+       "parameter_longname": "Random Amount",
+       "parameter_shortname": "Random Amoun",
+       "parameter_mmin": 0,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        0.5
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -3261,7 +3269,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_amp_att",
+     "text": "prepend p rnd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3279,7 +3287,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_amp_att",
+     "text": "prepend rnd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3303,7 +3311,7 @@
       "",
       "float"
      ],
-     "varname": "v_amp_crv",
+     "varname": "v_amp_len",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -3313,8 +3321,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Amp Curve",
-       "parameter_shortname": "V>Amp Curve",
+       "parameter_longname": "Vel > Length",
+       "parameter_shortname": "V>Length",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3331,7 +3339,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_amp_crv",
+     "text": "prepend p v_amp_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3349,7 +3357,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_amp_crv",
+     "text": "prepend v_amp_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3373,7 +3381,7 @@
       "",
       "float"
      ],
-     "varname": "v_pit_swp",
+     "varname": "v_amp_att",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -3383,8 +3391,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Sweep",
-       "parameter_shortname": "V>Sweep",
+       "parameter_longname": "Vel > Attack",
+       "parameter_shortname": "V>Attack",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3401,7 +3409,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_pit_swp",
+     "text": "prepend p v_amp_att",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3419,7 +3427,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_pit_swp",
+     "text": "prepend v_amp_att",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3443,7 +3451,7 @@
       "",
       "float"
      ],
-     "varname": "v_pit_time",
+     "varname": "v_amp_crv",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -3453,8 +3461,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Sweep Time",
-       "parameter_shortname": "V>Sweep Time",
+       "parameter_longname": "Vel > Amp Curve",
+       "parameter_shortname": "V>Amp Curve",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3471,7 +3479,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_pit_time",
+     "text": "prepend p v_amp_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3489,7 +3497,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_pit_time",
+     "text": "prepend v_amp_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3513,7 +3521,7 @@
       "",
       "float"
      ],
-     "varname": "v_pit_crv",
+     "varname": "v_pit_swp",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -3523,8 +3531,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Sweep Curve",
-       "parameter_shortname": "V>Sweep Curv",
+       "parameter_longname": "Vel > Sweep",
+       "parameter_shortname": "V>Sweep",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3541,7 +3549,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_pit_crv",
+     "text": "prepend p v_pit_swp",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3559,7 +3567,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_pit_crv",
+     "text": "prepend v_pit_swp",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3583,7 +3591,7 @@
       "",
       "float"
      ],
-     "varname": "v_clk_amt",
+     "varname": "v_pit_time",
      "parameter_enable": 1,
      "patching_rect": [
       1320,
@@ -3593,12 +3601,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Click",
-       "parameter_shortname": "V>Click",
+       "parameter_longname": "Vel > Sweep Time",
+       "parameter_shortname": "V>Sweep Time",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.6
+        0
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -3611,7 +3619,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_clk_amt",
+     "text": "prepend p v_pit_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3629,7 +3637,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_clk_amt",
+     "text": "prepend v_pit_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3653,7 +3661,7 @@
       "",
       "float"
      ],
-     "varname": "v_clk_tone",
+     "varname": "v_pit_crv",
      "parameter_enable": 1,
      "patching_rect": [
       20,
@@ -3663,8 +3671,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Click Tone",
-       "parameter_shortname": "V>Click Tone",
+       "parameter_longname": "Vel > Sweep Curve",
+       "parameter_shortname": "V>Sweep Curv",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3681,7 +3689,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_clk_tone",
+     "text": "prepend p v_pit_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3699,7 +3707,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_clk_tone",
+     "text": "prepend v_pit_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3723,7 +3731,7 @@
       "",
       "float"
      ],
-     "varname": "v_nz_amt",
+     "varname": "v_clk_amt",
      "parameter_enable": 1,
      "patching_rect": [
       120,
@@ -3733,12 +3741,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Noise",
-       "parameter_shortname": "V>Noise",
+       "parameter_longname": "Vel > Click",
+       "parameter_shortname": "V>Click",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        0.6
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -3751,7 +3759,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_nz_amt",
+     "text": "prepend p v_clk_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3769,7 +3777,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_nz_amt",
+     "text": "prepend v_clk_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3793,7 +3801,7 @@
       "",
       "float"
      ],
-     "varname": "v_nz_col",
+     "varname": "v_clk_tone",
      "parameter_enable": 1,
      "patching_rect": [
       220,
@@ -3803,8 +3811,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Noise Color",
-       "parameter_shortname": "V>Noise Colo",
+       "parameter_longname": "Vel > Click Tone",
+       "parameter_shortname": "V>Click Tone",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3821,7 +3829,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_nz_col",
+     "text": "prepend p v_clk_tone",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3839,7 +3847,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_nz_col",
+     "text": "prepend v_clk_tone",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3863,7 +3871,7 @@
       "",
       "float"
      ],
-     "varname": "v_nz_dec",
+     "varname": "v_nz_amt",
      "parameter_enable": 1,
      "patching_rect": [
       320,
@@ -3873,8 +3881,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Noise Decay",
-       "parameter_shortname": "V>Noise Deca",
+       "parameter_longname": "Vel > Noise",
+       "parameter_shortname": "V>Noise",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3891,7 +3899,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_nz_dec",
+     "text": "prepend p v_nz_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3909,7 +3917,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_nz_dec",
+     "text": "prepend v_nz_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3933,7 +3941,7 @@
       "",
       "float"
      ],
-     "varname": "v_hm_amt",
+     "varname": "v_nz_col",
      "parameter_enable": 1,
      "patching_rect": [
       420,
@@ -3943,8 +3951,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Partials",
-       "parameter_shortname": "V>Partials",
+       "parameter_longname": "Vel > Noise Color",
+       "parameter_shortname": "V>Noise Colo",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -3961,7 +3969,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_hm_amt",
+     "text": "prepend p v_nz_col",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -3979,7 +3987,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_hm_amt",
+     "text": "prepend v_nz_col",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4003,7 +4011,7 @@
       "",
       "float"
      ],
-     "varname": "v_hm_spr",
+     "varname": "v_nz_dec",
      "parameter_enable": 1,
      "patching_rect": [
       520,
@@ -4013,8 +4021,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Spread",
-       "parameter_shortname": "V>Spread",
+       "parameter_longname": "Vel > Noise Decay",
+       "parameter_shortname": "V>Noise Deca",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4031,7 +4039,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_hm_spr",
+     "text": "prepend p v_nz_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4049,7 +4057,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_hm_spr",
+     "text": "prepend v_nz_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4073,7 +4081,7 @@
       "",
       "float"
      ],
-     "varname": "v_dr_amt",
+     "varname": "v_hm_amt",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -4083,12 +4091,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Drive",
-       "parameter_shortname": "V>Drive",
+       "parameter_longname": "Vel > Partials",
+       "parameter_shortname": "V>Partials",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.3
+        0
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -4101,7 +4109,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_dr_amt",
+     "text": "prepend p v_hm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4119,7 +4127,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_dr_amt",
+     "text": "prepend v_hm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4143,7 +4151,7 @@
       "",
       "float"
      ],
-     "varname": "v_dr_knee",
+     "varname": "v_hm_spr",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -4153,8 +4161,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Drive Hard",
-       "parameter_shortname": "V>Drive Hard",
+       "parameter_longname": "Vel > Spread",
+       "parameter_shortname": "V>Spread",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4171,7 +4179,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_dr_knee",
+     "text": "prepend p v_hm_spr",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4189,7 +4197,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_dr_knee",
+     "text": "prepend v_hm_spr",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4213,7 +4221,7 @@
       "",
       "float"
      ],
-     "varname": "v_fm_amt",
+     "varname": "v_dr_amt",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -4223,12 +4231,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > FM",
-       "parameter_shortname": "V>FM",
+       "parameter_longname": "Vel > Drive",
+       "parameter_shortname": "V>Drive",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        0.3
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -4241,7 +4249,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_fm_amt",
+     "text": "prepend p v_dr_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4259,7 +4267,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_fm_amt",
+     "text": "prepend v_dr_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4283,7 +4291,7 @@
       "",
       "float"
      ],
-     "varname": "v_fm_rat",
+     "varname": "v_dr_knee",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -4293,8 +4301,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > FM Ratio",
-       "parameter_shortname": "V>FM Ratio",
+       "parameter_longname": "Vel > Drive Hard",
+       "parameter_shortname": "V>Drive Hard",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4311,7 +4319,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_fm_rat",
+     "text": "prepend p v_dr_knee",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4329,7 +4337,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_fm_rat",
+     "text": "prepend v_dr_knee",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4353,7 +4361,7 @@
       "",
       "float"
      ],
-     "varname": "v_fm_dec",
+     "varname": "v_fm_amt",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -4363,8 +4371,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > FM Decay",
-       "parameter_shortname": "V>FM Decay",
+       "parameter_longname": "Vel > FM",
+       "parameter_shortname": "V>FM",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4381,7 +4389,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_fm_dec",
+     "text": "prepend p v_fm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4399,7 +4407,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_fm_dec",
+     "text": "prepend v_fm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4423,7 +4431,7 @@
       "",
       "float"
      ],
-     "varname": "v_wd_amt",
+     "varname": "v_fm_rat",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -4433,8 +4441,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Width",
-       "parameter_shortname": "V>Width",
+       "parameter_longname": "Vel > FM Ratio",
+       "parameter_shortname": "V>FM Ratio",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4451,7 +4459,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_wd_amt",
+     "text": "prepend p v_fm_rat",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4469,7 +4477,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_wd_amt",
+     "text": "prepend v_fm_rat",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4493,7 +4501,7 @@
       "",
       "float"
      ],
-     "varname": "v_sp_amt",
+     "varname": "v_fm_dec",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -4503,8 +4511,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Space",
-       "parameter_shortname": "V>Space",
+       "parameter_longname": "Vel > FM Decay",
+       "parameter_shortname": "V>FM Decay",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4521,7 +4529,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_sp_amt",
+     "text": "prepend p v_fm_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4539,7 +4547,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_sp_amt",
+     "text": "prepend v_fm_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4563,7 +4571,7 @@
       "",
       "float"
      ],
-     "varname": "v_sp_time",
+     "varname": "v_wd_amt",
      "parameter_enable": 1,
      "patching_rect": [
       1320,
@@ -4573,8 +4581,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Space Size",
-       "parameter_shortname": "V>Space Size",
+       "parameter_longname": "Vel > Width",
+       "parameter_shortname": "V>Width",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4591,7 +4599,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_sp_time",
+     "text": "prepend p v_wd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4609,7 +4617,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_sp_time",
+     "text": "prepend v_wd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4633,7 +4641,7 @@
       "",
       "float"
      ],
-     "varname": "v_level",
+     "varname": "v_sp_amt",
      "parameter_enable": 1,
      "patching_rect": [
       20,
@@ -4643,12 +4651,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Level",
-       "parameter_shortname": "V>Level",
+       "parameter_longname": "Vel > Space",
+       "parameter_shortname": "V>Space",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        1.0
+        0
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -4661,7 +4669,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_level",
+     "text": "prepend p v_sp_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4679,7 +4687,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_level",
+     "text": "prepend v_sp_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4703,7 +4711,7 @@
       "",
       "float"
      ],
-     "varname": "v_tune",
+     "varname": "v_sp_time",
      "parameter_enable": 1,
      "patching_rect": [
       120,
@@ -4713,8 +4721,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Tune",
-       "parameter_shortname": "V>Tune",
+       "parameter_longname": "Vel > Space Size",
+       "parameter_shortname": "V>Space Size",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4731,7 +4739,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_tune",
+     "text": "prepend p v_sp_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4749,7 +4757,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_tune",
+     "text": "prepend v_sp_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4773,7 +4781,7 @@
       "",
       "float"
      ],
-     "varname": "v_amp_phs",
+     "varname": "v_level",
      "parameter_enable": 1,
      "patching_rect": [
       220,
@@ -4783,12 +4791,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Start Phase",
-       "parameter_shortname": "V>Start Phas",
+       "parameter_longname": "Vel > Level",
+       "parameter_shortname": "V>Level",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        1.0
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -4801,7 +4809,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_amp_phs",
+     "text": "prepend p v_level",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4819,7 +4827,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_amp_phs",
+     "text": "prepend v_level",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4843,7 +4851,7 @@
       "",
       "float"
      ],
-     "varname": "v_sub_lvl",
+     "varname": "v_tune",
      "parameter_enable": 1,
      "patching_rect": [
       320,
@@ -4853,8 +4861,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Sub Level",
-       "parameter_shortname": "V>Sub Level",
+       "parameter_longname": "Vel > Tune",
+       "parameter_shortname": "V>Tune",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4871,7 +4879,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_sub_lvl",
+     "text": "prepend p v_tune",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4889,7 +4897,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_sub_lvl",
+     "text": "prepend v_tune",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4913,7 +4921,7 @@
       "",
       "float"
      ],
-     "varname": "v_sub_len",
+     "varname": "v_amp_phs",
      "parameter_enable": 1,
      "patching_rect": [
       420,
@@ -4923,8 +4931,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Sub Length",
-       "parameter_shortname": "V>Sub Length",
+       "parameter_longname": "Vel > Start Phase",
+       "parameter_shortname": "V>Start Phas",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -4941,7 +4949,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_sub_len",
+     "text": "prepend p v_amp_phs",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4959,7 +4967,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_sub_len",
+     "text": "prepend v_amp_phs",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -4983,7 +4991,7 @@
       "",
       "float"
      ],
-     "varname": "v_sub_crv",
+     "varname": "v_sub_lvl",
      "parameter_enable": 1,
      "patching_rect": [
       520,
@@ -4993,8 +5001,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Sub Curve",
-       "parameter_shortname": "V>Sub Curve",
+       "parameter_longname": "Vel > Sub Level",
+       "parameter_shortname": "V>Sub Level",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5011,7 +5019,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_sub_crv",
+     "text": "prepend p v_sub_lvl",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5029,7 +5037,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_sub_crv",
+     "text": "prepend v_sub_lvl",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5053,7 +5061,7 @@
       "",
       "float"
      ],
-     "varname": "v_clk_bw",
+     "varname": "v_sub_len",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -5063,8 +5071,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Click Band",
-       "parameter_shortname": "V>Click Band",
+       "parameter_longname": "Vel > Sub Length",
+       "parameter_shortname": "V>Sub Length",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5081,7 +5089,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_clk_bw",
+     "text": "prepend p v_sub_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5099,7 +5107,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_clk_bw",
+     "text": "prepend v_sub_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5123,7 +5131,7 @@
       "",
       "float"
      ],
-     "varname": "v_dr_asym",
+     "varname": "v_sub_crv",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -5133,8 +5141,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Drive Asym",
-       "parameter_shortname": "V>Drive Asym",
+       "parameter_longname": "Vel > Sub Curve",
+       "parameter_shortname": "V>Sub Curve",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5151,7 +5159,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_dr_asym",
+     "text": "prepend p v_sub_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5169,7 +5177,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_dr_asym",
+     "text": "prepend v_sub_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5193,7 +5201,7 @@
       "",
       "float"
      ],
-     "varname": "v_glue",
+     "varname": "v_clk_bw",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -5203,8 +5211,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Vel > Glue",
-       "parameter_shortname": "V>Glue",
+       "parameter_longname": "Vel > Click Band",
+       "parameter_shortname": "V>Click Band",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5221,7 +5229,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p v_glue",
+     "text": "prepend p v_clk_bw",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5239,7 +5247,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend v_glue",
+     "text": "prepend v_clk_bw",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5263,7 +5271,7 @@
       "",
       "float"
      ],
-     "varname": "k_amp_len",
+     "varname": "v_dr_asym",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -5273,8 +5281,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Length",
-       "parameter_shortname": "N>Length",
+       "parameter_longname": "Vel > Drive Asym",
+       "parameter_shortname": "V>Drive Asym",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5291,7 +5299,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_amp_len",
+     "text": "prepend p v_dr_asym",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5309,7 +5317,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_amp_len",
+     "text": "prepend v_dr_asym",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5333,7 +5341,7 @@
       "",
       "float"
      ],
-     "varname": "k_amp_att",
+     "varname": "v_glue",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -5343,8 +5351,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Attack",
-       "parameter_shortname": "N>Attack",
+       "parameter_longname": "Vel > Glue",
+       "parameter_shortname": "V>Glue",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5361,7 +5369,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_amp_att",
+     "text": "prepend p v_glue",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5379,7 +5387,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_amp_att",
+     "text": "prepend v_glue",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5403,7 +5411,7 @@
       "",
       "float"
      ],
-     "varname": "k_amp_crv",
+     "varname": "v_nz_lfo",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -5413,8 +5421,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Amp Curve",
-       "parameter_shortname": "N>Amp Curve",
+       "parameter_longname": "Vel > Noise LFO",
+       "parameter_shortname": "V>Noise LFO",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5431,7 +5439,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_amp_crv",
+     "text": "prepend p v_nz_lfo",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5449,7 +5457,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_amp_crv",
+     "text": "prepend v_nz_lfo",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5473,7 +5481,7 @@
       "",
       "float"
      ],
-     "varname": "k_pit_swp",
+     "varname": "v_nz_lrt",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -5483,8 +5491,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Sweep",
-       "parameter_shortname": "N>Sweep",
+       "parameter_longname": "Vel > Noise LFO Rate",
+       "parameter_shortname": "V>Noise LFO ",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5501,7 +5509,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_pit_swp",
+     "text": "prepend p v_nz_lrt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5519,7 +5527,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_pit_swp",
+     "text": "prepend v_nz_lrt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5543,7 +5551,7 @@
       "",
       "float"
      ],
-     "varname": "k_pit_time",
+     "varname": "k_amp_len",
      "parameter_enable": 1,
      "patching_rect": [
       1320,
@@ -5553,8 +5561,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Sweep Time",
-       "parameter_shortname": "N>Sweep Time",
+       "parameter_longname": "Note > Length",
+       "parameter_shortname": "N>Length",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5571,7 +5579,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_pit_time",
+     "text": "prepend p k_amp_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5589,7 +5597,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_pit_time",
+     "text": "prepend k_amp_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5613,7 +5621,7 @@
       "",
       "float"
      ],
-     "varname": "k_pit_crv",
+     "varname": "k_amp_att",
      "parameter_enable": 1,
      "patching_rect": [
       20,
@@ -5623,8 +5631,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Sweep Curve",
-       "parameter_shortname": "N>Sweep Curv",
+       "parameter_longname": "Note > Attack",
+       "parameter_shortname": "N>Attack",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5641,7 +5649,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_pit_crv",
+     "text": "prepend p k_amp_att",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5659,7 +5667,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_pit_crv",
+     "text": "prepend k_amp_att",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5683,7 +5691,7 @@
       "",
       "float"
      ],
-     "varname": "k_clk_amt",
+     "varname": "k_amp_crv",
      "parameter_enable": 1,
      "patching_rect": [
       120,
@@ -5693,8 +5701,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Click",
-       "parameter_shortname": "N>Click",
+       "parameter_longname": "Note > Amp Curve",
+       "parameter_shortname": "N>Amp Curve",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5711,7 +5719,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_clk_amt",
+     "text": "prepend p k_amp_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5729,7 +5737,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_clk_amt",
+     "text": "prepend k_amp_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5753,7 +5761,7 @@
       "",
       "float"
      ],
-     "varname": "k_clk_tone",
+     "varname": "k_pit_swp",
      "parameter_enable": 1,
      "patching_rect": [
       220,
@@ -5763,8 +5771,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Click Tone",
-       "parameter_shortname": "N>Click Tone",
+       "parameter_longname": "Note > Sweep",
+       "parameter_shortname": "N>Sweep",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5781,7 +5789,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_clk_tone",
+     "text": "prepend p k_pit_swp",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5799,7 +5807,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_clk_tone",
+     "text": "prepend k_pit_swp",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5823,7 +5831,7 @@
       "",
       "float"
      ],
-     "varname": "k_nz_amt",
+     "varname": "k_pit_time",
      "parameter_enable": 1,
      "patching_rect": [
       320,
@@ -5833,8 +5841,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Noise",
-       "parameter_shortname": "N>Noise",
+       "parameter_longname": "Note > Sweep Time",
+       "parameter_shortname": "N>Sweep Time",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5851,7 +5859,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_nz_amt",
+     "text": "prepend p k_pit_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5869,7 +5877,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_nz_amt",
+     "text": "prepend k_pit_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5893,7 +5901,7 @@
       "",
       "float"
      ],
-     "varname": "k_nz_col",
+     "varname": "k_pit_crv",
      "parameter_enable": 1,
      "patching_rect": [
       420,
@@ -5903,8 +5911,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Noise Color",
-       "parameter_shortname": "N>Noise Colo",
+       "parameter_longname": "Note > Sweep Curve",
+       "parameter_shortname": "N>Sweep Curv",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5921,7 +5929,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_nz_col",
+     "text": "prepend p k_pit_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5939,7 +5947,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_nz_col",
+     "text": "prepend k_pit_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -5963,7 +5971,7 @@
       "",
       "float"
      ],
-     "varname": "k_nz_dec",
+     "varname": "k_clk_amt",
      "parameter_enable": 1,
      "patching_rect": [
       520,
@@ -5973,8 +5981,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Noise Decay",
-       "parameter_shortname": "N>Noise Deca",
+       "parameter_longname": "Note > Click",
+       "parameter_shortname": "N>Click",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -5991,7 +5999,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_nz_dec",
+     "text": "prepend p k_clk_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6009,7 +6017,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_nz_dec",
+     "text": "prepend k_clk_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6033,7 +6041,7 @@
       "",
       "float"
      ],
-     "varname": "k_hm_amt",
+     "varname": "k_clk_tone",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -6043,8 +6051,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Partials",
-       "parameter_shortname": "N>Partials",
+       "parameter_longname": "Note > Click Tone",
+       "parameter_shortname": "N>Click Tone",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6061,7 +6069,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_hm_amt",
+     "text": "prepend p k_clk_tone",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6079,7 +6087,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_hm_amt",
+     "text": "prepend k_clk_tone",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6103,7 +6111,7 @@
       "",
       "float"
      ],
-     "varname": "k_hm_spr",
+     "varname": "k_nz_amt",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -6113,8 +6121,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Spread",
-       "parameter_shortname": "N>Spread",
+       "parameter_longname": "Note > Noise",
+       "parameter_shortname": "N>Noise",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6131,7 +6139,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_hm_spr",
+     "text": "prepend p k_nz_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6149,7 +6157,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_hm_spr",
+     "text": "prepend k_nz_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6173,7 +6181,7 @@
       "",
       "float"
      ],
-     "varname": "k_dr_amt",
+     "varname": "k_nz_col",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -6183,8 +6191,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Drive",
-       "parameter_shortname": "N>Drive",
+       "parameter_longname": "Note > Noise Color",
+       "parameter_shortname": "N>Noise Colo",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6201,7 +6209,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_dr_amt",
+     "text": "prepend p k_nz_col",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6219,7 +6227,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_dr_amt",
+     "text": "prepend k_nz_col",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6243,7 +6251,7 @@
       "",
       "float"
      ],
-     "varname": "k_dr_knee",
+     "varname": "k_nz_dec",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -6253,8 +6261,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Drive Hard",
-       "parameter_shortname": "N>Drive Hard",
+       "parameter_longname": "Note > Noise Decay",
+       "parameter_shortname": "N>Noise Deca",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6271,7 +6279,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_dr_knee",
+     "text": "prepend p k_nz_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6289,7 +6297,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_dr_knee",
+     "text": "prepend k_nz_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6313,7 +6321,7 @@
       "",
       "float"
      ],
-     "varname": "k_fm_amt",
+     "varname": "k_hm_amt",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -6323,8 +6331,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > FM",
-       "parameter_shortname": "N>FM",
+       "parameter_longname": "Note > Partials",
+       "parameter_shortname": "N>Partials",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6341,7 +6349,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_fm_amt",
+     "text": "prepend p k_hm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6359,7 +6367,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_fm_amt",
+     "text": "prepend k_hm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6383,7 +6391,7 @@
       "",
       "float"
      ],
-     "varname": "k_fm_rat",
+     "varname": "k_hm_spr",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -6393,8 +6401,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > FM Ratio",
-       "parameter_shortname": "N>FM Ratio",
+       "parameter_longname": "Note > Spread",
+       "parameter_shortname": "N>Spread",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6411,7 +6419,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_fm_rat",
+     "text": "prepend p k_hm_spr",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6429,7 +6437,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_fm_rat",
+     "text": "prepend k_hm_spr",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6453,7 +6461,7 @@
       "",
       "float"
      ],
-     "varname": "k_fm_dec",
+     "varname": "k_dr_amt",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -6463,8 +6471,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > FM Decay",
-       "parameter_shortname": "N>FM Decay",
+       "parameter_longname": "Note > Drive",
+       "parameter_shortname": "N>Drive",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6481,7 +6489,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_fm_dec",
+     "text": "prepend p k_dr_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6499,7 +6507,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_fm_dec",
+     "text": "prepend k_dr_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6523,7 +6531,7 @@
       "",
       "float"
      ],
-     "varname": "k_wd_amt",
+     "varname": "k_dr_knee",
      "parameter_enable": 1,
      "patching_rect": [
       1320,
@@ -6533,8 +6541,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Width",
-       "parameter_shortname": "N>Width",
+       "parameter_longname": "Note > Drive Hard",
+       "parameter_shortname": "N>Drive Hard",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6551,7 +6559,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_wd_amt",
+     "text": "prepend p k_dr_knee",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6569,7 +6577,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_wd_amt",
+     "text": "prepend k_dr_knee",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6593,7 +6601,7 @@
       "",
       "float"
      ],
-     "varname": "k_sp_amt",
+     "varname": "k_fm_amt",
      "parameter_enable": 1,
      "patching_rect": [
       20,
@@ -6603,8 +6611,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Space",
-       "parameter_shortname": "N>Space",
+       "parameter_longname": "Note > FM",
+       "parameter_shortname": "N>FM",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6621,7 +6629,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_sp_amt",
+     "text": "prepend p k_fm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6639,7 +6647,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_sp_amt",
+     "text": "prepend k_fm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6663,7 +6671,7 @@
       "",
       "float"
      ],
-     "varname": "k_sp_time",
+     "varname": "k_fm_rat",
      "parameter_enable": 1,
      "patching_rect": [
       120,
@@ -6673,8 +6681,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Space Size",
-       "parameter_shortname": "N>Space Size",
+       "parameter_longname": "Note > FM Ratio",
+       "parameter_shortname": "N>FM Ratio",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6691,7 +6699,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_sp_time",
+     "text": "prepend p k_fm_rat",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6709,7 +6717,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_sp_time",
+     "text": "prepend k_fm_rat",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6733,7 +6741,7 @@
       "",
       "float"
      ],
-     "varname": "k_level",
+     "varname": "k_fm_dec",
      "parameter_enable": 1,
      "patching_rect": [
       220,
@@ -6743,8 +6751,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Level",
-       "parameter_shortname": "N>Level",
+       "parameter_longname": "Note > FM Decay",
+       "parameter_shortname": "N>FM Decay",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6761,7 +6769,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_level",
+     "text": "prepend p k_fm_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6779,7 +6787,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_level",
+     "text": "prepend k_fm_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6803,7 +6811,7 @@
       "",
       "float"
      ],
-     "varname": "k_tune",
+     "varname": "k_wd_amt",
      "parameter_enable": 1,
      "patching_rect": [
       320,
@@ -6813,8 +6821,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Tune",
-       "parameter_shortname": "N>Tune",
+       "parameter_longname": "Note > Width",
+       "parameter_shortname": "N>Width",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6831,7 +6839,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_tune",
+     "text": "prepend p k_wd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6849,7 +6857,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_tune",
+     "text": "prepend k_wd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6873,7 +6881,7 @@
       "",
       "float"
      ],
-     "varname": "k_amp_phs",
+     "varname": "k_sp_amt",
      "parameter_enable": 1,
      "patching_rect": [
       420,
@@ -6883,8 +6891,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Start Phase",
-       "parameter_shortname": "N>Start Phas",
+       "parameter_longname": "Note > Space",
+       "parameter_shortname": "N>Space",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6901,7 +6909,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_amp_phs",
+     "text": "prepend p k_sp_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6919,7 +6927,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_amp_phs",
+     "text": "prepend k_sp_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6943,7 +6951,7 @@
       "",
       "float"
      ],
-     "varname": "k_sub_lvl",
+     "varname": "k_sp_time",
      "parameter_enable": 1,
      "patching_rect": [
       520,
@@ -6953,8 +6961,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Sub Level",
-       "parameter_shortname": "N>Sub Level",
+       "parameter_longname": "Note > Space Size",
+       "parameter_shortname": "N>Space Size",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -6971,7 +6979,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_sub_lvl",
+     "text": "prepend p k_sp_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -6989,7 +6997,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_sub_lvl",
+     "text": "prepend k_sp_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7013,7 +7021,7 @@
       "",
       "float"
      ],
-     "varname": "k_sub_len",
+     "varname": "k_level",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -7023,8 +7031,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Sub Length",
-       "parameter_shortname": "N>Sub Length",
+       "parameter_longname": "Note > Level",
+       "parameter_shortname": "N>Level",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7041,7 +7049,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_sub_len",
+     "text": "prepend p k_level",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7059,7 +7067,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_sub_len",
+     "text": "prepend k_level",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7083,7 +7091,7 @@
       "",
       "float"
      ],
-     "varname": "k_sub_crv",
+     "varname": "k_tune",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -7093,8 +7101,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Sub Curve",
-       "parameter_shortname": "N>Sub Curve",
+       "parameter_longname": "Note > Tune",
+       "parameter_shortname": "N>Tune",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7111,7 +7119,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_sub_crv",
+     "text": "prepend p k_tune",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7129,7 +7137,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_sub_crv",
+     "text": "prepend k_tune",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7153,7 +7161,7 @@
       "",
       "float"
      ],
-     "varname": "k_clk_bw",
+     "varname": "k_amp_phs",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -7163,8 +7171,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Click Band",
-       "parameter_shortname": "N>Click Band",
+       "parameter_longname": "Note > Start Phase",
+       "parameter_shortname": "N>Start Phas",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7181,7 +7189,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_clk_bw",
+     "text": "prepend p k_amp_phs",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7199,7 +7207,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_clk_bw",
+     "text": "prepend k_amp_phs",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7223,7 +7231,7 @@
       "",
       "float"
      ],
-     "varname": "k_dr_asym",
+     "varname": "k_sub_lvl",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -7233,8 +7241,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Drive Asym",
-       "parameter_shortname": "N>Drive Asym",
+       "parameter_longname": "Note > Sub Level",
+       "parameter_shortname": "N>Sub Level",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7251,7 +7259,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_dr_asym",
+     "text": "prepend p k_sub_lvl",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7269,7 +7277,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_dr_asym",
+     "text": "prepend k_sub_lvl",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7293,7 +7301,7 @@
       "",
       "float"
      ],
-     "varname": "k_glue",
+     "varname": "k_sub_len",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -7303,8 +7311,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Note > Glue",
-       "parameter_shortname": "N>Glue",
+       "parameter_longname": "Note > Sub Length",
+       "parameter_shortname": "N>Sub Length",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7321,7 +7329,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p k_glue",
+     "text": "prepend p k_sub_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7339,7 +7347,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend k_glue",
+     "text": "prepend k_sub_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7363,7 +7371,7 @@
       "",
       "float"
      ],
-     "varname": "r_amp_len",
+     "varname": "k_sub_crv",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -7373,8 +7381,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Length",
-       "parameter_shortname": "R>Length",
+       "parameter_longname": "Note > Sub Curve",
+       "parameter_shortname": "N>Sub Curve",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7391,7 +7399,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_amp_len",
+     "text": "prepend p k_sub_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7409,7 +7417,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_amp_len",
+     "text": "prepend k_sub_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7433,7 +7441,7 @@
       "",
       "float"
      ],
-     "varname": "r_amp_att",
+     "varname": "k_clk_bw",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -7443,8 +7451,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Attack",
-       "parameter_shortname": "R>Attack",
+       "parameter_longname": "Note > Click Band",
+       "parameter_shortname": "N>Click Band",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7461,7 +7469,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_amp_att",
+     "text": "prepend p k_clk_bw",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7479,7 +7487,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_amp_att",
+     "text": "prepend k_clk_bw",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7503,7 +7511,7 @@
       "",
       "float"
      ],
-     "varname": "r_amp_crv",
+     "varname": "k_dr_asym",
      "parameter_enable": 1,
      "patching_rect": [
       1320,
@@ -7513,8 +7521,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Amp Curve",
-       "parameter_shortname": "R>Amp Curve",
+       "parameter_longname": "Note > Drive Asym",
+       "parameter_shortname": "N>Drive Asym",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7531,7 +7539,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_amp_crv",
+     "text": "prepend p k_dr_asym",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7549,7 +7557,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_amp_crv",
+     "text": "prepend k_dr_asym",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7573,7 +7581,7 @@
       "",
       "float"
      ],
-     "varname": "r_pit_swp",
+     "varname": "k_glue",
      "parameter_enable": 1,
      "patching_rect": [
       20,
@@ -7583,12 +7591,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Sweep",
-       "parameter_shortname": "R>Sweep",
+       "parameter_longname": "Note > Glue",
+       "parameter_shortname": "N>Glue",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.1
+        0
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -7601,7 +7609,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_pit_swp",
+     "text": "prepend p k_glue",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7619,7 +7627,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_pit_swp",
+     "text": "prepend k_glue",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7643,7 +7651,7 @@
       "",
       "float"
      ],
-     "varname": "r_pit_time",
+     "varname": "k_nz_lfo",
      "parameter_enable": 1,
      "patching_rect": [
       120,
@@ -7653,8 +7661,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Sweep Time",
-       "parameter_shortname": "R>Sweep Time",
+       "parameter_longname": "Note > Noise LFO",
+       "parameter_shortname": "N>Noise LFO",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7671,7 +7679,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_pit_time",
+     "text": "prepend p k_nz_lfo",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7689,7 +7697,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_pit_time",
+     "text": "prepend k_nz_lfo",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7713,7 +7721,7 @@
       "",
       "float"
      ],
-     "varname": "r_pit_crv",
+     "varname": "k_nz_lrt",
      "parameter_enable": 1,
      "patching_rect": [
       220,
@@ -7723,8 +7731,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Sweep Curve",
-       "parameter_shortname": "R>Sweep Curv",
+       "parameter_longname": "Note > Noise LFO Rate",
+       "parameter_shortname": "N>Noise LFO ",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7741,7 +7749,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_pit_crv",
+     "text": "prepend p k_nz_lrt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7759,7 +7767,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_pit_crv",
+     "text": "prepend k_nz_lrt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7783,7 +7791,7 @@
       "",
       "float"
      ],
-     "varname": "r_clk_amt",
+     "varname": "r_amp_len",
      "parameter_enable": 1,
      "patching_rect": [
       320,
@@ -7793,8 +7801,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Click",
-       "parameter_shortname": "R>Click",
+       "parameter_longname": "Rnd > Length",
+       "parameter_shortname": "R>Length",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7811,7 +7819,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_clk_amt",
+     "text": "prepend p r_amp_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7829,7 +7837,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_clk_amt",
+     "text": "prepend r_amp_len",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7853,7 +7861,7 @@
       "",
       "float"
      ],
-     "varname": "r_clk_tone",
+     "varname": "r_amp_att",
      "parameter_enable": 1,
      "patching_rect": [
       420,
@@ -7863,12 +7871,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Click Tone",
-       "parameter_shortname": "R>Click Tone",
+       "parameter_longname": "Rnd > Attack",
+       "parameter_shortname": "R>Attack",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.3
+        0
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -7881,7 +7889,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_clk_tone",
+     "text": "prepend p r_amp_att",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7899,7 +7907,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_clk_tone",
+     "text": "prepend r_amp_att",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7923,7 +7931,7 @@
       "",
       "float"
      ],
-     "varname": "r_nz_amt",
+     "varname": "r_amp_crv",
      "parameter_enable": 1,
      "patching_rect": [
       520,
@@ -7933,8 +7941,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Noise",
-       "parameter_shortname": "R>Noise",
+       "parameter_longname": "Rnd > Amp Curve",
+       "parameter_shortname": "R>Amp Curve",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -7951,7 +7959,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_nz_amt",
+     "text": "prepend p r_amp_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7969,7 +7977,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_nz_amt",
+     "text": "prepend r_amp_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -7993,7 +8001,7 @@
       "",
       "float"
      ],
-     "varname": "r_nz_col",
+     "varname": "r_pit_swp",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -8003,12 +8011,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Noise Color",
-       "parameter_shortname": "R>Noise Colo",
+       "parameter_longname": "Rnd > Sweep",
+       "parameter_shortname": "R>Sweep",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0.3
+        0.1
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -8021,7 +8029,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_nz_col",
+     "text": "prepend p r_pit_swp",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8039,7 +8047,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_nz_col",
+     "text": "prepend r_pit_swp",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8063,7 +8071,7 @@
       "",
       "float"
      ],
-     "varname": "r_nz_dec",
+     "varname": "r_pit_time",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -8073,8 +8081,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Noise Decay",
-       "parameter_shortname": "R>Noise Deca",
+       "parameter_longname": "Rnd > Sweep Time",
+       "parameter_shortname": "R>Sweep Time",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8091,7 +8099,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_nz_dec",
+     "text": "prepend p r_pit_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8109,7 +8117,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_nz_dec",
+     "text": "prepend r_pit_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8133,7 +8141,7 @@
       "",
       "float"
      ],
-     "varname": "r_hm_amt",
+     "varname": "r_pit_crv",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -8143,8 +8151,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Partials",
-       "parameter_shortname": "R>Partials",
+       "parameter_longname": "Rnd > Sweep Curve",
+       "parameter_shortname": "R>Sweep Curv",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8161,7 +8169,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_hm_amt",
+     "text": "prepend p r_pit_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8179,7 +8187,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_hm_amt",
+     "text": "prepend r_pit_crv",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8203,7 +8211,7 @@
       "",
       "float"
      ],
-     "varname": "r_hm_spr",
+     "varname": "r_clk_amt",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -8213,8 +8221,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Spread",
-       "parameter_shortname": "R>Spread",
+       "parameter_longname": "Rnd > Click",
+       "parameter_shortname": "R>Click",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8231,7 +8239,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_hm_spr",
+     "text": "prepend p r_clk_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8249,7 +8257,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_hm_spr",
+     "text": "prepend r_clk_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8273,7 +8281,7 @@
       "",
       "float"
      ],
-     "varname": "r_dr_amt",
+     "varname": "r_clk_tone",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -8283,12 +8291,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Drive",
-       "parameter_shortname": "R>Drive",
+       "parameter_longname": "Rnd > Click Tone",
+       "parameter_shortname": "R>Click Tone",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        0.3
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -8301,7 +8309,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_dr_amt",
+     "text": "prepend p r_clk_tone",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8319,7 +8327,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_dr_amt",
+     "text": "prepend r_clk_tone",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8343,7 +8351,7 @@
       "",
       "float"
      ],
-     "varname": "r_dr_knee",
+     "varname": "r_nz_amt",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -8353,8 +8361,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Drive Hard",
-       "parameter_shortname": "R>Drive Hard",
+       "parameter_longname": "Rnd > Noise",
+       "parameter_shortname": "R>Noise",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8371,7 +8379,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_dr_knee",
+     "text": "prepend p r_nz_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8389,7 +8397,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_dr_knee",
+     "text": "prepend r_nz_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8413,7 +8421,7 @@
       "",
       "float"
      ],
-     "varname": "r_fm_amt",
+     "varname": "r_nz_col",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -8423,12 +8431,12 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > FM",
-       "parameter_shortname": "R>FM",
+       "parameter_longname": "Rnd > Noise Color",
+       "parameter_shortname": "R>Noise Colo",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
-        0
+        0.3
        ],
        "parameter_initial_enable": 1,
        "parameter_type": 0,
@@ -8441,7 +8449,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_fm_amt",
+     "text": "prepend p r_nz_col",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8459,7 +8467,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_fm_amt",
+     "text": "prepend r_nz_col",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8483,7 +8491,7 @@
       "",
       "float"
      ],
-     "varname": "r_fm_rat",
+     "varname": "r_nz_dec",
      "parameter_enable": 1,
      "patching_rect": [
       1320,
@@ -8493,8 +8501,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > FM Ratio",
-       "parameter_shortname": "R>FM Ratio",
+       "parameter_longname": "Rnd > Noise Decay",
+       "parameter_shortname": "R>Noise Deca",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8511,7 +8519,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_fm_rat",
+     "text": "prepend p r_nz_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8529,7 +8537,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_fm_rat",
+     "text": "prepend r_nz_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8553,7 +8561,7 @@
       "",
       "float"
      ],
-     "varname": "r_fm_dec",
+     "varname": "r_hm_amt",
      "parameter_enable": 1,
      "patching_rect": [
       20,
@@ -8563,8 +8571,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > FM Decay",
-       "parameter_shortname": "R>FM Decay",
+       "parameter_longname": "Rnd > Partials",
+       "parameter_shortname": "R>Partials",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8581,7 +8589,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_fm_dec",
+     "text": "prepend p r_hm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8599,7 +8607,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_fm_dec",
+     "text": "prepend r_hm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8623,7 +8631,7 @@
       "",
       "float"
      ],
-     "varname": "r_wd_amt",
+     "varname": "r_hm_spr",
      "parameter_enable": 1,
      "patching_rect": [
       120,
@@ -8633,8 +8641,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Width",
-       "parameter_shortname": "R>Width",
+       "parameter_longname": "Rnd > Spread",
+       "parameter_shortname": "R>Spread",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8651,7 +8659,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_wd_amt",
+     "text": "prepend p r_hm_spr",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8669,7 +8677,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_wd_amt",
+     "text": "prepend r_hm_spr",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8693,7 +8701,7 @@
       "",
       "float"
      ],
-     "varname": "r_sp_amt",
+     "varname": "r_dr_amt",
      "parameter_enable": 1,
      "patching_rect": [
       220,
@@ -8703,8 +8711,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Space",
-       "parameter_shortname": "R>Space",
+       "parameter_longname": "Rnd > Drive",
+       "parameter_shortname": "R>Drive",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8721,7 +8729,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_sp_amt",
+     "text": "prepend p r_dr_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8739,7 +8747,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_sp_amt",
+     "text": "prepend r_dr_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8763,7 +8771,7 @@
       "",
       "float"
      ],
-     "varname": "r_sp_time",
+     "varname": "r_dr_knee",
      "parameter_enable": 1,
      "patching_rect": [
       320,
@@ -8773,8 +8781,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Space Size",
-       "parameter_shortname": "R>Space Size",
+       "parameter_longname": "Rnd > Drive Hard",
+       "parameter_shortname": "R>Drive Hard",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8791,7 +8799,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_sp_time",
+     "text": "prepend p r_dr_knee",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8809,7 +8817,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_sp_time",
+     "text": "prepend r_dr_knee",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8833,7 +8841,7 @@
       "",
       "float"
      ],
-     "varname": "r_level",
+     "varname": "r_fm_amt",
      "parameter_enable": 1,
      "patching_rect": [
       420,
@@ -8843,8 +8851,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Level",
-       "parameter_shortname": "R>Level",
+       "parameter_longname": "Rnd > FM",
+       "parameter_shortname": "R>FM",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8861,7 +8869,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_level",
+     "text": "prepend p r_fm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8879,7 +8887,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_level",
+     "text": "prepend r_fm_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8903,7 +8911,7 @@
       "",
       "float"
      ],
-     "varname": "r_tune",
+     "varname": "r_fm_rat",
      "parameter_enable": 1,
      "patching_rect": [
       520,
@@ -8913,8 +8921,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Tune",
-       "parameter_shortname": "R>Tune",
+       "parameter_longname": "Rnd > FM Ratio",
+       "parameter_shortname": "R>FM Ratio",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -8931,7 +8939,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_tune",
+     "text": "prepend p r_fm_rat",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8949,7 +8957,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_tune",
+     "text": "prepend r_fm_rat",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -8973,7 +8981,7 @@
       "",
       "float"
      ],
-     "varname": "r_amp_phs",
+     "varname": "r_fm_dec",
      "parameter_enable": 1,
      "patching_rect": [
       620,
@@ -8983,8 +8991,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Start Phase",
-       "parameter_shortname": "R>Start Phas",
+       "parameter_longname": "Rnd > FM Decay",
+       "parameter_shortname": "R>FM Decay",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9001,7 +9009,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_amp_phs",
+     "text": "prepend p r_fm_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9019,7 +9027,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_amp_phs",
+     "text": "prepend r_fm_dec",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9043,7 +9051,7 @@
       "",
       "float"
      ],
-     "varname": "r_sub_lvl",
+     "varname": "r_wd_amt",
      "parameter_enable": 1,
      "patching_rect": [
       720,
@@ -9053,8 +9061,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Sub Level",
-       "parameter_shortname": "R>Sub Level",
+       "parameter_longname": "Rnd > Width",
+       "parameter_shortname": "R>Width",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9071,7 +9079,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_sub_lvl",
+     "text": "prepend p r_wd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9089,7 +9097,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_sub_lvl",
+     "text": "prepend r_wd_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9113,7 +9121,7 @@
       "",
       "float"
      ],
-     "varname": "r_sub_len",
+     "varname": "r_sp_amt",
      "parameter_enable": 1,
      "patching_rect": [
       820,
@@ -9123,8 +9131,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Sub Length",
-       "parameter_shortname": "R>Sub Length",
+       "parameter_longname": "Rnd > Space",
+       "parameter_shortname": "R>Space",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9141,7 +9149,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_sub_len",
+     "text": "prepend p r_sp_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9159,7 +9167,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_sub_len",
+     "text": "prepend r_sp_amt",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9183,7 +9191,7 @@
       "",
       "float"
      ],
-     "varname": "r_sub_crv",
+     "varname": "r_sp_time",
      "parameter_enable": 1,
      "patching_rect": [
       920,
@@ -9193,8 +9201,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Sub Curve",
-       "parameter_shortname": "R>Sub Curve",
+       "parameter_longname": "Rnd > Space Size",
+       "parameter_shortname": "R>Space Size",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9211,7 +9219,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_sub_crv",
+     "text": "prepend p r_sp_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9229,7 +9237,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_sub_crv",
+     "text": "prepend r_sp_time",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9253,7 +9261,7 @@
       "",
       "float"
      ],
-     "varname": "r_clk_bw",
+     "varname": "r_level",
      "parameter_enable": 1,
      "patching_rect": [
       1020,
@@ -9263,8 +9271,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Click Band",
-       "parameter_shortname": "R>Click Band",
+       "parameter_longname": "Rnd > Level",
+       "parameter_shortname": "R>Level",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9281,7 +9289,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_clk_bw",
+     "text": "prepend p r_level",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9299,7 +9307,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_clk_bw",
+     "text": "prepend r_level",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9323,7 +9331,7 @@
       "",
       "float"
      ],
-     "varname": "r_dr_asym",
+     "varname": "r_tune",
      "parameter_enable": 1,
      "patching_rect": [
       1120,
@@ -9333,8 +9341,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Drive Asym",
-       "parameter_shortname": "R>Drive Asym",
+       "parameter_longname": "Rnd > Tune",
+       "parameter_shortname": "R>Tune",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9351,7 +9359,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_dr_asym",
+     "text": "prepend p r_tune",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9369,7 +9377,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_dr_asym",
+     "text": "prepend r_tune",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9393,7 +9401,7 @@
       "",
       "float"
      ],
-     "varname": "r_glue",
+     "varname": "r_amp_phs",
      "parameter_enable": 1,
      "patching_rect": [
       1220,
@@ -9403,8 +9411,8 @@
      ],
      "saved_attribute_attributes": {
       "valueof": {
-       "parameter_longname": "Rnd > Glue",
-       "parameter_shortname": "R>Glue",
+       "parameter_longname": "Rnd > Start Phase",
+       "parameter_shortname": "R>Start Phas",
        "parameter_mmin": -1,
        "parameter_mmax": 1,
        "parameter_initial": [
@@ -9421,7 +9429,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend p r_glue",
+     "text": "prepend p r_amp_phs",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9439,7 +9447,7 @@
    {
     "box": {
      "maxclass": "newobj",
-     "text": "prepend r_glue",
+     "text": "prepend r_amp_phs",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [
@@ -9452,6 +9460,566 @@
       22
      ],
      "id": "obj-396"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_sub_lvl",
+     "parameter_enable": 1,
+     "patching_rect": [
+      1320,
+      1100,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Sub Level",
+       "parameter_shortname": "R>Sub Level",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-397"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_sub_lvl",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      1320,
+      1156,
+      90,
+      22
+     ],
+     "id": "obj-398"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_sub_lvl",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      1320,
+      1182,
+      90,
+      22
+     ],
+     "id": "obj-399"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_sub_len",
+     "parameter_enable": 1,
+     "patching_rect": [
+      20,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Sub Length",
+       "parameter_shortname": "R>Sub Length",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-400"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_sub_len",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      20,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-401"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_sub_len",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      20,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-402"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_sub_crv",
+     "parameter_enable": 1,
+     "patching_rect": [
+      120,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Sub Curve",
+       "parameter_shortname": "R>Sub Curve",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-403"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_sub_crv",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      120,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-404"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_sub_crv",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      120,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-405"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_clk_bw",
+     "parameter_enable": 1,
+     "patching_rect": [
+      220,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Click Band",
+       "parameter_shortname": "R>Click Band",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-406"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_clk_bw",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      220,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-407"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_clk_bw",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      220,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-408"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_dr_asym",
+     "parameter_enable": 1,
+     "patching_rect": [
+      320,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Drive Asym",
+       "parameter_shortname": "R>Drive Asym",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-409"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_dr_asym",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      320,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-410"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_dr_asym",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      320,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-411"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_glue",
+     "parameter_enable": 1,
+     "patching_rect": [
+      420,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Glue",
+       "parameter_shortname": "R>Glue",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-412"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_glue",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      420,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-413"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_glue",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      420,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-414"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_nz_lfo",
+     "parameter_enable": 1,
+     "patching_rect": [
+      520,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Noise LFO",
+       "parameter_shortname": "R>Noise LFO",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-415"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_nz_lfo",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      520,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-416"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_nz_lfo",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      520,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-417"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "live.dial",
+     "numinlets": 1,
+     "numoutlets": 2,
+     "outlettype": [
+      "",
+      "float"
+     ],
+     "varname": "r_nz_lrt",
+     "parameter_enable": 1,
+     "patching_rect": [
+      620,
+      1220,
+      44,
+      48
+     ],
+     "saved_attribute_attributes": {
+      "valueof": {
+       "parameter_longname": "Rnd > Noise LFO Rate",
+       "parameter_shortname": "R>Noise LFO ",
+       "parameter_mmin": -1,
+       "parameter_mmax": 1,
+       "parameter_initial": [
+        0
+       ],
+       "parameter_initial_enable": 1,
+       "parameter_type": 0,
+       "parameter_unitstyle": 1
+      }
+     },
+     "id": "obj-418"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend p r_nz_lrt",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      620,
+      1276,
+      90,
+      22
+     ],
+     "id": "obj-419"
+    }
+   },
+   {
+    "box": {
+     "maxclass": "newobj",
+     "text": "prepend r_nz_lrt",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      620,
+      1302,
+      90,
+      22
+     ],
+     "id": "obj-420"
     }
    },
    {
@@ -9469,7 +10037,7 @@
       91,
       22
      ],
-     "id": "obj-397"
+     "id": "obj-421"
     }
    },
    {
@@ -9487,7 +10055,7 @@
       91,
       22
      ],
-     "id": "obj-398"
+     "id": "obj-422"
     }
    },
    {
@@ -9505,7 +10073,7 @@
       84,
       22
      ],
-     "id": "obj-399"
+     "id": "obj-423"
     }
    },
    {
@@ -9523,7 +10091,7 @@
       105,
       22
      ],
-     "id": "obj-400"
+     "id": "obj-424"
     }
    },
    {
@@ -9544,7 +10112,7 @@
       77,
       22
      ],
-     "id": "obj-401"
+     "id": "obj-425"
     }
    },
    {
@@ -9562,7 +10130,7 @@
       84,
       22
      ],
-     "id": "obj-402"
+     "id": "obj-426"
     }
    }
   ],
@@ -9811,7 +10379,7 @@
     "patchline": {
      "source": [
       "obj-18",
-      125
+      133
      ],
      "destination": [
       "obj-19",
@@ -18882,7 +19450,19 @@
    {
     "patchline": {
      "source": [
-      "obj-2",
+      "obj-18",
+      125
+     ],
+     "destination": [
+      "obj-397",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
       0
      ],
      "destination": [
@@ -18894,11 +19474,23 @@
    {
     "patchline": {
      "source": [
-      "obj-2",
-      1
+      "obj-397",
+      0
      ],
      "destination": [
       "obj-398",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-398",
+      0
+     ],
+     "destination": [
+      "obj-4",
       0
      ]
     }
@@ -18918,19 +19510,31 @@
    {
     "patchline": {
      "source": [
-      "obj-398",
+      "obj-399",
       0
      ],
      "destination": [
-      "obj-399",
-      1
+      "obj-2",
+      0
      ]
     }
    },
    {
     "patchline": {
      "source": [
-      "obj-399",
+      "obj-18",
+      126
+     ],
+     "destination": [
+      "obj-400",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
       0
      ],
      "destination": [
@@ -18943,6 +19547,546 @@
     "patchline": {
      "source": [
       "obj-400",
+      0
+     ],
+     "destination": [
+      "obj-401",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-401",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-400",
+      0
+     ],
+     "destination": [
+      "obj-402",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-402",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-18",
+      127
+     ],
+     "destination": [
+      "obj-403",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
+      0
+     ],
+     "destination": [
+      "obj-403",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-403",
+      0
+     ],
+     "destination": [
+      "obj-404",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-404",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-403",
+      0
+     ],
+     "destination": [
+      "obj-405",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-405",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-18",
+      128
+     ],
+     "destination": [
+      "obj-406",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
+      0
+     ],
+     "destination": [
+      "obj-406",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-406",
+      0
+     ],
+     "destination": [
+      "obj-407",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-407",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-406",
+      0
+     ],
+     "destination": [
+      "obj-408",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-408",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-18",
+      129
+     ],
+     "destination": [
+      "obj-409",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
+      0
+     ],
+     "destination": [
+      "obj-409",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-409",
+      0
+     ],
+     "destination": [
+      "obj-410",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-410",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-409",
+      0
+     ],
+     "destination": [
+      "obj-411",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-411",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-18",
+      130
+     ],
+     "destination": [
+      "obj-412",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
+      0
+     ],
+     "destination": [
+      "obj-412",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-412",
+      0
+     ],
+     "destination": [
+      "obj-413",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-413",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-412",
+      0
+     ],
+     "destination": [
+      "obj-414",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-414",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-18",
+      131
+     ],
+     "destination": [
+      "obj-415",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
+      0
+     ],
+     "destination": [
+      "obj-415",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-415",
+      0
+     ],
+     "destination": [
+      "obj-416",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-416",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-415",
+      0
+     ],
+     "destination": [
+      "obj-417",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-417",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-18",
+      132
+     ],
+     "destination": [
+      "obj-418",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-5",
+      0
+     ],
+     "destination": [
+      "obj-418",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-418",
+      0
+     ],
+     "destination": [
+      "obj-419",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-419",
+      0
+     ],
+     "destination": [
+      "obj-4",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-418",
+      0
+     ],
+     "destination": [
+      "obj-420",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-420",
+      0
+     ],
+     "destination": [
+      "obj-2",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-2",
+      0
+     ],
+     "destination": [
+      "obj-421",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-2",
+      1
+     ],
+     "destination": [
+      "obj-422",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-421",
+      0
+     ],
+     "destination": [
+      "obj-423",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-422",
+      0
+     ],
+     "destination": [
+      "obj-423",
+      1
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-423",
+      0
+     ],
+     "destination": [
+      "obj-424",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "obj-424",
       0
      ],
      "destination": [
@@ -18958,7 +20102,7 @@
       0
      ],
      "destination": [
-      "obj-401",
+      "obj-425",
       0
      ]
     }
@@ -18966,11 +20110,11 @@
    {
     "patchline": {
      "source": [
-      "obj-401",
+      "obj-425",
       1
      ],
      "destination": [
-      "obj-402",
+      "obj-426",
       0
      ]
     }
@@ -18978,7 +20122,7 @@
    {
     "patchline": {
      "source": [
-      "obj-402",
+      "obj-426",
       0
      ],
      "destination": [

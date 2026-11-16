@@ -41,6 +41,9 @@ KNOBS = [
     ("clk_bw", "CLICK", "BAND", "Click Band", 0.5),
     ("dr_asym", "DRIVE", "ASYM", "Drive Asym", 0.0),
     ("glue", "OUT", "GLUE", "Glue", 0.0),
+    # v0.3 (at the end: the random index of the knobs above stays the same)
+    ("nz_lfo", "NOISE", "LFO", "Noise LFO", 0.0),
+    ("nz_lrt", "NOISE", "RATE", "Noise LFO Rate", 0.5),
 ]
 NAMES = [k[0] for k in KNOBS]
 

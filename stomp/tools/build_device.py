@@ -29,7 +29,7 @@ VU = VERSION.replace(".", "_")
 JSNAME = "stomp_ui_%s.js" % VU          # versioned: Max finds files by name
 AMXDNAME = "STOMP_%s.amxd" % VU          # ASCII only (FLØCK: the Ø in a file name kept a device silent)
 CODE = open(os.path.join(ROOT, "gen", "stomp.genexpr"), encoding="utf-8").read()
-W, H = 1290, 169
+W, H = 1334, 169
 SIG = "signal"
 
 
