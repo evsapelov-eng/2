@@ -23,6 +23,7 @@ test("instrument: MIDI in → note-ons → velocity, then the note, then a new h
   const cnt = links(tbi, 0)[0], inc = links(cnt, 0)[0];
   assert.strictEqual(cnt.text, "i"); assert.strictEqual(inc.text, "+ 1");
   assert.ok(links(inc, 0).some((b) => b.text === "prepend ktrig") && links(inc, 0).includes(cnt));
+  assert.ok(links(inc, 0).some((b) => b.text === "prepend hitno"), "the panel learns the hit number (same random values)");
   const out = one("plugout~");
   assert.ok(links(gen, 0).includes(out) && links(gen, 1).includes(out));
   assert.strictEqual(byText("plugin~").length, 0, "an instrument has no audio input");
@@ -39,6 +40,8 @@ test("every knob, source amount and cable depth is a Live parameter with the eng
     assert.strictEqual(d.saved_attribute_attributes.valueof.parameter_initial[0], +m[1], n);
     assert.ok(links(d, 0).some((b) => b.text === "prepend " + n), n + " → gen~");
   }
+  const toggles = pat.boxes.map((b) => b.box).filter((b) => b.maxclass === "live.toggle").map((b) => b.varname).sort();
+  assert.deepStrictEqual(toggles, ["dr_pre", "p808"]);
   const longs = dials.map((d) => d.saved_attribute_attributes.valueof.parameter_longname);
   assert.strictEqual(new Set(longs).size, longs.length);
 });
@@ -50,8 +53,8 @@ test("gen~ codebox holds the engine (ASCII, no comments) and the panel is a vers
   const ui = pat.boxes.map((b) => b.box).find((b) => b.maxclass === "jsui");
   const v = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"))).version.replace(/\./g, "_");
   assert.strictEqual(ui.filename, "stomp_ui_" + v + ".js");
-  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 1100, 169]);
-  assert.strictEqual(pat.devicewidth, 1100);
+  assert.deepStrictEqual(ui.presentation_rect, [0, 0, 1290, 169]);
+  assert.strictEqual(pat.devicewidth, 1290);
 });
 
 test("the .amxd container says instrument ('iiii')", () => {

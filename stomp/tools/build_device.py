@@ -18,7 +18,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from spec import KNOBS, SOURCES, DEPTH_DEFAULTS, depth_names  # noqa: E402
+from spec import KNOBS, SOURCES, SWITCHES, DEPTH_DEFAULTS, depth_names  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAXDIR = os.path.join(ROOT, "max")
@@ -29,7 +29,7 @@ VU = VERSION.replace(".", "_")
 JSNAME = "stomp_ui_%s.js" % VU          # versioned: Max finds files by name
 AMXDNAME = "STOMP_%s.amxd" % VU          # ASCII only (FLØCK: the Ø in a file name kept a device silent)
 CODE = open(os.path.join(ROOT, "gen", "stomp.genexpr"), encoding="utf-8").read()
-W, H = 1100, 169
+W, H = 1290, 169
 SIG = "signal"
 
 
@@ -51,13 +51,15 @@ def short(s):
     return s[:12]
 
 
-# (engine Param = Live name of the dial, Live long name, short name, min, max, default)
-PARAMS = [(n, ln, short(ln), 0, 1, d) for n, _s, _l, ln, d in KNOBS]
-PARAMS += [(n, ln, short(ln), 0, 1, d) for n, _l, ln, d in SOURCES]
+# (engine Param = Live name of the control, Live long name, short name, min, max, default, toggle?)
+PARAMS = [(n, ln, short(ln), 0, 1, d, False) for n, _s, _l, ln, d in KNOBS]
+PARAMS += [(n, ln, short(ln), 0, 1, d, True) for n, _s, _l, ln, d in SWITCHES]
+PARAMS += [(n, ln, short(ln), 0, 1, d, False) for n, _l, ln, d, _pre in SOURCES]
 LONG = {n: ln for n, _s, _l, ln, _d in KNOBS}
+SRCNAME = {"v_": "Vel", "k_": "Note", "r_": "Rnd"}
 for dn in depth_names():
-    src = "Vel" if dn.startswith("v_") else "Rnd"
-    PARAMS.append((dn, "%s > %s" % (src, LONG[dn[2:]]), short("%s>%s" % (src[0], LONG[dn[2:]])), -1, 1, DEPTH_DEFAULTS.get(dn, 0)))
+    src = SRCNAME[dn[:2]]
+    PARAMS.append((dn, "%s > %s" % (src, LONG[dn[2:]]), short("%s>%s" % (src[0], LONG[dn[2:]])), -1, 1, DEPTH_DEFAULTS.get(dn, 0), False))
 
 
 class Patcher:
@@ -107,11 +109,15 @@ def gen_box(P, x, y):
 
 
 def param_box(P, spec, x, y):
-    name, long, sh, lo, hi, d = spec
+    name, long, sh, lo, hi, d, toggle = spec
     va = {"parameter_longname": long, "parameter_shortname": sh, "parameter_mmin": lo, "parameter_mmax": hi,
           "parameter_initial": [d], "parameter_initial_enable": 1, "parameter_type": 0, "parameter_unitstyle": 1}
-    b = {"maxclass": "live.dial", "numinlets": 1, "numoutlets": 2, "outlettype": ["", "float"], "varname": name,
-         "parameter_enable": 1, "patching_rect": [x, y, 44, 48], "saved_attribute_attributes": {"valueof": va}}
+    if toggle:
+        va.update({"parameter_type": 2, "parameter_enum": ["off", "on"]})
+        b = {"maxclass": "live.toggle", "numinlets": 1, "numoutlets": 1, "outlettype": [""]}
+    else:
+        b = {"maxclass": "live.dial", "numinlets": 1, "numoutlets": 2, "outlettype": ["", "float"]}
+    b.update({"varname": name, "parameter_enable": 1, "patching_rect": [x, y, 44, 48], "saved_attribute_attributes": {"valueof": va}})
     return P.add(b)
 
 
@@ -136,6 +142,9 @@ def build():
     pk = P.obj("prepend ktrig", 1, 1, x=1200, y=360, w=100)
     P.connect(inc, 0, pk, 0)
     P.connect(pk, 0, gen, 0)
+    phn = P.obj("prepend hitno", 1, 1, x=1310, y=360, w=100)   # the panel computes the same per-hit random values
+    P.connect(inc, 0, phn, 0)
+    P.connect(phn, 0, ui, 0)
 
     # ---- MIDI from the track: note-ons only (a kick is one-shot); velocity, then pitch, then the hit ----
     mi = P.obj("midiin", 1, 1, ["int"], x=1200, y=40)

@@ -1,32 +1,69 @@
 // ===== the voice (hand-written; make_engine.py puts it after the generated modulation block) =====
-// Every e_<knob> is the knob 0..1 (smoothed) + this hit's velocity/random offset, clamped 0..1.
+// Every e_<knob> is the knob 0..1 (smoothed) + this hit's velocity/note/random offset, clamped 0..1.
 dt = 1 / samplerate;
 nyq = samplerate * 0.45;
 act_n = trig ? 1 : act;
 tt_n = trig ? 0 : min(tt + dt, 60);
+m808 = p808 > 0.5;
 
-// ---- amp envelope: attack, then a curved decay that ends exactly at LENGTH ----
+// ---- amp envelope: attack, then the decay; it ends exactly at LENGTH ----
+// SWEEP mode: CURVE shapes (1 - x)^p (0 = drops fast, 0.5 = linear, 1 = holds).
+// 808 mode: an exponential ring, CURVE = how fast (0.5 = -60 dB at LENGTH).
 alen = 0.05 * pw2(e_amp_len * 5.32);              // 50 ms .. 2 s
 aatt = 0.03 * e_amp_att * e_amp_att;              // 0 .. 30 ms
 ax_ = clamp((tt_n - aatt) / alen, 0, 1);
-adec = pow(1 - ax_, shapep(e_amp_crv));           // CURVE: 0 = drops fast, 0.5 = linear, 1 = holds
+adec = m808 ? exp(-ax_ * 6.9078 * shapep(e_amp_crv)) : pow(1 - ax_, shapep(e_amp_crv));
 afade = min(1, (1 - ax_) * alen / 0.003);         // last 3 ms: no tick at the end
 aatk = aatt > 0.00002 ? min(1, tt_n / aatt) : 1;
 env = act_n * aatk * adec * afade;
 
-// ---- pitch: the MIDI note (+ TUNE) is where the sweep lands; SWEEP = how far above it starts ----
+// ---- SUB layer: the same oscillator (same phase: it never cancels the body), its own LENGTH / CURVE ----
+slen = 0.05 * pw2(e_sub_len * 5.32);
+sx_ = clamp((tt_n - aatt) / slen, 0, 1);
+sdec = m808 ? exp(-sx_ * 6.9078 * shapep(e_sub_crv)) : pow(1 - sx_, shapep(e_sub_crv));
+sfade = min(1, (1 - sx_) * slen / 0.003);
+senv = act_n * aatk * sdec * sfade * e_sub_lvl;
+
+// ---- pitch: the MIDI note (+ TUNE) is where the kick lands; SWEEP = how far above it starts ----
+// SWEEP mode: falls within TIME along CURVE.  808 mode: the pitch follows the loudness
+// (pitch = amplitude ^ p): it falls as the ring dies; TIME = how long it stays up.
 fnote = 440 * pw2((knote - 69 + (e_tune - 0.5) * 48) / 12);
 ptim = 0.005 * pw2(e_pit_time * 6);               // 5 .. 320 ms
 py_ = min(tt_n / ptim, 1);
-pe = pow(1 - py_, shapep(e_pit_crv));             // CURVE: 0 = slow fall, 1 = fast fall (snappy)
+pesw = pow(1 - py_, shapep(e_pit_crv));
+pe8 = pow(adec, 8 * pw2(-e_pit_time * 6));
+pe = m808 ? pe8 : pesw;
 freq = min(fnote * pw2(e_pit_swp * 72 * pe / 12), nyq);   // up to 6 octaves above the note
 ph_n = trig ? 0 : fract(ph + freq * dt);
+phs = e_amp_phs * 0.25;                           // PHASE: start 0 .. 90 degrees (90 = a hard attack)
 
-// ---- FM: a sine modulator at RATIO × the body frequency, its own fast decay ----
+// ---- FM: a sine modulator at RATIO x the body frequency, its own fast decay ----
 fmr = 0.5 + e_fm_rat * 7.5;
 pm_n = trig ? 0 : fract(pm + min(freq * fmr, nyq) * dt);
 fidx = 6 * e_fm_amt * e_fm_amt * exp(-tt_n / (0.005 * pw2(e_fm_dec * 6)));
-body = sin(twopi * ph_n + fidx * sin(twopi * pm_n)) * env;
+bosc = sin(twopi * (ph_n + phs) + fidx * sin(twopi * pm_n));
+sosc = sin(twopi * (ph_n + phs));
+
+// ---- drive settings: soft (tanh) .. HARD (clip); ASYM = the negative half harder (even harmonics) ----
+dg = pw2(e_dr_amt * 5);                           // x1 .. x32
+dtg = tanh(dg);
+dmix = min(1, (e_dr_amt + e_dr_asym) * 5);
+pre = dr_pre > 0.5;                               // PRE: shape the oscillator before the envelope (909 style:
+                                                  // the dirt lasts through the whole tail); POST: the whole mix
+
+// ---- the outgoing kick fades out over 5 ms when a new note comes (no cut, no click) ----
+gph_n = trig ? fract(ph + lf * dt) : fract(gph + gf * dt);
+gf_n = trig ? lf : gf;
+ga_n = trig ? la : ga;
+gtm_n = trig ? 0 : min(gtm + dt, 1);
+gfade = max(0, 1 - gtm_n / 0.005);
+gosc = sin(twopi * (gph_n + phs));
+
+bodyv = (pre ? shp(bosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : bosc) * env;
+subv = (pre ? shp(sosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : sosc) * senv;
+ghost = (pre ? shp(gosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : gosc) * ga_n * gfade;
+la_n = env + senv;
+lf_n = freq;
 
 // ---- partials 2..5 (SPREAD stretches them from harmonic to bell-like), darker as they decay ----
 hsp = 1 + e_hm_spr * 0.6;
@@ -65,39 +102,61 @@ ng = 0.9 * e_nz_amt * e_nz_amt * nenv;
 noL = (nlL_n - nhL_n) * ng;
 noR = (nlR_n - nhR_n) * ng;
 
-// ---- click: a 2.5 ms tick (sine at TONE + a little noise) on the attack ----
-ctone = 1500 * pw2(e_clk_tone * 3);               // 1.5 .. 12 kHz
-cenv = act_n * exp(-tt_n / 0.0025) * 1.3 * e_clk_amt * afade * (tt_n < 0.05);
-csin = sin(twopi * min(ctone, nyq) * tt_n);
-ckL = cenv * (0.75 * csin + 0.25 * nz1);
-ckR = cenv * (0.75 * csin + 0.25 * (nz1 * (1 - wid) + nz2 * wid));
+// ---- click: a 2.5 ms burst of band-passed noise; TONE = centre, BAND = 0.25 .. 4 octaves wide ----
+ctone = min(1500 * pw2(e_clk_tone * 3), nyq * 0.9);   // 1.5 .. 12 kHz
+cbw = 0.25 + e_clk_bw * 3.75;
+ck_ = 2 * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw)) / 2;   // 1/Q = 2 sinh(ln2/2 * bw)
+cg_ = tan(pi * ctone * dt);
+ca1 = 1 / (1 + cg_ * (cg_ + ck_));
+ca2 = cg_ * ca1;
+ca3 = cg_ * ca2;
+cxL = nz1;
+cxR = nz1 * (1 - wid) + nz2 * wid;
+cv3L = cxL - cbL2;
+cv1L = ca1 * cbL1 + ca2 * cv3L;
+cv2L = cbL2 + ca2 * cbL1 + ca3 * cv3L;
+cv3R = cxR - cbR2;
+cv1R = ca1 * cbR1 + ca2 * cv3R;
+cv2R = cbR2 + ca2 * cbR1 + ca3 * cv3R;
+cbL1_n = 2 * cv1L - cbL1;
+cbL2_n = 2 * cv2L - cbL2;
+cbR1_n = 2 * cv1R - cbR1;
+cbR2_n = 2 * cv2R - cbR2;
+cbhz = ctone * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw));   // bandwidth in Hz
+cnorm = min(6, pow(0.5 * samplerate / cbhz, 0.35)) * 0.55;        // narrow bands are not much quieter
+cenv = act_n * exp(-tt_n / 0.0025) * 2.7 * e_clk_amt * afade * (tt_n < 0.05);
+ckL = cenv * ck_ * cv1L * cnorm;
+ckR = cenv * ck_ * cv1R * cnorm;
 
-// ---- drive: soft (tanh) .. HARD (clip), the peak stays at 1 ----
-preL = body + hL + noL + ckL;
-preR = body + hR + noR + ckR;
-dg = pw2(e_dr_amt * 5);                           // ×1 .. ×32
-dmix = min(1, e_dr_amt * 5);
-dtg = tanh(dg);
-sfL = tanh(dg * preL) / dtg;
-sfR = tanh(dg * preR) / dtg;
-hdL = clamp(dg * preL, -1, 1);
-hdR = clamp(dg * preR, -1, 1);
-shL = sfL + (hdL - sfL) * e_dr_knee;
-shR = sfR + (hdR - sfR) * e_dr_knee;
-drL = preL + (shL - preL) * dmix;
-drR = preR + (shR - preR) * dmix;
+// ---- the mix, POST drive, the 8 Hz DC trap for ASYM ----
+preL = bodyv + subv + ghost + hL + noL + ckL;
+preR = bodyv + subv + ghost + hR + noR + ckR;
+drL = pre ? preL : shp(preL, dg, dtg, e_dr_knee, e_dr_asym, dmix);
+drR = pre ? preR : shp(preR, dg, dtg, e_dr_knee, e_dr_asym, dmix);
+d8 = 1 - exp(-twopi * 8 * dt);
+dbL0 = dbL + (drL - dbL) * d8;
+dbR0 = dbR + (drR - dbR) * d8;
+dbL_n = abs(dbL0) < 0.000000001 ? 0 : dbL0;
+dbR_n = abs(dbR0) < 0.000000001 ? 0 : dbR0;
+amix = min(1, e_dr_asym * 10);
+xL = drL - dbL_n * amix;
+xR = drR - dbR_n * amix;
 
-// ---- retrigger without a click: the jump of a new hit fades out in ~1.5 ms ----
+// ---- retrigger safety: any jump left after the 5 ms crossfade fades out in ~1.5 ms ----
 dk = exp(-1 / (0.0015 * samplerate));
-dcL_n = trig ? (yL - drL) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);
-dcR_n = trig ? (yR - drR) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);
-yL_n = drL + dcL_n;
-yR_n = drR + dcR_n;
+// (only the OLD kick's jump: the new hit's own attack, e.g. PHASE 90 degrees, stays as hard as set)
+gpost = pre ? ghost : shp(ghost, dg, dtg, e_dr_knee, e_dr_asym, dmix);
+dcL_n = trig ? (yL - gpost) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);
+dcR_n = trig ? (yR - gpost) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);
+yL_n = xL + dcL_n;
+yR_n = xR + dcR_n;
 
 // ---- space: a small room on everything above ~180 Hz (the sub stays dry and tight) ----
 sla = 1 - exp(-twopi * 180 * dt);
-slL_n = slL + (yL_n - slL) * sla;
-slR_n = slR + (yR_n - slR) * sla;
+slL0 = slL + (yL_n - slL) * sla;
+slR0 = slR + (yR_n - slR) * sla;
+slL_n = abs(slL0) < 0.000000001 ? 0 : slL0;
+slR_n = abs(slR0) < 0.000000001 ? 0 : slR0;
 sendL = yL_n - slL_n;
 sendR = yR_n - slR_n;
 rsc = (0.55 + 0.9 * e_sp_time) * samplerate / 44100;
@@ -120,10 +179,14 @@ spm = e_sp_amt * 0.7;
 outL = yL_n + (c1 + c3) * spm;
 outR = yR_n + (c2 + c4) * spm;
 
-// ---- level (−30 .. +6 dB) and a soft knee above −1 dB ----
+// ---- GLUE: up to +20 dB into a clipper (louder, same peak), then LEVEL (-30 .. +6 dB), soft knee ----
+gin = pw2(e_glue * 3.32);
+gmix = min(1, e_glue * 20);
+gL = outL + (gclip(outL * gin) - outL) * gmix;
+gR = outR + (gclip(outR * gin) - outR) * gmix;
 lvl = pw2((-30 + 36 * e_level) / 6.0206);
-out1 = sknee(outL * lvl);
-out2 = sknee(outR * lvl);
+out1 = sknee(gL * lvl);
+out2 = sknee(gR * lvl);
 out3 = env;
 
 act = act_n;
@@ -138,6 +201,18 @@ nlL = nlL_n;
 nlR = nlR_n;
 nhL = nhL_n;
 nhR = nhR_n;
+cbL1 = cbL1_n;
+cbL2 = cbL2_n;
+cbR1 = cbR1_n;
+cbR2 = cbR2_n;
+gph = gph_n;
+gf = gf_n;
+ga = ga_n;
+gtm = gtm_n;
+la = la_n;
+lf = lf_n;
+dbL = dbL_n;
+dbR = dbR_n;
 dcL = dcL_n;
 dcR = dcR_n;
 yL = yL_n;

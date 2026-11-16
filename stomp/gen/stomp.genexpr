@@ -8,6 +8,9 @@ sknee(x) { ax = abs(x); return ax < 0.9 ? x : (x < 0 ? -1 : 1) * (0.9 + 0.1 * ta
 pw2(x) { return exp(x * 0.69314718); }
 shapep(v) { return pw2((0.5 - v) * 6); }
 wrapi(i, n) { return i < 0 ? i + n : (i >= n ? i - n : i); }
+shp(x, dg, dtg, knee, asym, amt) { xs = x < 0 ? x * (1 + 3 * asym) : x; sf = x < 0 ? tanh(dg * xs) / tanh(dg * (1 + 3 * asym)) * (1 - 0.45 * asym) : tanh(dg * x) / dtg; hd = clamp(dg * xs, -1, 1); y = sf + (hd - sf) * knee; return x + (y - x) * amt; }
+gclip(x) { ax = abs(x); return ax < 0.7 ? x : (x < 0 ? -1 : 1) * (0.7 + 0.3 * tanh((ax - 0.7) / 0.3)); }
+hsh(n, k) { x = n * 0.7548776662466927 + k * 0.5698402909980532 + 0.5; x = x - floor(x); x = x * (x + 33.33) * 17; x = x - floor(x); x = x * (x + 11.7) * 29; return x - floor(x); }
 
 Param ktrig(0);
 Param knote(36, min=0, max=127);
@@ -35,7 +38,17 @@ Param sp_amt(0, min=0, max=1);
 Param sp_time(0.35, min=0, max=1);
 Param level(0.75, min=0, max=1);
 Param tune(0.5, min=0, max=1);
+Param amp_phs(0, min=0, max=1);
+Param sub_lvl(0, min=0, max=1);
+Param sub_len(0.66, min=0, max=1);
+Param sub_crv(0.55, min=0, max=1);
+Param clk_bw(0.5, min=0, max=1);
+Param dr_asym(0, min=0, max=1);
+Param glue(0, min=0, max=1);
+Param p808(0, min=0, max=1);
+Param dr_pre(0, min=0, max=1);
 Param vel_amt(0.5, min=0, max=1);
+Param note_amt(0.5, min=0, max=1);
 Param rnd_amt(0.5, min=0, max=1);
 Param v_amp_len(0, min=-1, max=1);
 Param v_amp_att(0, min=-1, max=1);
@@ -60,6 +73,43 @@ Param v_sp_amt(0, min=-1, max=1);
 Param v_sp_time(0, min=-1, max=1);
 Param v_level(1, min=-1, max=1);
 Param v_tune(0, min=-1, max=1);
+Param v_amp_phs(0, min=-1, max=1);
+Param v_sub_lvl(0, min=-1, max=1);
+Param v_sub_len(0, min=-1, max=1);
+Param v_sub_crv(0, min=-1, max=1);
+Param v_clk_bw(0, min=-1, max=1);
+Param v_dr_asym(0, min=-1, max=1);
+Param v_glue(0, min=-1, max=1);
+Param k_amp_len(0, min=-1, max=1);
+Param k_amp_att(0, min=-1, max=1);
+Param k_amp_crv(0, min=-1, max=1);
+Param k_pit_swp(0, min=-1, max=1);
+Param k_pit_time(0, min=-1, max=1);
+Param k_pit_crv(0, min=-1, max=1);
+Param k_clk_amt(0, min=-1, max=1);
+Param k_clk_tone(0, min=-1, max=1);
+Param k_nz_amt(0, min=-1, max=1);
+Param k_nz_col(0, min=-1, max=1);
+Param k_nz_dec(0, min=-1, max=1);
+Param k_hm_amt(0, min=-1, max=1);
+Param k_hm_spr(0, min=-1, max=1);
+Param k_dr_amt(0, min=-1, max=1);
+Param k_dr_knee(0, min=-1, max=1);
+Param k_fm_amt(0, min=-1, max=1);
+Param k_fm_rat(0, min=-1, max=1);
+Param k_fm_dec(0, min=-1, max=1);
+Param k_wd_amt(0, min=-1, max=1);
+Param k_sp_amt(0, min=-1, max=1);
+Param k_sp_time(0, min=-1, max=1);
+Param k_level(0, min=-1, max=1);
+Param k_tune(0, min=-1, max=1);
+Param k_amp_phs(0, min=-1, max=1);
+Param k_sub_lvl(0, min=-1, max=1);
+Param k_sub_len(0, min=-1, max=1);
+Param k_sub_crv(0, min=-1, max=1);
+Param k_clk_bw(0, min=-1, max=1);
+Param k_dr_asym(0, min=-1, max=1);
+Param k_glue(0, min=-1, max=1);
 Param r_amp_len(0, min=-1, max=1);
 Param r_amp_att(0, min=-1, max=1);
 Param r_amp_crv(0, min=-1, max=1);
@@ -83,6 +133,13 @@ Param r_sp_amt(0, min=-1, max=1);
 Param r_sp_time(0, min=-1, max=1);
 Param r_level(0, min=-1, max=1);
 Param r_tune(0, min=-1, max=1);
+Param r_amp_phs(0, min=-1, max=1);
+Param r_sub_lvl(0, min=-1, max=1);
+Param r_sub_len(0, min=-1, max=1);
+Param r_sub_crv(0, min=-1, max=1);
+Param r_clk_bw(0, min=-1, max=1);
+Param r_dr_asym(0, min=-1, max=1);
+Param r_glue(0, min=-1, max=1);
 Data room(8192, 4);
 History init(0);
 History lastk(0);
@@ -132,6 +189,20 @@ History s_level(0.75);
 History o_level(0);
 History s_tune(0.5);
 History o_tune(0);
+History s_amp_phs(0);
+History o_amp_phs(0);
+History s_sub_lvl(0);
+History o_sub_lvl(0);
+History s_sub_len(0.66);
+History o_sub_len(0);
+History s_sub_crv(0.55);
+History o_sub_crv(0);
+History s_clk_bw(0.5);
+History o_clk_bw(0);
+History s_dr_asym(0);
+History o_dr_asym(0);
+History s_glue(0);
+History o_glue(0);
 History act(0);
 History tt(0);
 History ph(0);
@@ -155,111 +226,183 @@ History rl2(0);
 History rl3(0);
 History rl4(0);
 History rwi(0);
+History cbL1(0);
+History cbL2(0);
+History cbR1(0);
+History cbR2(0);
+History gph(0);
+History gf(0);
+History ga(0);
+History gtm(0);
+History la(0);
+History lf(0);
+History dbL(0);
+History dbR(0);
 
 // ===== per-hit modulation (generated): knob smoothed per sample + offset latched at the hit =====
-// velocity source: 0 at full velocity .. −1 at the softest; random: −0.5 .. 0.5, new for every hit
+// sources: velocity 0 at full .. -1 at the softest; note (C1 = 0, C3 = +1, C-1 = -1);
+// random -0.5 .. 0.5 = hsh(hit number, knob index) - 0.5 (the panel computes the same numbers)
 trig = init > 0.5 && ktrig != lastk;
 vsrc = kvel - 1;
+ksrc = clamp((knote - 36) / 24, -1, 1);
 sk = init > 0.5 ? 0.002 : 1;
-n_amp_len = s_amp_len + (amp_len - s_amp_len) * sk;
-q_amp_len = trig ? (v_amp_len * vel_amt * vsrc + r_amp_len * rnd_amt * noise() * 0.5) : o_amp_len;
-e_amp_len = clamp(n_amp_len + q_amp_len, 0, 1);
-n_amp_att = s_amp_att + (amp_att - s_amp_att) * sk;
-q_amp_att = trig ? (v_amp_att * vel_amt * vsrc + r_amp_att * rnd_amt * noise() * 0.5) : o_amp_att;
-e_amp_att = clamp(n_amp_att + q_amp_att, 0, 1);
-n_amp_crv = s_amp_crv + (amp_crv - s_amp_crv) * sk;
-q_amp_crv = trig ? (v_amp_crv * vel_amt * vsrc + r_amp_crv * rnd_amt * noise() * 0.5) : o_amp_crv;
-e_amp_crv = clamp(n_amp_crv + q_amp_crv, 0, 1);
-n_pit_swp = s_pit_swp + (pit_swp - s_pit_swp) * sk;
-q_pit_swp = trig ? (v_pit_swp * vel_amt * vsrc + r_pit_swp * rnd_amt * noise() * 0.5) : o_pit_swp;
-e_pit_swp = clamp(n_pit_swp + q_pit_swp, 0, 1);
-n_pit_time = s_pit_time + (pit_time - s_pit_time) * sk;
-q_pit_time = trig ? (v_pit_time * vel_amt * vsrc + r_pit_time * rnd_amt * noise() * 0.5) : o_pit_time;
-e_pit_time = clamp(n_pit_time + q_pit_time, 0, 1);
-n_pit_crv = s_pit_crv + (pit_crv - s_pit_crv) * sk;
-q_pit_crv = trig ? (v_pit_crv * vel_amt * vsrc + r_pit_crv * rnd_amt * noise() * 0.5) : o_pit_crv;
-e_pit_crv = clamp(n_pit_crv + q_pit_crv, 0, 1);
-n_clk_amt = s_clk_amt + (clk_amt - s_clk_amt) * sk;
-q_clk_amt = trig ? (v_clk_amt * vel_amt * vsrc + r_clk_amt * rnd_amt * noise() * 0.5) : o_clk_amt;
-e_clk_amt = clamp(n_clk_amt + q_clk_amt, 0, 1);
-n_clk_tone = s_clk_tone + (clk_tone - s_clk_tone) * sk;
-q_clk_tone = trig ? (v_clk_tone * vel_amt * vsrc + r_clk_tone * rnd_amt * noise() * 0.5) : o_clk_tone;
-e_clk_tone = clamp(n_clk_tone + q_clk_tone, 0, 1);
-n_nz_amt = s_nz_amt + (nz_amt - s_nz_amt) * sk;
-q_nz_amt = trig ? (v_nz_amt * vel_amt * vsrc + r_nz_amt * rnd_amt * noise() * 0.5) : o_nz_amt;
-e_nz_amt = clamp(n_nz_amt + q_nz_amt, 0, 1);
-n_nz_col = s_nz_col + (nz_col - s_nz_col) * sk;
-q_nz_col = trig ? (v_nz_col * vel_amt * vsrc + r_nz_col * rnd_amt * noise() * 0.5) : o_nz_col;
-e_nz_col = clamp(n_nz_col + q_nz_col, 0, 1);
-n_nz_dec = s_nz_dec + (nz_dec - s_nz_dec) * sk;
-q_nz_dec = trig ? (v_nz_dec * vel_amt * vsrc + r_nz_dec * rnd_amt * noise() * 0.5) : o_nz_dec;
-e_nz_dec = clamp(n_nz_dec + q_nz_dec, 0, 1);
-n_hm_amt = s_hm_amt + (hm_amt - s_hm_amt) * sk;
-q_hm_amt = trig ? (v_hm_amt * vel_amt * vsrc + r_hm_amt * rnd_amt * noise() * 0.5) : o_hm_amt;
-e_hm_amt = clamp(n_hm_amt + q_hm_amt, 0, 1);
-n_hm_spr = s_hm_spr + (hm_spr - s_hm_spr) * sk;
-q_hm_spr = trig ? (v_hm_spr * vel_amt * vsrc + r_hm_spr * rnd_amt * noise() * 0.5) : o_hm_spr;
-e_hm_spr = clamp(n_hm_spr + q_hm_spr, 0, 1);
-n_dr_amt = s_dr_amt + (dr_amt - s_dr_amt) * sk;
-q_dr_amt = trig ? (v_dr_amt * vel_amt * vsrc + r_dr_amt * rnd_amt * noise() * 0.5) : o_dr_amt;
-e_dr_amt = clamp(n_dr_amt + q_dr_amt, 0, 1);
-n_dr_knee = s_dr_knee + (dr_knee - s_dr_knee) * sk;
-q_dr_knee = trig ? (v_dr_knee * vel_amt * vsrc + r_dr_knee * rnd_amt * noise() * 0.5) : o_dr_knee;
-e_dr_knee = clamp(n_dr_knee + q_dr_knee, 0, 1);
-n_fm_amt = s_fm_amt + (fm_amt - s_fm_amt) * sk;
-q_fm_amt = trig ? (v_fm_amt * vel_amt * vsrc + r_fm_amt * rnd_amt * noise() * 0.5) : o_fm_amt;
-e_fm_amt = clamp(n_fm_amt + q_fm_amt, 0, 1);
-n_fm_rat = s_fm_rat + (fm_rat - s_fm_rat) * sk;
-q_fm_rat = trig ? (v_fm_rat * vel_amt * vsrc + r_fm_rat * rnd_amt * noise() * 0.5) : o_fm_rat;
-e_fm_rat = clamp(n_fm_rat + q_fm_rat, 0, 1);
-n_fm_dec = s_fm_dec + (fm_dec - s_fm_dec) * sk;
-q_fm_dec = trig ? (v_fm_dec * vel_amt * vsrc + r_fm_dec * rnd_amt * noise() * 0.5) : o_fm_dec;
-e_fm_dec = clamp(n_fm_dec + q_fm_dec, 0, 1);
-n_wd_amt = s_wd_amt + (wd_amt - s_wd_amt) * sk;
-q_wd_amt = trig ? (v_wd_amt * vel_amt * vsrc + r_wd_amt * rnd_amt * noise() * 0.5) : o_wd_amt;
-e_wd_amt = clamp(n_wd_amt + q_wd_amt, 0, 1);
-n_sp_amt = s_sp_amt + (sp_amt - s_sp_amt) * sk;
-q_sp_amt = trig ? (v_sp_amt * vel_amt * vsrc + r_sp_amt * rnd_amt * noise() * 0.5) : o_sp_amt;
-e_sp_amt = clamp(n_sp_amt + q_sp_amt, 0, 1);
-n_sp_time = s_sp_time + (sp_time - s_sp_time) * sk;
-q_sp_time = trig ? (v_sp_time * vel_amt * vsrc + r_sp_time * rnd_amt * noise() * 0.5) : o_sp_time;
-e_sp_time = clamp(n_sp_time + q_sp_time, 0, 1);
-n_level = s_level + (level - s_level) * sk;
-q_level = trig ? (v_level * vel_amt * vsrc + r_level * rnd_amt * noise() * 0.5) : o_level;
-e_level = clamp(n_level + q_level, 0, 1);
-n_tune = s_tune + (tune - s_tune) * sk;
-q_tune = trig ? (v_tune * vel_amt * vsrc + r_tune * rnd_amt * noise() * 0.5) : o_tune;
-e_tune = clamp(n_tune + q_tune, 0, 1);
+sm_amp_len = s_amp_len + (amp_len - s_amp_len) * sk;
+q_amp_len = trig ? (v_amp_len * vel_amt * vsrc + k_amp_len * note_amt * ksrc + r_amp_len * rnd_amt * (hsh(ktrig, 0) - 0.5)) : o_amp_len;
+e_amp_len = clamp(sm_amp_len + q_amp_len, 0, 1);
+sm_amp_att = s_amp_att + (amp_att - s_amp_att) * sk;
+q_amp_att = trig ? (v_amp_att * vel_amt * vsrc + k_amp_att * note_amt * ksrc + r_amp_att * rnd_amt * (hsh(ktrig, 1) - 0.5)) : o_amp_att;
+e_amp_att = clamp(sm_amp_att + q_amp_att, 0, 1);
+sm_amp_crv = s_amp_crv + (amp_crv - s_amp_crv) * sk;
+q_amp_crv = trig ? (v_amp_crv * vel_amt * vsrc + k_amp_crv * note_amt * ksrc + r_amp_crv * rnd_amt * (hsh(ktrig, 2) - 0.5)) : o_amp_crv;
+e_amp_crv = clamp(sm_amp_crv + q_amp_crv, 0, 1);
+sm_pit_swp = s_pit_swp + (pit_swp - s_pit_swp) * sk;
+q_pit_swp = trig ? (v_pit_swp * vel_amt * vsrc + k_pit_swp * note_amt * ksrc + r_pit_swp * rnd_amt * (hsh(ktrig, 3) - 0.5)) : o_pit_swp;
+e_pit_swp = clamp(sm_pit_swp + q_pit_swp, 0, 1);
+sm_pit_time = s_pit_time + (pit_time - s_pit_time) * sk;
+q_pit_time = trig ? (v_pit_time * vel_amt * vsrc + k_pit_time * note_amt * ksrc + r_pit_time * rnd_amt * (hsh(ktrig, 4) - 0.5)) : o_pit_time;
+e_pit_time = clamp(sm_pit_time + q_pit_time, 0, 1);
+sm_pit_crv = s_pit_crv + (pit_crv - s_pit_crv) * sk;
+q_pit_crv = trig ? (v_pit_crv * vel_amt * vsrc + k_pit_crv * note_amt * ksrc + r_pit_crv * rnd_amt * (hsh(ktrig, 5) - 0.5)) : o_pit_crv;
+e_pit_crv = clamp(sm_pit_crv + q_pit_crv, 0, 1);
+sm_clk_amt = s_clk_amt + (clk_amt - s_clk_amt) * sk;
+q_clk_amt = trig ? (v_clk_amt * vel_amt * vsrc + k_clk_amt * note_amt * ksrc + r_clk_amt * rnd_amt * (hsh(ktrig, 6) - 0.5)) : o_clk_amt;
+e_clk_amt = clamp(sm_clk_amt + q_clk_amt, 0, 1);
+sm_clk_tone = s_clk_tone + (clk_tone - s_clk_tone) * sk;
+q_clk_tone = trig ? (v_clk_tone * vel_amt * vsrc + k_clk_tone * note_amt * ksrc + r_clk_tone * rnd_amt * (hsh(ktrig, 7) - 0.5)) : o_clk_tone;
+e_clk_tone = clamp(sm_clk_tone + q_clk_tone, 0, 1);
+sm_nz_amt = s_nz_amt + (nz_amt - s_nz_amt) * sk;
+q_nz_amt = trig ? (v_nz_amt * vel_amt * vsrc + k_nz_amt * note_amt * ksrc + r_nz_amt * rnd_amt * (hsh(ktrig, 8) - 0.5)) : o_nz_amt;
+e_nz_amt = clamp(sm_nz_amt + q_nz_amt, 0, 1);
+sm_nz_col = s_nz_col + (nz_col - s_nz_col) * sk;
+q_nz_col = trig ? (v_nz_col * vel_amt * vsrc + k_nz_col * note_amt * ksrc + r_nz_col * rnd_amt * (hsh(ktrig, 9) - 0.5)) : o_nz_col;
+e_nz_col = clamp(sm_nz_col + q_nz_col, 0, 1);
+sm_nz_dec = s_nz_dec + (nz_dec - s_nz_dec) * sk;
+q_nz_dec = trig ? (v_nz_dec * vel_amt * vsrc + k_nz_dec * note_amt * ksrc + r_nz_dec * rnd_amt * (hsh(ktrig, 10) - 0.5)) : o_nz_dec;
+e_nz_dec = clamp(sm_nz_dec + q_nz_dec, 0, 1);
+sm_hm_amt = s_hm_amt + (hm_amt - s_hm_amt) * sk;
+q_hm_amt = trig ? (v_hm_amt * vel_amt * vsrc + k_hm_amt * note_amt * ksrc + r_hm_amt * rnd_amt * (hsh(ktrig, 11) - 0.5)) : o_hm_amt;
+e_hm_amt = clamp(sm_hm_amt + q_hm_amt, 0, 1);
+sm_hm_spr = s_hm_spr + (hm_spr - s_hm_spr) * sk;
+q_hm_spr = trig ? (v_hm_spr * vel_amt * vsrc + k_hm_spr * note_amt * ksrc + r_hm_spr * rnd_amt * (hsh(ktrig, 12) - 0.5)) : o_hm_spr;
+e_hm_spr = clamp(sm_hm_spr + q_hm_spr, 0, 1);
+sm_dr_amt = s_dr_amt + (dr_amt - s_dr_amt) * sk;
+q_dr_amt = trig ? (v_dr_amt * vel_amt * vsrc + k_dr_amt * note_amt * ksrc + r_dr_amt * rnd_amt * (hsh(ktrig, 13) - 0.5)) : o_dr_amt;
+e_dr_amt = clamp(sm_dr_amt + q_dr_amt, 0, 1);
+sm_dr_knee = s_dr_knee + (dr_knee - s_dr_knee) * sk;
+q_dr_knee = trig ? (v_dr_knee * vel_amt * vsrc + k_dr_knee * note_amt * ksrc + r_dr_knee * rnd_amt * (hsh(ktrig, 14) - 0.5)) : o_dr_knee;
+e_dr_knee = clamp(sm_dr_knee + q_dr_knee, 0, 1);
+sm_fm_amt = s_fm_amt + (fm_amt - s_fm_amt) * sk;
+q_fm_amt = trig ? (v_fm_amt * vel_amt * vsrc + k_fm_amt * note_amt * ksrc + r_fm_amt * rnd_amt * (hsh(ktrig, 15) - 0.5)) : o_fm_amt;
+e_fm_amt = clamp(sm_fm_amt + q_fm_amt, 0, 1);
+sm_fm_rat = s_fm_rat + (fm_rat - s_fm_rat) * sk;
+q_fm_rat = trig ? (v_fm_rat * vel_amt * vsrc + k_fm_rat * note_amt * ksrc + r_fm_rat * rnd_amt * (hsh(ktrig, 16) - 0.5)) : o_fm_rat;
+e_fm_rat = clamp(sm_fm_rat + q_fm_rat, 0, 1);
+sm_fm_dec = s_fm_dec + (fm_dec - s_fm_dec) * sk;
+q_fm_dec = trig ? (v_fm_dec * vel_amt * vsrc + k_fm_dec * note_amt * ksrc + r_fm_dec * rnd_amt * (hsh(ktrig, 17) - 0.5)) : o_fm_dec;
+e_fm_dec = clamp(sm_fm_dec + q_fm_dec, 0, 1);
+sm_wd_amt = s_wd_amt + (wd_amt - s_wd_amt) * sk;
+q_wd_amt = trig ? (v_wd_amt * vel_amt * vsrc + k_wd_amt * note_amt * ksrc + r_wd_amt * rnd_amt * (hsh(ktrig, 18) - 0.5)) : o_wd_amt;
+e_wd_amt = clamp(sm_wd_amt + q_wd_amt, 0, 1);
+sm_sp_amt = s_sp_amt + (sp_amt - s_sp_amt) * sk;
+q_sp_amt = trig ? (v_sp_amt * vel_amt * vsrc + k_sp_amt * note_amt * ksrc + r_sp_amt * rnd_amt * (hsh(ktrig, 19) - 0.5)) : o_sp_amt;
+e_sp_amt = clamp(sm_sp_amt + q_sp_amt, 0, 1);
+sm_sp_time = s_sp_time + (sp_time - s_sp_time) * sk;
+q_sp_time = trig ? (v_sp_time * vel_amt * vsrc + k_sp_time * note_amt * ksrc + r_sp_time * rnd_amt * (hsh(ktrig, 20) - 0.5)) : o_sp_time;
+e_sp_time = clamp(sm_sp_time + q_sp_time, 0, 1);
+sm_level = s_level + (level - s_level) * sk;
+q_level = trig ? (v_level * vel_amt * vsrc + k_level * note_amt * ksrc + r_level * rnd_amt * (hsh(ktrig, 21) - 0.5)) : o_level;
+e_level = clamp(sm_level + q_level, 0, 1);
+sm_tune = s_tune + (tune - s_tune) * sk;
+q_tune = trig ? (v_tune * vel_amt * vsrc + k_tune * note_amt * ksrc + r_tune * rnd_amt * (hsh(ktrig, 22) - 0.5)) : o_tune;
+e_tune = clamp(sm_tune + q_tune, 0, 1);
+sm_amp_phs = s_amp_phs + (amp_phs - s_amp_phs) * sk;
+q_amp_phs = trig ? (v_amp_phs * vel_amt * vsrc + k_amp_phs * note_amt * ksrc + r_amp_phs * rnd_amt * (hsh(ktrig, 23) - 0.5)) : o_amp_phs;
+e_amp_phs = clamp(sm_amp_phs + q_amp_phs, 0, 1);
+sm_sub_lvl = s_sub_lvl + (sub_lvl - s_sub_lvl) * sk;
+q_sub_lvl = trig ? (v_sub_lvl * vel_amt * vsrc + k_sub_lvl * note_amt * ksrc + r_sub_lvl * rnd_amt * (hsh(ktrig, 24) - 0.5)) : o_sub_lvl;
+e_sub_lvl = clamp(sm_sub_lvl + q_sub_lvl, 0, 1);
+sm_sub_len = s_sub_len + (sub_len - s_sub_len) * sk;
+q_sub_len = trig ? (v_sub_len * vel_amt * vsrc + k_sub_len * note_amt * ksrc + r_sub_len * rnd_amt * (hsh(ktrig, 25) - 0.5)) : o_sub_len;
+e_sub_len = clamp(sm_sub_len + q_sub_len, 0, 1);
+sm_sub_crv = s_sub_crv + (sub_crv - s_sub_crv) * sk;
+q_sub_crv = trig ? (v_sub_crv * vel_amt * vsrc + k_sub_crv * note_amt * ksrc + r_sub_crv * rnd_amt * (hsh(ktrig, 26) - 0.5)) : o_sub_crv;
+e_sub_crv = clamp(sm_sub_crv + q_sub_crv, 0, 1);
+sm_clk_bw = s_clk_bw + (clk_bw - s_clk_bw) * sk;
+q_clk_bw = trig ? (v_clk_bw * vel_amt * vsrc + k_clk_bw * note_amt * ksrc + r_clk_bw * rnd_amt * (hsh(ktrig, 27) - 0.5)) : o_clk_bw;
+e_clk_bw = clamp(sm_clk_bw + q_clk_bw, 0, 1);
+sm_dr_asym = s_dr_asym + (dr_asym - s_dr_asym) * sk;
+q_dr_asym = trig ? (v_dr_asym * vel_amt * vsrc + k_dr_asym * note_amt * ksrc + r_dr_asym * rnd_amt * (hsh(ktrig, 28) - 0.5)) : o_dr_asym;
+e_dr_asym = clamp(sm_dr_asym + q_dr_asym, 0, 1);
+sm_glue = s_glue + (glue - s_glue) * sk;
+q_glue = trig ? (v_glue * vel_amt * vsrc + k_glue * note_amt * ksrc + r_glue * rnd_amt * (hsh(ktrig, 29) - 0.5)) : o_glue;
+e_glue = clamp(sm_glue + q_glue, 0, 1);
 
 // ===== the voice (hand-written; make_engine.py puts it after the generated modulation block) =====
-// Every e_<knob> is the knob 0..1 (smoothed) + this hit's velocity/random offset, clamped 0..1.
+// Every e_<knob> is the knob 0..1 (smoothed) + this hit's velocity/note/random offset, clamped 0..1.
 dt = 1 / samplerate;
 nyq = samplerate * 0.45;
 act_n = trig ? 1 : act;
 tt_n = trig ? 0 : min(tt + dt, 60);
+m808 = p808 > 0.5;
 
-// ---- amp envelope: attack, then a curved decay that ends exactly at LENGTH ----
+// ---- amp envelope: attack, then the decay; it ends exactly at LENGTH ----
+// SWEEP mode: CURVE shapes (1 - x)^p (0 = drops fast, 0.5 = linear, 1 = holds).
+// 808 mode: an exponential ring, CURVE = how fast (0.5 = -60 dB at LENGTH).
 alen = 0.05 * pw2(e_amp_len * 5.32);              // 50 ms .. 2 s
 aatt = 0.03 * e_amp_att * e_amp_att;              // 0 .. 30 ms
 ax_ = clamp((tt_n - aatt) / alen, 0, 1);
-adec = pow(1 - ax_, shapep(e_amp_crv));           // CURVE: 0 = drops fast, 0.5 = linear, 1 = holds
+adec = m808 ? exp(-ax_ * 6.9078 * shapep(e_amp_crv)) : pow(1 - ax_, shapep(e_amp_crv));
 afade = min(1, (1 - ax_) * alen / 0.003);         // last 3 ms: no tick at the end
 aatk = aatt > 0.00002 ? min(1, tt_n / aatt) : 1;
 env = act_n * aatk * adec * afade;
 
-// ---- pitch: the MIDI note (+ TUNE) is where the sweep lands; SWEEP = how far above it starts ----
+// ---- SUB layer: the same oscillator (same phase: it never cancels the body), its own LENGTH / CURVE ----
+slen = 0.05 * pw2(e_sub_len * 5.32);
+sx_ = clamp((tt_n - aatt) / slen, 0, 1);
+sdec = m808 ? exp(-sx_ * 6.9078 * shapep(e_sub_crv)) : pow(1 - sx_, shapep(e_sub_crv));
+sfade = min(1, (1 - sx_) * slen / 0.003);
+senv = act_n * aatk * sdec * sfade * e_sub_lvl;
+
+// ---- pitch: the MIDI note (+ TUNE) is where the kick lands; SWEEP = how far above it starts ----
+// SWEEP mode: falls within TIME along CURVE.  808 mode: the pitch follows the loudness
+// (pitch = amplitude ^ p): it falls as the ring dies; TIME = how long it stays up.
 fnote = 440 * pw2((knote - 69 + (e_tune - 0.5) * 48) / 12);
 ptim = 0.005 * pw2(e_pit_time * 6);               // 5 .. 320 ms
 py_ = min(tt_n / ptim, 1);
-pe = pow(1 - py_, shapep(e_pit_crv));             // CURVE: 0 = slow fall, 1 = fast fall (snappy)
+pesw = pow(1 - py_, shapep(e_pit_crv));
+pe8 = pow(adec, 8 * pw2(-e_pit_time * 6));
+pe = m808 ? pe8 : pesw;
 freq = min(fnote * pw2(e_pit_swp * 72 * pe / 12), nyq);   // up to 6 octaves above the note
 ph_n = trig ? 0 : fract(ph + freq * dt);
+phs = e_amp_phs * 0.25;                           // PHASE: start 0 .. 90 degrees (90 = a hard attack)
 
-// ---- FM: a sine modulator at RATIO × the body frequency, its own fast decay ----
+// ---- FM: a sine modulator at RATIO x the body frequency, its own fast decay ----
 fmr = 0.5 + e_fm_rat * 7.5;
 pm_n = trig ? 0 : fract(pm + min(freq * fmr, nyq) * dt);
 fidx = 6 * e_fm_amt * e_fm_amt * exp(-tt_n / (0.005 * pw2(e_fm_dec * 6)));
-body = sin(twopi * ph_n + fidx * sin(twopi * pm_n)) * env;
+bosc = sin(twopi * (ph_n + phs) + fidx * sin(twopi * pm_n));
+sosc = sin(twopi * (ph_n + phs));
+
+// ---- drive settings: soft (tanh) .. HARD (clip); ASYM = the negative half harder (even harmonics) ----
+dg = pw2(e_dr_amt * 5);                           // x1 .. x32
+dtg = tanh(dg);
+dmix = min(1, (e_dr_amt + e_dr_asym) * 5);
+pre = dr_pre > 0.5;                               // PRE: shape the oscillator before the envelope (909 style:
+                                                  // the dirt lasts through the whole tail); POST: the whole mix
+
+// ---- the outgoing kick fades out over 5 ms when a new note comes (no cut, no click) ----
+gph_n = trig ? fract(ph + lf * dt) : fract(gph + gf * dt);
+gf_n = trig ? lf : gf;
+ga_n = trig ? la : ga;
+gtm_n = trig ? 0 : min(gtm + dt, 1);
+gfade = max(0, 1 - gtm_n / 0.005);
+gosc = sin(twopi * (gph_n + phs));
+
+bodyv = (pre ? shp(bosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : bosc) * env;
+subv = (pre ? shp(sosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : sosc) * senv;
+ghost = (pre ? shp(gosc, dg, dtg, e_dr_knee, e_dr_asym, dmix) : gosc) * ga_n * gfade;
+la_n = env + senv;
+lf_n = freq;
 
 // ---- partials 2..5 (SPREAD stretches them from harmonic to bell-like), darker as they decay ----
 hsp = 1 + e_hm_spr * 0.6;
@@ -298,39 +441,61 @@ ng = 0.9 * e_nz_amt * e_nz_amt * nenv;
 noL = (nlL_n - nhL_n) * ng;
 noR = (nlR_n - nhR_n) * ng;
 
-// ---- click: a 2.5 ms tick (sine at TONE + a little noise) on the attack ----
-ctone = 1500 * pw2(e_clk_tone * 3);               // 1.5 .. 12 kHz
-cenv = act_n * exp(-tt_n / 0.0025) * 1.3 * e_clk_amt * afade * (tt_n < 0.05);
-csin = sin(twopi * min(ctone, nyq) * tt_n);
-ckL = cenv * (0.75 * csin + 0.25 * nz1);
-ckR = cenv * (0.75 * csin + 0.25 * (nz1 * (1 - wid) + nz2 * wid));
+// ---- click: a 2.5 ms burst of band-passed noise; TONE = centre, BAND = 0.25 .. 4 octaves wide ----
+ctone = min(1500 * pw2(e_clk_tone * 3), nyq * 0.9);   // 1.5 .. 12 kHz
+cbw = 0.25 + e_clk_bw * 3.75;
+ck_ = 2 * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw)) / 2;   // 1/Q = 2 sinh(ln2/2 * bw)
+cg_ = tan(pi * ctone * dt);
+ca1 = 1 / (1 + cg_ * (cg_ + ck_));
+ca2 = cg_ * ca1;
+ca3 = cg_ * ca2;
+cxL = nz1;
+cxR = nz1 * (1 - wid) + nz2 * wid;
+cv3L = cxL - cbL2;
+cv1L = ca1 * cbL1 + ca2 * cv3L;
+cv2L = cbL2 + ca2 * cbL1 + ca3 * cv3L;
+cv3R = cxR - cbR2;
+cv1R = ca1 * cbR1 + ca2 * cv3R;
+cv2R = cbR2 + ca2 * cbR1 + ca3 * cv3R;
+cbL1_n = 2 * cv1L - cbL1;
+cbL2_n = 2 * cv2L - cbL2;
+cbR1_n = 2 * cv1R - cbR1;
+cbR2_n = 2 * cv2R - cbR2;
+cbhz = ctone * (exp(0.34657359 * cbw) - exp(-0.34657359 * cbw));   // bandwidth in Hz
+cnorm = min(6, pow(0.5 * samplerate / cbhz, 0.35)) * 0.55;        // narrow bands are not much quieter
+cenv = act_n * exp(-tt_n / 0.0025) * 2.7 * e_clk_amt * afade * (tt_n < 0.05);
+ckL = cenv * ck_ * cv1L * cnorm;
+ckR = cenv * ck_ * cv1R * cnorm;
 
-// ---- drive: soft (tanh) .. HARD (clip), the peak stays at 1 ----
-preL = body + hL + noL + ckL;
-preR = body + hR + noR + ckR;
-dg = pw2(e_dr_amt * 5);                           // ×1 .. ×32
-dmix = min(1, e_dr_amt * 5);
-dtg = tanh(dg);
-sfL = tanh(dg * preL) / dtg;
-sfR = tanh(dg * preR) / dtg;
-hdL = clamp(dg * preL, -1, 1);
-hdR = clamp(dg * preR, -1, 1);
-shL = sfL + (hdL - sfL) * e_dr_knee;
-shR = sfR + (hdR - sfR) * e_dr_knee;
-drL = preL + (shL - preL) * dmix;
-drR = preR + (shR - preR) * dmix;
+// ---- the mix, POST drive, the 8 Hz DC trap for ASYM ----
+preL = bodyv + subv + ghost + hL + noL + ckL;
+preR = bodyv + subv + ghost + hR + noR + ckR;
+drL = pre ? preL : shp(preL, dg, dtg, e_dr_knee, e_dr_asym, dmix);
+drR = pre ? preR : shp(preR, dg, dtg, e_dr_knee, e_dr_asym, dmix);
+d8 = 1 - exp(-twopi * 8 * dt);
+dbL0 = dbL + (drL - dbL) * d8;
+dbR0 = dbR + (drR - dbR) * d8;
+dbL_n = abs(dbL0) < 0.000000001 ? 0 : dbL0;
+dbR_n = abs(dbR0) < 0.000000001 ? 0 : dbR0;
+amix = min(1, e_dr_asym * 10);
+xL = drL - dbL_n * amix;
+xR = drR - dbR_n * amix;
 
-// ---- retrigger without a click: the jump of a new hit fades out in ~1.5 ms ----
+// ---- retrigger safety: any jump left after the 5 ms crossfade fades out in ~1.5 ms ----
 dk = exp(-1 / (0.0015 * samplerate));
-dcL_n = trig ? (yL - drL) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);
-dcR_n = trig ? (yR - drR) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);
-yL_n = drL + dcL_n;
-yR_n = drR + dcR_n;
+// (only the OLD kick's jump: the new hit's own attack, e.g. PHASE 90 degrees, stays as hard as set)
+gpost = pre ? ghost : shp(ghost, dg, dtg, e_dr_knee, e_dr_asym, dmix);
+dcL_n = trig ? (yL - gpost) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);
+dcR_n = trig ? (yR - gpost) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);
+yL_n = xL + dcL_n;
+yR_n = xR + dcR_n;
 
 // ---- space: a small room on everything above ~180 Hz (the sub stays dry and tight) ----
 sla = 1 - exp(-twopi * 180 * dt);
-slL_n = slL + (yL_n - slL) * sla;
-slR_n = slR + (yR_n - slR) * sla;
+slL0 = slL + (yL_n - slL) * sla;
+slR0 = slR + (yR_n - slR) * sla;
+slL_n = abs(slL0) < 0.000000001 ? 0 : slL0;
+slR_n = abs(slR0) < 0.000000001 ? 0 : slR0;
 sendL = yL_n - slL_n;
 sendR = yR_n - slR_n;
 rsc = (0.55 + 0.9 * e_sp_time) * samplerate / 44100;
@@ -353,10 +518,14 @@ spm = e_sp_amt * 0.7;
 outL = yL_n + (c1 + c3) * spm;
 outR = yR_n + (c2 + c4) * spm;
 
-// ---- level (−30 .. +6 dB) and a soft knee above −1 dB ----
+// ---- GLUE: up to +20 dB into a clipper (louder, same peak), then LEVEL (-30 .. +6 dB), soft knee ----
+gin = pw2(e_glue * 3.32);
+gmix = min(1, e_glue * 20);
+gL = outL + (gclip(outL * gin) - outL) * gmix;
+gR = outR + (gclip(outR * gin) - outR) * gmix;
 lvl = pw2((-30 + 36 * e_level) / 6.0206);
-out1 = sknee(outL * lvl);
-out2 = sknee(outR * lvl);
+out1 = sknee(gL * lvl);
+out2 = sknee(gR * lvl);
 out3 = env;
 
 act = act_n;
@@ -371,6 +540,18 @@ nlL = nlL_n;
 nlR = nlR_n;
 nhL = nhL_n;
 nhR = nhR_n;
+cbL1 = cbL1_n;
+cbL2 = cbL2_n;
+cbR1 = cbR1_n;
+cbR2 = cbR2_n;
+gph = gph_n;
+gf = gf_n;
+ga = ga_n;
+gtm = gtm_n;
+la = la_n;
+lf = lf_n;
+dbL = dbL_n;
+dbR = dbR_n;
 dcL = dcL_n;
 dcR = dcR_n;
 yL = yL_n;
@@ -384,49 +565,63 @@ rl4 = rl4_n;
 rwi = rwi_n;
 init = 1;
 lastk = ktrig;
-s_amp_len = n_amp_len;
+s_amp_len = sm_amp_len;
 o_amp_len = q_amp_len;
-s_amp_att = n_amp_att;
+s_amp_att = sm_amp_att;
 o_amp_att = q_amp_att;
-s_amp_crv = n_amp_crv;
+s_amp_crv = sm_amp_crv;
 o_amp_crv = q_amp_crv;
-s_pit_swp = n_pit_swp;
+s_pit_swp = sm_pit_swp;
 o_pit_swp = q_pit_swp;
-s_pit_time = n_pit_time;
+s_pit_time = sm_pit_time;
 o_pit_time = q_pit_time;
-s_pit_crv = n_pit_crv;
+s_pit_crv = sm_pit_crv;
 o_pit_crv = q_pit_crv;
-s_clk_amt = n_clk_amt;
+s_clk_amt = sm_clk_amt;
 o_clk_amt = q_clk_amt;
-s_clk_tone = n_clk_tone;
+s_clk_tone = sm_clk_tone;
 o_clk_tone = q_clk_tone;
-s_nz_amt = n_nz_amt;
+s_nz_amt = sm_nz_amt;
 o_nz_amt = q_nz_amt;
-s_nz_col = n_nz_col;
+s_nz_col = sm_nz_col;
 o_nz_col = q_nz_col;
-s_nz_dec = n_nz_dec;
+s_nz_dec = sm_nz_dec;
 o_nz_dec = q_nz_dec;
-s_hm_amt = n_hm_amt;
+s_hm_amt = sm_hm_amt;
 o_hm_amt = q_hm_amt;
-s_hm_spr = n_hm_spr;
+s_hm_spr = sm_hm_spr;
 o_hm_spr = q_hm_spr;
-s_dr_amt = n_dr_amt;
+s_dr_amt = sm_dr_amt;
 o_dr_amt = q_dr_amt;
-s_dr_knee = n_dr_knee;
+s_dr_knee = sm_dr_knee;
 o_dr_knee = q_dr_knee;
-s_fm_amt = n_fm_amt;
+s_fm_amt = sm_fm_amt;
 o_fm_amt = q_fm_amt;
-s_fm_rat = n_fm_rat;
+s_fm_rat = sm_fm_rat;
 o_fm_rat = q_fm_rat;
-s_fm_dec = n_fm_dec;
+s_fm_dec = sm_fm_dec;
 o_fm_dec = q_fm_dec;
-s_wd_amt = n_wd_amt;
+s_wd_amt = sm_wd_amt;
 o_wd_amt = q_wd_amt;
-s_sp_amt = n_sp_amt;
+s_sp_amt = sm_sp_amt;
 o_sp_amt = q_sp_amt;
-s_sp_time = n_sp_time;
+s_sp_time = sm_sp_time;
 o_sp_time = q_sp_time;
-s_level = n_level;
+s_level = sm_level;
 o_level = q_level;
-s_tune = n_tune;
+s_tune = sm_tune;
 o_tune = q_tune;
+s_amp_phs = sm_amp_phs;
+o_amp_phs = q_amp_phs;
+s_sub_lvl = sm_sub_lvl;
+o_sub_lvl = q_sub_lvl;
+s_sub_len = sm_sub_len;
+o_sub_len = q_sub_len;
+s_sub_crv = sm_sub_crv;
+o_sub_crv = q_sub_crv;
+s_clk_bw = sm_clk_bw;
+o_clk_bw = q_clk_bw;
+s_dr_asym = sm_dr_asym;
+o_dr_asym = q_dr_asym;
+s_glue = sm_glue;
+o_glue = q_glue;

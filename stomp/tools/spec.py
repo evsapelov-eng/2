@@ -6,7 +6,9 @@ Every sound knob is 0..1 inside the engine; the maps to ms / Hz / dB are in the 
 (gen/voice.part.genexpr) and, the same formulas, in the panel (js/stomp_ui.js valueText / model).
 """
 
-# (name, section, panel label, Live long name, default)
+# knobs (modulation destinations): (name, section, panel label, Live long name, default)
+# NB the ORDER matters: the per-hit random value of a knob is hash(hit number, its index here)
+# in the engine AND in the panel (the display shows the real last hit).
 KNOBS = [
     ("amp_len", "AMP", "LENGTH", "Length", 0.52),
     ("amp_att", "AMP", "ATTACK", "Attack", 0.0),
@@ -31,19 +33,35 @@ KNOBS = [
     ("sp_time", "STEREO", "SIZE", "Space Size", 0.35),
     ("level", "OUT", "LEVEL", "Level", 0.75),
     ("tune", "OUT", "TUNE", "Tune", 0.5),
+    # v0.2
+    ("amp_phs", "AMP", "PHASE", "Start Phase", 0.0),
+    ("sub_lvl", "SUB", "SUB", "Sub Level", 0.0),
+    ("sub_len", "SUB", "LENGTH", "Sub Length", 0.66),
+    ("sub_crv", "SUB", "CURVE", "Sub Curve", 0.55),
+    ("clk_bw", "CLICK", "BAND", "Click Band", 0.5),
+    ("dr_asym", "DRIVE", "ASYM", "Drive Asym", 0.0),
+    ("glue", "OUT", "GLUE", "Glue", 0.0),
 ]
 NAMES = [k[0] for k in KNOBS]
 
-# modulation sources: global amount knobs (not modulation destinations themselves)
-SOURCES = [("vel_amt", "VELOCITY", "Velocity Amount", 0.5), ("rnd_amt", "RANDOM", "Random Amount", 0.5)]
+# on/off switches (not modulation destinations): (name, section, panel label, Live long name, default)
+SWITCHES = [
+    ("p808", "PITCH", "808", "808 Mode", 0),
+    ("dr_pre", "DRIVE", "PRE", "Drive Pre", 0),
+]
 
-# default cables: depth −1..1 per destination (v_ = velocity, r_ = random)
+# modulation sources: (name, panel label, Live long name, default amount, depth prefix)
+SOURCES = [("vel_amt", "VELOCITY", "Velocity Amount", 0.5, "v_"),
+           ("note_amt", "NOTE", "Note Amount", 0.5, "k_"),
+           ("rnd_amt", "RANDOM", "Random Amount", 0.5, "r_")]
+
+# default cables: depth −1..1 per destination
 DEPTH_DEFAULTS = {"v_level": 1.0, "v_clk_amt": 0.6, "v_dr_amt": 0.3, "r_clk_tone": 0.3, "r_nz_col": 0.3, "r_pit_swp": 0.1}
 
 
 def depth_names():
     out = []
-    for pre in ("v_", "r_"):
+    for s in SOURCES:
         for n in NAMES:
-            out.append(pre + n)
+            out.append(s[4] + n)
     return out
