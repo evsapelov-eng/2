@@ -154,6 +154,40 @@ dcL_n = trig ? (yL - gpost) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);
 dcR_n = trig ? (yR - gpost) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);
 yL_n = xL + dcL_n;
 yR_n = xR + dcR_n;
+yLd = yL_n;
+yRd = yR_n;
+
+// ---- WIDTH: the stereo base. Mid/side: everything above ~180 Hz of the MID, passed through three allpasses
+// (same sound, scrambled phase), is added as SIDE: L = M + S, R = M - S. L + R stays exactly the same
+// (mono-safe), the sub stays in the centre. (WIDTH also decorrelates the noise / click and spreads the partials.)
+wM = (yL_n + yR_n) * 0.5;
+wha = 1 - exp(-twopi * 180 * dt);
+wla_n = wla + (wM - wla) * wha;
+wh1 = wM - wla_n;
+wlb_n = wlb + (wh1 - wlb) * wha;
+wh2_ = wh1 - wlb_n;
+wlc_n = wlc + (wh2_ - wlc) * wha;
+wh2 = wh2_ - wlc_n;                              // 3 x 6 dB/oct: 65 Hz in the side at about -28 dB
+ww = wwi;
+wd1 = floor(0.0031 * samplerate);
+wd2 = floor(0.0047 * samplerate);
+wd3 = floor(0.0073 * samplerate);
+wo1 = peek(wbuf, wrapi(ww - wd1, 4096), 0);
+wv1 = wh2 + 0.6 * wo1;
+wa1 = wo1 - 0.6 * wv1;
+wo2 = peek(wbuf, wrapi(ww - wd2, 4096), 1);
+wv2 = wa1 + 0.6 * wo2;
+wa2 = wo2 - 0.6 * wv2;
+wo3 = peek(wbuf, wrapi(ww - wd3, 4096), 2);
+wv3 = wa2 + 0.6 * wo3;
+wa3 = wo3 - 0.6 * wv3;
+poke(wbuf, abs(wv1) < 0.000000001 ? 0 : wv1, ww, 0);
+poke(wbuf, abs(wv2) < 0.000000001 ? 0 : wv2, ww, 1);
+poke(wbuf, abs(wv3) < 0.000000001 ? 0 : wv3, ww, 2);
+wwi_n = wrapi(ww + 1, 4096);
+wS = wa3 * wid * 1.1;
+yL_n = yL_n + wS;
+yR_n = yR_n - wS;
 
 // ---- space: a small room on everything above ~180 Hz (the sub stays dry and tight) ----
 sla = 1 - exp(-twopi * 180 * dt);
@@ -221,8 +255,12 @@ dbL = dbL_n;
 dbR = dbR_n;
 dcL = dcL_n;
 dcR = dcR_n;
-yL = yL_n;
-yR = yR_n;
+yL = yLd;
+yR = yRd;
+wla = abs(wla_n) < 0.000000001 ? 0 : wla_n;
+wlb = abs(wlb_n) < 0.000000001 ? 0 : wlb_n;
+wlc = abs(wlc_n) < 0.000000001 ? 0 : wlc_n;
+wwi = wwi_n;
 slL = slL_n;
 slR = slR_n;
 rl1 = rl1_n;

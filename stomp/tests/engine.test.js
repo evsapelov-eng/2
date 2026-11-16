@@ -118,12 +118,20 @@ test("turning a knob while the kick rings does not jump (per-sample smoothing)",
   assert.ok(mx < 0.1, "step " + mx.toFixed(3));
 });
 
-test("WIDTH: 0 = mono, more = a wider top (the sub/body stays centred)", () => {
-  const side = (w) => { const o = eng({ wd_amt: w, nz_amt: 0.6, hm_amt: 0.6 }).hit(36, 1, SR / 2); let s = 0, m = 0; for (let i = 0; i < o[0].length; i++) { s += (o[0][i] - o[1][i]) ** 2; m += (o[0][i] + o[1][i]) ** 2; } return s / m; };
-  assert.ok(side(0) < 1e-12);
-  assert.ok(side(1) > 0.001);
-  const o = eng(Object.assign({ wd_amt: 1 }, clean)).hit(36, 1, SR / 2);
-  for (let i = 0; i < o[0].length; i += 31) assert.ok(Math.abs(o[0][i] - o[1][i]) < 1e-9, "body alone is mono at any WIDTH");
+test("WIDTH widens the stereo base above ~180 Hz; mono-safe (L + R unchanged); the sub stays in the centre", () => {
+  const sideToMid = (o, a = 0, b = o[0].length) => { let m = 0, sd = 0; for (let i = a; i < b; i++) { m += (o[0][i] + o[1][i]) ** 2; sd += (o[0][i] - o[1][i]) ** 2; } return 10 * Math.log10(sd / m); };
+  assert.strictEqual(sideToMid(eng({ wd_amt: 0 }).hit(36, 1, SR / 2)), -Infinity, "WIDTH 0 = mono");
+  const wide = eng({ wd_amt: 1 }).hit(36, 1, SR / 2);
+  assert.ok(sideToMid(wide) > -14, "WIDTH 100 %: side " + sideToMid(wide).toFixed(1) + " dB");
+  // mono-safe: with a mono source (body only) L + R is exactly what it is at WIDTH 0
+  const p = Object.assign({}, clean, { dr_amt: 0.6, dr_pre: 1, level: 0.5 });   // below the output safety knee
+  const m0 = eng(Object.assign({}, p, { wd_amt: 0 })).hit(36, 1, SR / 2), m1 = eng(Object.assign({}, p, { wd_amt: 1 })).hit(36, 1, SR / 2);
+  for (let i = 0; i < SR / 2; i += 7) assert.ok(Math.abs((m0[0][i] + m0[1][i]) - (m1[0][i] + m1[1][i])) < 1e-9, "L+R at " + i);
+  assert.ok(sideToMid(m1) > -20, "a driven body gets wide too: " + sideToMid(m1).toFixed(1));
+  // the sub (65 Hz, after the sweep) stays in the middle
+  const side = m1[0].map((v, i) => v - m1[1][i]), mid = m1[0].map((v, i) => v + m1[1][i]);
+  const f = 65.406, r = 20 * Math.log10(harm(side, 9600, 19200, f) / harm(mid, 9600, 19200, f));
+  assert.ok(r < -24, "65 Hz in the side: " + r.toFixed(1) + " dB");
 });
 
 test("SPACE adds a tail after the kick; 0 = completely dry", () => {
