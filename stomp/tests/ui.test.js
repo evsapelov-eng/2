@@ -65,3 +65,15 @@ test("the panel's numbers use the engine's maps (length, landing pitch)", () => 
   assert.ok(Math.abs(ui.ctx.fnote(36) - 65.406) < 0.01);
   assert.ok(Math.abs(ui.ctx.model(0, 36).f - 65.40639 * Math.pow(2, 72 * ui.ctx.P.pit_swp.v / 12)) < 1e-3);
 });
+
+test("Max's old JavaScript: the whole panel draws with no ES6 (screen, VEL/RND, PATCH, cables, meter)", () => {
+  const fs = require("fs"), path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "..", "js", "stomp_ui.js"), "utf8").replace(/\/\/[^\n]*/g, "");
+  assert.ok(!/=>|\blet\b|\bconst\b|`|Math\.(tanh|log10|log2|sign|cbrt|hypot|trunc)|\.(includes|find|findIndex|padStart)\(|Object\.(assign|entries|values)/.test(src), "ES6 in the panel");
+  for (const setup of ["note(36, 120); hitT = now() - 80;", "patchMode = true; selSrc = 1; p('r_fm_amt', 0.5);"]) {
+    const ui = boot(setup), svg = ui.svg();
+    assert.strictEqual(ui.ctx.lastError, "", ui.ctx.lastError);
+    for (const t of ["VEL", "RND", "PATCH"]) assert.ok(svg.includes(">" + t + "<"), t);
+  }
+  assert.ok(boot("note(36, 100);").svg().match(/>LENGTH [0-9]+ ms</), "the screen draws its labels");
+});

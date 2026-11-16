@@ -230,7 +230,7 @@
    {
     "box": {
      "maxclass": "jsui",
-     "filename": "stomp_ui_0_1_0.js",
+     "filename": "stomp_ui_0_1_1.js",
      "numinlets": 1,
      "numoutlets": 1,
      "outlettype": [

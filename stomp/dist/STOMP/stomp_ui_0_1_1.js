@@ -49,6 +49,10 @@ var KNOB_POS = {};                                    // name → [cx, cy, r] (f
 
 // ---------- the same maps as the engine (gen/voice.part.genexpr) ----------
 function pw2(x) { return Math.pow(2, x); }
+// Max's [jsui] runs old JavaScript (ES5): no Math.tanh / Math.log10 / Math.sign — own versions here.
+// (v0.1.0 used Math.tanh in the display: paint stopped there, so the screen, VEL/RND, PATCH and the
+// cables were never drawn in Live.)
+function tanh(x) { if (x > 20) return 1; if (x < -20) return -1; var e = Math.exp(2 * x); return (e - 1) / (e + 1); }
 function shapep(v) { return pw2((0.5 - v) * 6); }
 var M = {
   alen: function (v) { return 0.05 * pw2(v * 5.32); }, aatt: function (v) { return 0.03 * v * v; },
@@ -260,7 +264,7 @@ function computeWave() {
     ph += Math.min(m.f, 2900) / sr; pm += Math.min(m.f * fmr, 2900) / sr;
     var y = Math.sin(2 * Math.PI * ph + fi * Math.exp(-t / fd) * Math.sin(2 * Math.PI * pm)) * m.env;
     var g = Math.pow(2, P.dr_amt.v * 5), dm = Math.min(1, P.dr_amt.v * 5);
-    y = y + (Math.tanh(g * y) / Math.tanh(g) - y) * dm;
+    y = y + (tanh(g * y) / tanh(g) - y) * dm;
     var cc = Math.min(wpx - 1, Math.floor(t / tmax * wpx));
     if (y < cols[cc][0]) cols[cc][0] = y; if (y > cols[cc][1]) cols[cc][1] = y;
   }
@@ -347,16 +351,19 @@ function paintSources() {
 function cable(x1, y1, x2, y2, c, a) {
   col(c, a); mgraphics.set_line_width(1.8);
   var sag = 18 + Math.abs(x2 - x1) * 0.12;
-  mgraphics.move_to(x1, y1); mgraphics.curve_to(x1 - 30, y1 + sag, x2 + 20, y2 + sag, x2, y2); mgraphics.stroke();
+  mgraphics.move_to(x1, y1); mgraphics.curve_to(x1 - 30, Math.min(y1 + sag, H0 - 6), x2 + 20, Math.min(y2 + sag, H0 - 6), x2, y2); mgraphics.stroke();   // stays inside the panel
 }
 function paintCables() {
   if (!patchMode) return;
-  var src = SRC[selSrc], sy = 22 + selSrc * 42 - 3;
-  for (var n in KNOB_POS) {
-    if (depthOf(n, selSrc) === 0) continue;
-    var k = KNOB_POS[n];
-    cable(SX + 6, sy, k[0], k[1] + k[2] * 0.5, src.col, 0.75);
-    circle(k[0], k[1] + k[2] * 0.5, 2.5, src.col, true);
+  // every cable of both sources: the selected one bright, the other one faint
+  for (var k = 0; k < 2; k++) {
+    var si = k === 0 ? 1 - selSrc : selSrc, src = SRC[si], sy = 22 + si * 42 - 3, a = si === selSrc ? 0.8 : 0.22;
+    for (var n in KNOB_POS) {
+      if (depthOf(n, si) === 0) continue;
+      var kp = KNOB_POS[n];
+      cable(SX + 6, sy, kp[0], kp[1] + kp[2] * 0.5, src.col, a);
+      circle(kp[0], kp[1] + kp[2] * 0.5, 2.5, src.col, true, 1, a + 0.2);
+    }
   }
 }
 
@@ -367,12 +374,22 @@ function paint() {
   hits = []; KNOB_POS = {};
   rect(0, 0, W0, H0, C.bg, true);
   if (patchMode) hit({ x: 0, y: 0, w: W0, h: H0, kind: "void", name: "void" });   // click outside = back
-  paintLeft();
-  for (var i = 0; i < COLS.length; i++) paintCol(COLS[i]);
-  paintDisplay();
-  paintSources();
-  paintCables();
+  // each part on its own: an error in one part must not leave the rest of the panel blank
+  safe(paintLeft);
+  for (var i = 0; i < COLS.length; i++) safe(paintCol, COLS[i]);
+  safe(paintDisplay);
+  safe(paintSources);
+  safe(paintCables);
 }
+var reported = {};
+function safe(fn, arg) {
+  try { fn(arg); } catch (e) {
+    var msg = "STOMP panel: " + (fn.name || "part") + ": " + e;
+    if (!reported[msg]) { reported[msg] = 1; if (typeof post === "function") post(msg + "\n"); }
+    lastError = msg;
+  }
+}
+var lastError = "";
 
 // ---------- mouse ----------
 function find(x, y) { for (var i = hits.length - 1; i >= 0; i--) { var h = hits[i]; if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h; } return null; }
