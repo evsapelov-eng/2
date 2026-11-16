@@ -448,9 +448,9 @@ nz1 = noise();
 nz2 = noise();
 nL = nz1;
 nR = nz1 * (1 - wid) + nz2 * wid;
-// LFO on the noise: a sine, restarted on every hit (every kick the same), RATE 1 .. 64 Hz;
-// LFO = depth: the noise level swings 0 .. 2x and its COLOR +-2 octaves
-nlf_n = trig ? 0 : fract(nlf + pw2(e_nz_lrt * 6) * dt);
+// LFO on the noise: a sine that runs all the time, hits or not (its own life): every hit catches it
+// somewhere else. RATE 0.125 .. 64 Hz. LFO = depth: the noise level swings 0 .. 2x, its COLOR +-2 octaves
+nlf_n = fract(nlf + 0.125 * pw2(e_nz_lrt * 9) * dt);
 nlv = sin(twopi * nlf_n) * e_nz_lfo;
 ncf = min(200 * pw2(e_nz_col * 6.3 + 2 * nlv), nyq);
 nca = 1 - exp(-twopi * ncf * dt);
@@ -550,6 +550,7 @@ lvl = pw2((-30 + 36 * e_level) / 6.0206);
 out1 = sknee(gL * lvl);
 out2 = sknee(gR * lvl);
 out3 = env;
+out4 = sin(twopi * nlf_n);   // the noise LFO, for the panel
 
 act = act_n;
 tt = tt_n;

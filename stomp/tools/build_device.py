@@ -198,6 +198,10 @@ def build():
     P.connect(pkl, 0, plv, 0); P.connect(pkr, 0, plv, 1)
     plev = P.obj("prepend level", 1, 1, x=340, y=1060)
     P.connect(plv, 0, plev, 0); P.connect(plev, 0, ui, 0)
+    slfo = P.obj("snapshot~ 33", 2, 1, ["float"], x=500, y=1000)   # the noise LFO, live on the panel
+    P.connect(gen, 3, slfo, 0)
+    plfo = P.obj("prepend nlfo", 1, 1, x=500, y=1030, w=90)
+    P.connect(slfo, 0, plfo, 0); P.connect(plfo, 0, ui, 0)
     dsp = P.obj("dspstate~", 1, 4, ["int", "float", "int", "int"], x=900, y=80)
     P.connect(lb, 0, dsp, 0)
     psr = P.obj("prepend sr", 1, 1, x=900, y=110)

@@ -246,17 +246,21 @@ test("CLICK BAND: narrow = a pitched tick at TONE, wide = noise", () => {
 });
 
 // ---------------- v0.3 ----------------
-test("noise LFO: the noise swings at RATE (restarts on every hit); LFO 0 = steady noise", () => {
-  const base = Object.assign({}, clean, { nz_amt: 0.8, nz_dec: 1, amp_len: 0.8, nz_lrt: 0.5 });   // RATE 8 Hz
-  const noiseOnly = (p) => { const a = eng(Object.assign({}, base, p), SR, 9).hit(36, 1, SR / 2)[0], b = eng(Object.assign({}, base, p, { nz_amt: 0 }), SR, 9).hit(36, 1, SR / 2)[0]; return a.map((v, i) => v - b[i]); };
-  const win = (x) => { const r = []; for (let a = 0; a + 960 <= 19200; a += 480) r.push(rms(x, a, a + 960)); return r; };   // 20 ms windows
-  const plain = win(noiseOnly({ nz_lfo: 0 })), mod = win(noiseOnly({ nz_lfo: 1 }));
-  const ratio = mod.map((v, i) => v / plain[i]);
-  assert.ok(Math.max(...ratio) > 1.5 && Math.min(...ratio) < 0.4, `swing ${Math.min(...ratio).toFixed(2)} .. ${Math.max(...ratio).toFixed(2)}`);
-  // 8 Hz sine from 0: up at 31 ms, down at 94 ms, up again at 156 ms (window i is centred at (i + 1) * 10 ms)
-  const at = (ms) => ratio[Math.round(ms / 10) - 1];
-  assert.ok(at(30) > 1.4 && at(160) > 1.4, `peaks ${at(30).toFixed(2)} ${at(160).toFixed(2)}`);
-  assert.ok(at(90) < 0.5 && at(220) < 0.5, `troughs ${at(90).toFixed(2)} ${at(220).toFixed(2)}`);
-  const steady = plain.slice(1, 8).map((v, i) => v / plain[i + 2]);
-  assert.ok(Math.max(...steady) < 1.6, "no LFO: no swing");
+test("noise LFO runs on its own: every hit catches it somewhere else; LFO 0 = the same noise every hit", () => {
+  // RATE 0.33 → 0.125 * 2^3 = 1 Hz. Hits 0.25 s apart land a quarter period further each time.
+  const level = (lfo) => {
+    const p = Object.assign({}, clean, { nz_amt: 0.8, nz_dec: 0.3, amp_len: 0.3, nz_lrt: 1 / 3, nz_lfo: lfo });
+    const a = eng(p, SR, 9), b = eng(Object.assign({}, p, { nz_amt: 0 }), SR, 9), r = [];
+    for (let h = 0; h < 4; h++) { const x = a.hit(36, 1, SR / 4)[0], y = b.hit(36, 1, SR / 4)[0]; r.push(rms(x.map((v, i) => v - y[i]), 0, 960)); }
+    return r;
+  };
+  const free = level(1), off = level(0);
+  const spread = (r) => Math.max(...r) / Math.min(...r);
+  assert.ok(spread(free) > 3, "different noise on every hit: " + free.map((v) => v.toFixed(3)).join(" "));
+  assert.ok(spread(off) < 1.3, "LFO 0: the same: " + off.map((v) => v.toFixed(3)).join(" "));
+  // and it keeps moving between hits (no reset): out4 = the LFO, one period = 1 s
+  const g = eng({ nz_lrt: 1 / 3 });
+  const o = g.run(SR);
+  let up = 0; for (let i = 1; i < SR; i++) if (o[3][i - 1] < 0 && o[3][i] >= 0) up++;
+  assert.strictEqual(up, 1, "1 Hz, running before any hit");
 });

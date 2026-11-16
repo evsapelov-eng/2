@@ -2,7 +2,7 @@
 // The knobs here are only a face: every value lives in a hidden live.dial / live.toggle (Live parameter:
 // automation, presets, Push). Dragging sends "<name> <value>" to it; it sends "p <name> <value>" back.
 // From the patch: "note <pitch> <velocity>" (MIDI in), "hitno <n>" (the hit counter, also for the PLAY pad),
-// "level <L> <R>" (output peaks), "sr <rate>".
+// "level <L> <R>" (output peaks), "nlfo <-1..1>" (the noise LFO now), "sr <rate>".
 // To the patch besides parameters: "knote <n>", "kvel <v>", "hit" (the PLAY pad).
 // ASCII text only; the Ø of the logo is drawn as geometry. ES5 only (Max's jsui): no Math.tanh etc.
 
@@ -98,6 +98,8 @@ function noteName(n) { var nm = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"
 function note(pitch, vel) { if (+vel > 0) { lastNote = +pitch; lastVel = +vel / 127; hitT = now(); dirty = true; } }
 function hitno(n) { hitN = +n; hitT = now(); dirty = true; }
 function level(l, r) { levL = +l; levR = +r; dirty = true; }
+var lfoNow = 0;
+function nlfo(v) { lfoNow = +v; if (P.nz_lfo.v > 0) dirty = true; }   // the noise LFO (engine out 4)
 function sr() { }
 function send(name, v) { outlet(0, name, v); }
 function play() { send("knote", lastNote); send("kvel", 1); lastVel = 1; outlet(0, "hit"); hitT = now(); dirty = true; }
@@ -152,7 +154,7 @@ function valueText(n) {
     case "level": return sgn(Math.round(M.db(v) * 10) / 10) + " dB";
     case "tune": return sgn(Math.round(M.tune(v))) + " st";
     case "nz_lfo": return v <= 0 ? "off" : pct(v);
-    case "nz_lrt": return (Math.round(pw2(v * 6) * 10) / 10) + " Hz";
+    case "nz_lrt": var hz = 0.125 * pw2(v * 9); return (hz < 10 ? Math.round(hz * 100) / 100 : Math.round(hz * 10) / 10) + " Hz";
     case "glue": return v <= 0 ? "off" : "+" + Math.round(v * 20) + " dB";
   }
   return pct(v);
@@ -338,6 +340,11 @@ function paintCol(c) {
     textC(label(nm), sx, 116, 7, off ? C.dim : C.mid, true);
     knob(sx, 133, n >= 3 ? 9.5 : 10.5, nm, off || (nm === "nz_lrt" && P.nz_lfo.v <= 0));   // RATE grey while LFO is 0
     valueOrDepth(nm, sx, 157, 7.5);
+    if (nm === "nz_lfo") {   // the LFO is alive: where it is right now (from the engine)
+      var on = P.nz_lfo.v > 0;   // a short track under the label, the dot swings left - right
+      line(sx - 9, 120, sx + 9, 120, C.line, 1.2);
+      circle(sx + lfoNow * 9, 120, 2, on ? C.accent : C.dim, true);
+    }
   }
 }
 
