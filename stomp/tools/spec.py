@@ -26,7 +26,7 @@ KNOBS = [
     ("fm_amt", "FM", "FM", "FM", 0.08),
     ("fm_rat", "FM", "RATIO", "FM Ratio", 0.2),
     ("fm_dec", "FM", "DECAY", "FM Decay", 0.35),
-    ("wd_amt", "STEREO", "WIDTH", "Width", 0.5),
+    ("wd_amt", "STEREO", "WIDTH", "Width", 0.0),
     ("sp_amt", "STEREO", "SPACE", "Space", 0.0),
     ("sp_time", "STEREO", "SIZE", "Space Size", 0.35),
     ("level", "OUT", "LEVEL", "Level", 0.75),

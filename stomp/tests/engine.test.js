@@ -125,3 +125,11 @@ test("SPACE adds a tail after the kick; 0 = completely dry", () => {
   assert.strictEqual(peak(dry, end), 0);
   assert.ok(peak(wet, end) > 0.005);
 });
+
+test("the default kick is dry and mono: L = R, and nothing at all after the end of LENGTH", () => {
+  const g = eng();
+  const alen = 0.05 * Math.pow(2, 0.52 * 5.32), n = SR;
+  const o = g.hit(36, 1, n);
+  for (let i = 0; i < n; i++) assert.ok(o[0][i] === o[1][i], "mono at " + i);
+  assert.strictEqual(peak(o[0], Math.round(alen * SR) + 4, n), 0, "no tail");
+});

@@ -43,18 +43,21 @@ test("PATCH: click a knob = cable from the source (depth 50 %), drag = depth, do
   assert.ok(ui.svg().includes(">+40%<"), "patch mode shows the depth under the knob");
 });
 
-test("presets and DICE set every sound knob inside 0..1 (LEVEL / TUNE survive DICE)", () => {
+test("presets and DICE set every sound knob inside 0..1, stay dry and mono (LEVEL / TUNE / WIDTH / SPACE survive DICE)", () => {
   const ui = boot(), n = ui.ctx.SPEC_KNOBS.length;
   for (let i = 0; i < ui.ctx.PRESETS.length; i++) {
     ui.out.length = 0; ui.ctx.loadPreset(i);
     assert.strictEqual(ui.out.length, n);
     for (const [, , v] of ui.out) assert.ok(v >= 0 && v <= 1);
+    const m = Object.fromEntries(sent(ui));
+    assert.strictEqual(m.sp_amt, 0, ui.ctx.PRESETS[i][0] + " has no room");
+    assert.strictEqual(m.wd_amt, 0, ui.ctx.PRESETS[i][0] + " is mono");
   }
   ui.ctx.p("level", 0.6); ui.ctx.p("tune", 0.7);
   for (let k = 0; k < 50; k++) {
     ui.out.length = 0; ui.ctx.dice();
     const m = Object.fromEntries(sent(ui));
-    assert.strictEqual(m.level, 0.6); assert.strictEqual(m.tune, 0.7);
+    assert.strictEqual(m.level, 0.6); assert.strictEqual(m.tune, 0.7); assert.strictEqual(m.sp_amt, 0); assert.strictEqual(m.wd_amt, 0);
     for (const v of Object.values(m)) assert.ok(v >= 0 && v <= 1);
   }
 });
