@@ -149,3 +149,15 @@ test("a slot saved by an older version (fewer values) still loads; missing value
   assert.strictEqual(Object.keys(set).length, ui.ctx.ORDER.length);
   assert.strictEqual(set.rmb_duck, 0.8);
 });
+
+// ---------------- v0.5 TUNER ----------------
+test("TUNER on the screen: nearest note + cents; a click on the scale (SNAP) tunes the next hit onto the note", () => {
+  const ui = boot("p('tune', 0.53); note(36, 100); hitno(1); tuner(440 * Math.pow(2, (36 - 69 + 1.44) / 12));");
+  const svg = ui.svg();
+  assert.ok(svg.includes(">C#1<") && svg.includes(">+44c<"), "C1 + 1.44 st = C#1 +44 cents");
+  const h = Array.from(ui.ctx.hits).filter((q) => q.kind === "snap")[0];
+  ui.out.length = 0; ui.ctx.onclick(h.x + 5, h.y + 5);
+  const v = sent(ui).filter((m) => m[0] === "tune")[0][1];
+  assert.ok(Math.abs((v - 0.5) * 48 - 1) < 0.001, "TUNE now +1 st exactly: " + ((v - 0.5) * 48).toFixed(4));
+  assert.ok(ui.svg().includes(">0c<"), "on the note after SNAP");
+});

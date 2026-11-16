@@ -26,6 +26,8 @@ test("instrument: MIDI in → note-ons → velocity, then the note, then a new h
   assert.ok(links(inc, 0).some((b) => b.text === "prepend hitno"), "the panel learns the hit number (same random values)");
   const lfoSnap = links(gen, 3).filter((b) => b.text === "snapshot~ 33")[0];
   assert.ok(lfoSnap && links(lfoSnap, 0)[0].text === "prepend nlfo", "the noise LFO goes to the panel");
+  const tunSnap = links(gen, 4).filter((b) => b.text === "snapshot~ 50")[0];
+  assert.ok(tunSnap && links(tunSnap, 0)[0].text === "prepend tuner", "the tuner goes to the panel");
   const out = one("plugout~");
   assert.ok(links(gen, 0).includes(out) && links(gen, 1).includes(out));
   assert.strictEqual(byText("plugin~").length, 0, "an instrument has no audio input");

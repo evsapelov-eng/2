@@ -1,6 +1,6 @@
 {
   "name": "stomp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "STØMP — kick drum synthesizer, Max for Live instrument (gen~ engine)",
   "scripts": {

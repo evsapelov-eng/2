@@ -2,7 +2,7 @@
 // The knobs here are only a face: every value lives in a hidden live.dial / live.toggle (Live parameter:
 // automation, presets, Push). Dragging sends "<name> <value>" to it; it sends "p <name> <value>" back.
 // From the patch: "note <pitch> <velocity>" (MIDI in), "hitno <n>" (the hit counter, also for the PLAY pad),
-// "level <L> <R>" (output peaks), "nlfo <-1..1>" (the noise LFO now), "sr <rate>".
+// "level <L> <R>" (output peaks), "nlfo <-1..1>" (the noise LFO now), "tuner <Hz>" (the last hit), "sr <rate>".
 // To the patch besides parameters: "knote <n>", "kvel <v>", "hit" (the PLAY pad), "slotdata <s>" (user slots).
 // From the patch also: "slots <s>" (the user slots, from the [pattr] that keeps them in the Live set).
 // ASCII text only; the Ø of the logo is drawn as geometry. ES5 only (Max's jsui): no Math.tanh etc.
@@ -466,13 +466,45 @@ function paintDisplay() {
   text(fmtHz(w.f0), x0, DY + 15, 8.5, C.pink, true);
   textR(fmtMs(w.tmax / 1.08), DX + DW - 8, DY + 15, 8.5, C.mid, true);
   textC(hitN > 0 ? "LAST HIT  vel " + Math.round(lastVel * 127) : "KNOBS", DX + DW / 2, DY + 15, 7.5, hitN > 0 ? C.ink : C.dim, true);
-  text(noteName(lastNote), x0, DY + DH - 9, 10, C.ink, true);
-  textR(fmtHz(w.f1), DX + DW - 8, DY + DH - 9, 11, C.pink, true);
-  if (w.E.p808 > 0.5) textC("808", DX + DW / 2, DY + DH - 9, 8, C.amber, true);
+  paintTuner(w);
   if (hitT > 0) {   // playhead
     var age = (now() - hitT) / 1000;
     if (age < w.tmax) { var px = x0 + age / w.tmax * wpx; line(px, top - 4, px, top + h + 4, C.pink, 1.2, 0.9); }
   }
+}
+// TUNER (bottom of the screen): the note the last hit really rings at (engine out 5: its oscillator, every
+// modulation and the 808 drift included), how many cents off, a needle; a click on the scale = SNAP: TUNE moves
+// so the next hit lands exactly on the nearest note. Before the first hit: the knobs' landing pitch (dim).
+var tunerHz = 0;
+function tuner(hz) { hz = +hz; if (hz > 0 && Math.abs(hz - tunerHz) > 0.0001) { tunerHz = hz; dirty = true; } }
+function tunerRead(w) {
+  var hz = tunerHz > 0 && hitN > 0 ? tunerHz : w.f1, m = 69 + 12 * Math.log(hz / 440) / Math.LN2, n = Math.round(m);
+  return { hz: hz, note: n, cents: Math.round((m - n) * 100), real: tunerHz > 0 && hitN > 0 };
+}
+var TUN_W = 64;
+function paintTuner(w) {
+  var t = tunerRead(w), y = DY + DH - 8, cx = DX + DW / 2, ok = Math.abs(t.cents) <= 5;
+  var cc = !t.real ? C.dim : ok ? C.green : C.amber;
+  text(noteName(t.note), DX + 8, y, 11, t.real ? C.ink : C.mid, true);
+  text((t.cents > 0 ? "+" : "") + t.cents + "c", DX + 8 + tw(noteName(t.note), 11, true) + 4, y, 8.5, cc, true);
+  // the scale: -50 .. +50 cents, the needle; a click = SNAP
+  var sx0 = cx - TUN_W / 2 + 6, sy = y - 4;
+  line(sx0, sy, sx0 + TUN_W, sy, C.line, 1.5);
+  line(sx0 + TUN_W / 2, sy - 5, sx0 + TUN_W / 2, sy + 3, C.mid, 1);
+  line(sx0, sy - 3, sx0, sy + 2, C.line, 1); line(sx0 + TUN_W, sy - 3, sx0 + TUN_W, sy + 2, C.line, 1);
+  var nx = sx0 + TUN_W / 2 + Math.max(-1, Math.min(1, t.cents / 50)) * TUN_W / 2;
+  line(nx, sy - 6, nx, sy + 4, cc, 2.5);
+  if (hover === "snap" && t.real) textC("SNAP", sx0 + TUN_W / 2, sy - 8, 7, C.ink, true);
+  hit({ x: sx0 - 4, y: sy - 12, w: TUN_W + 8, h: 18, kind: "snap", name: "snap" });
+  textR(fmtHz(t.hz), DX + DW - 8, y, 10, C.pink, true);
+}
+// SNAP: TUNE so the measured pitch lands on the nearest note (fine steps: the knob is 48 st wide)
+function snap() {
+  if (!(tunerHz > 0 && hitN > 0)) return;
+  var m = 69 + 12 * Math.log(tunerHz / 440) / Math.LN2, dst = Math.round(m) - m;   // semitones to the nearest note
+  var v = Math.max(0, Math.min(1, P.tune.v + dst / 48));
+  send("tune", Math.round(v * 100000) / 100000);
+  tunerHz = tunerHz * Math.pow(2, dst / 12); dirty = true;
 }
 function paintPatchHelp() {
   var x = DX + 9, y = DY + 17, s = SRC[selSrc];
@@ -587,6 +619,7 @@ function onclick(x, y, but, cmd, shift, caps, alt) {
   else if (h.kind === "undo") undo();
   else if (h.kind === "preset") loadPreset(preset + h.d);
   else if (h.kind === "save") saveArmed = !saveArmed;
+  else if (h.kind === "snap") snap();
   else if (h.kind === "slot") { if (alt) clearSlot(h.slot); else if (saveArmed) saveSlot(h.slot); else loadSlot(h.slot); }
   dirty = true;
 }

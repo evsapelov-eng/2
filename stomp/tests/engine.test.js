@@ -302,3 +302,21 @@ test("RUMBLE ducks under the kick and swells after it (DUCK); mono", () => {
   const o = eng(Object.assign({}, clean, p)).hit(36, 1, SR);
   for (let i = 0; i < SR; i += 13) assert.ok(Math.abs(o[0][i] - o[1][i]) < 1e-12);
 });
+
+// ---------------- v0.5 TUNER ----------------
+test("TUNER (out 5): the Hz the hit rings at, within 1 cent, for notes, TUNE and mods; 808 drift shows as sharp", () => {
+  const want = (note, tune) => 440 * Math.pow(2, (note - 69 + (tune - 0.5) * 48) / 12);
+  const cents = (a, b) => 1200 * Math.log2(a / b);
+  for (const [p, note] of [[{}, 36], [{}, 24], [{}, 55], [{ tune: 0.53 }, 36], [{ dr_amt: 0.9, dr_pre: 1, dr_asym: 0.6, fm_amt: 0.5 }, 36], [{ amp_len: 0.1 }, 40]]) {
+    const o = eng(Object.assign({}, clean, p)).hit(note, 1, SR);
+    const c = cents(o[4][SR - 1], want(note, p.tune || 0.5));
+    assert.ok(Math.abs(c) < 1, `note ${note} ${JSON.stringify(p)}: ${c.toFixed(2)} cents`);
+  }
+  // a random TUNE per hit: the tuner follows each hit
+  const g = eng(Object.assign({}, clean, { r_tune: 0.2, rnd_amt: 1 }));
+  const a = g.hit(36, 1, SR / 2)[4][SR / 2 - 1], b = g.hit(36, 1, SR / 2)[4][SR / 2 - 1];
+  assert.ok(Math.abs(cents(a, b)) > 5, "different hits, different readings");
+  const s808 = eng(Object.assign({}, clean, { p808: 1, amp_len: 0.8 })).hit(36, 1, SR)[4][SR - 1];
+  assert.ok(cents(s808, 65.406) > 10, "808 rings sharp: +" + cents(s808, 65.406).toFixed(0) + " c");
+  assert.strictEqual(eng(clean).run(100)[4][99], 0, "0 before any hit");
+});
