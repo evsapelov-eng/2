@@ -1,0 +1,151 @@
+// ===== the voice (hand-written; make_engine.py puts it after the generated modulation block) =====
+// Every e_<knob> is the knob 0..1 (smoothed) + this hit's velocity/random offset, clamped 0..1.
+dt = 1 / samplerate;
+nyq = samplerate * 0.45;
+act_n = trig ? 1 : act;
+tt_n = trig ? 0 : min(tt + dt, 60);
+
+// ---- amp envelope: attack, then a curved decay that ends exactly at LENGTH ----
+alen = 0.05 * pw2(e_amp_len * 5.32);              // 50 ms .. 2 s
+aatt = 0.03 * e_amp_att * e_amp_att;              // 0 .. 30 ms
+ax_ = clamp((tt_n - aatt) / alen, 0, 1);
+adec = pow(1 - ax_, shapep(e_amp_crv));           // CURVE: 0 = drops fast, 0.5 = linear, 1 = holds
+afade = min(1, (1 - ax_) * alen / 0.003);         // last 3 ms: no tick at the end
+aatk = aatt > 0.00002 ? min(1, tt_n / aatt) : 1;
+env = act_n * aatk * adec * afade;
+
+// ---- pitch: the MIDI note (+ TUNE) is where the sweep lands; SWEEP = how far above it starts ----
+fnote = 440 * pw2((knote - 69 + (e_tune - 0.5) * 48) / 12);
+ptim = 0.005 * pw2(e_pit_time * 6);               // 5 .. 320 ms
+py_ = min(tt_n / ptim, 1);
+pe = pow(1 - py_, shapep(e_pit_crv));             // CURVE: 0 = slow fall, 1 = fast fall (snappy)
+freq = min(fnote * pw2(e_pit_swp * 72 * pe / 12), nyq);   // up to 6 octaves above the note
+ph_n = trig ? 0 : fract(ph + freq * dt);
+
+// ---- FM: a sine modulator at RATIO × the body frequency, its own fast decay ----
+fmr = 0.5 + e_fm_rat * 7.5;
+pm_n = trig ? 0 : fract(pm + min(freq * fmr, nyq) * dt);
+fidx = 6 * e_fm_amt * e_fm_amt * exp(-tt_n / (0.005 * pw2(e_fm_dec * 6)));
+body = sin(twopi * ph_n + fidx * sin(twopi * pm_n)) * env;
+
+// ---- partials 2..5 (SPREAD stretches them from harmonic to bell-like), darker as they decay ----
+hsp = 1 + e_hm_spr * 0.6;
+f2 = freq * exp(0.69314718 * hsp);
+f3 = freq * exp(1.09861229 * hsp);
+f4 = freq * exp(1.38629436 * hsp);
+f5 = freq * exp(1.60943791 * hsp);
+p2_n = trig ? 0 : fract(p2 + min(f2, nyq) * dt);
+p3_n = trig ? 0 : fract(p3 + min(f3, nyq) * dt);
+p4_n = trig ? 0 : fract(p4 + min(f4, nyq) * dt);
+p5_n = trig ? 0 : fract(p5 + min(f5, nyq) * dt);
+env2 = env * env;
+hg = e_hm_amt * 0.9;
+ha2 = (f2 < nyq) * 0.5 * sin(twopi * p2_n) * env2 * hg;
+ha3 = (f3 < nyq) * 0.35 * sin(twopi * p3_n) * env2 * env * hg;
+ha4 = (f4 < nyq) * 0.25 * sin(twopi * p4_n) * env2 * env2 * hg;
+ha5 = (f5 < nyq) * 0.2 * sin(twopi * p5_n) * env2 * env2 * env * hg;
+wid = e_wd_amt;
+hL = ha2 + ha4 + (ha3 + ha5) * (1 - wid);
+hR = ha3 + ha5 + (ha2 + ha4) * (1 - wid);
+
+// ---- noise: stereo (WIDTH decorrelates), COLOR = low-pass, 120 Hz high-pass, own DECAY ----
+nz1 = noise();
+nz2 = noise();
+nL = nz1;
+nR = nz1 * (1 - wid) + nz2 * wid;
+ncf = min(200 * pw2(e_nz_col * 6.3), nyq);
+nca = 1 - exp(-twopi * ncf * dt);
+hpa = 1 - exp(-twopi * 120 * dt);
+nlL_n = nlL + (nL - nlL) * nca;
+nlR_n = nlR + (nR - nlR) * nca;
+nhL_n = nhL + (nlL_n - nhL) * hpa;
+nhR_n = nhR + (nlR_n - nhR) * hpa;
+nenv = act_n * exp(-tt_n / (0.01 * pw2(e_nz_dec * 6.3))) * afade * min(1, tt_n / 0.0005 + 0.05);
+ng = 0.9 * e_nz_amt * e_nz_amt * nenv;
+noL = (nlL_n - nhL_n) * ng;
+noR = (nlR_n - nhR_n) * ng;
+
+// ---- click: a 2.5 ms tick (sine at TONE + a little noise) on the attack ----
+ctone = 1500 * pw2(e_clk_tone * 3);               // 1.5 .. 12 kHz
+cenv = act_n * exp(-tt_n / 0.0025) * 1.3 * e_clk_amt * afade * (tt_n < 0.05);
+csin = sin(twopi * min(ctone, nyq) * tt_n);
+ckL = cenv * (0.75 * csin + 0.25 * nz1);
+ckR = cenv * (0.75 * csin + 0.25 * (nz1 * (1 - wid) + nz2 * wid));
+
+// ---- drive: soft (tanh) .. HARD (clip), the peak stays at 1 ----
+preL = body + hL + noL + ckL;
+preR = body + hR + noR + ckR;
+dg = pw2(e_dr_amt * 5);                           // ×1 .. ×32
+dmix = min(1, e_dr_amt * 5);
+dtg = tanh(dg);
+sfL = tanh(dg * preL) / dtg;
+sfR = tanh(dg * preR) / dtg;
+hdL = clamp(dg * preL, -1, 1);
+hdR = clamp(dg * preR, -1, 1);
+shL = sfL + (hdL - sfL) * e_dr_knee;
+shR = sfR + (hdR - sfR) * e_dr_knee;
+drL = preL + (shL - preL) * dmix;
+drR = preR + (shR - preR) * dmix;
+
+// ---- retrigger without a click: the jump of a new hit fades out in ~1.5 ms ----
+dk = exp(-1 / (0.0015 * samplerate));
+dcL_n = trig ? (yL - drL) : (abs(dcL) < 0.000000001 ? 0 : dcL * dk);
+dcR_n = trig ? (yR - drR) : (abs(dcR) < 0.000000001 ? 0 : dcR * dk);
+yL_n = drL + dcL_n;
+yR_n = drR + dcR_n;
+
+// ---- space: a small room on everything above ~180 Hz (the sub stays dry and tight) ----
+sla = 1 - exp(-twopi * 180 * dt);
+slL_n = slL + (yL_n - slL) * sla;
+slR_n = slR + (yR_n - slR) * sla;
+sendL = yL_n - slL_n;
+sendR = yR_n - slR_n;
+rsc = (0.55 + 0.9 * e_sp_time) * samplerate / 44100;
+rfb = 0.62 + 0.3 * e_sp_time;
+rw = rwi;
+c1 = peek(room, wrapi(rw - floor(1116 * rsc), 8192), 0);
+c2 = peek(room, wrapi(rw - floor(1188 * rsc), 8192), 1);
+c3 = peek(room, wrapi(rw - floor(1277 * rsc), 8192), 2);
+c4 = peek(room, wrapi(rw - floor(1356 * rsc), 8192), 3);
+rl1_n = rl1 + (c1 - rl1) * 0.45;
+rl2_n = rl2 + (c2 - rl2) * 0.45;
+rl3_n = rl3 + (c3 - rl3) * 0.45;
+rl4_n = rl4 + (c4 - rl4) * 0.45;
+poke(room, sendL * 0.3 + rl1_n * rfb, rw, 0);
+poke(room, sendR * 0.3 + rl2_n * rfb, rw, 1);
+poke(room, sendL * 0.3 + rl3_n * rfb, rw, 2);
+poke(room, sendR * 0.3 + rl4_n * rfb, rw, 3);
+rwi_n = wrapi(rw + 1, 8192);
+spm = e_sp_amt * 0.7;
+outL = yL_n + (c1 + c3) * spm;
+outR = yR_n + (c2 + c4) * spm;
+
+// ---- level (−30 .. +6 dB) and a soft knee above −1 dB ----
+lvl = pw2((-30 + 36 * e_level) / 6.0206);
+out1 = sknee(outL * lvl);
+out2 = sknee(outR * lvl);
+out3 = env;
+
+act = act_n;
+tt = tt_n;
+ph = ph_n;
+pm = pm_n;
+p2 = p2_n;
+p3 = p3_n;
+p4 = p4_n;
+p5 = p5_n;
+nlL = nlL_n;
+nlR = nlR_n;
+nhL = nhL_n;
+nhR = nhR_n;
+dcL = dcL_n;
+dcR = dcR_n;
+yL = yL_n;
+yR = yR_n;
+slL = slL_n;
+slR = slR_n;
+rl1 = rl1_n;
+rl2 = rl2_n;
+rl3 = rl3_n;
+rl4 = rl4_n;
+rwi = rwi_n;

@@ -1,0 +1,13 @@
+{
+  "name": "stomp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "STØMP — kick drum synthesizer, Max for Live instrument (gen~ engine)",
+  "scripts": {
+    "gen": "python3 tools/make_engine.py",
+    "test": "python3 tools/make_engine.py --check && node --test tests/*.test.js",
+    "dist": "python3 tools/make_engine.py && python3 tools/build_device.py --dist",
+    "render": "node tools/render.js"
+  },
+  "license": "MIT"
+}
