@@ -1,11 +1,11 @@
 {
   "name": "flow-performance-arranger",
-  "version": "0.1.0-m0",
+  "version": "0.2.0-m1",
   "private": true,
   "description": "FLOW — Max for Live Performance Arranger (development tests; the device itself runs in Ableton Live)",
   "scripts": {
-    "build": "python3 tools/build_m0_spike.py",
-    "test": "python3 tools/build_m0_spike.py && node --test 'tests/*.test.js'"
+    "build": "python3 tools/build_m0_spike.py && python3 tools/build_flow.py",
+    "test": "npm run build && node --test 'tests/*.test.js'"
   },
   "license": "UNLICENSED"
 }

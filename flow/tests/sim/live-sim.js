@@ -50,6 +50,12 @@ class LiveSim {
     this.lastNotifiedPos = null;
     this.wraps = 0;
     this.files = {};
+    this.globals = {};
+    this.songLength = opts.songLength ?? 400;
+    this.filePath = opts.filePath ?? '/Users/test/Music/FLOW Test Project/FLOW Test.als';
+    this.dropWrites = new Set(opts.dropWrites || []); // props whose writes Live "ignores"
+    this.calls = [];
+    this.setLog = [];
   }
 
   bpb() { return this.num * 4 / this.den; }
@@ -66,7 +72,8 @@ class LiveSim {
       loop_start: this.loopStart, loop_length: this.loopLength, tempo: this.tempo,
       signature_numerator: this.num, signature_denominator: this.den,
       back_to_arranger: this.b2a, clip_trigger_quantization: this.quant,
-      start_time: 0, song_length: 1000,
+      start_time: 0, song_length: this.songLength, file_path: this.filePath,
+      cue_points: this.cues.map((c, i) => 'id ' + (100 + i)).join(' '),
     };
     if (!(prop in map)) throw new Error('sim: unknown property ' + prop);
     return map[prop];
@@ -80,6 +87,8 @@ class LiveSim {
     // Producer Pal (adamjmurray/producer-pal) observed: loop_start / loop_length /
     // start_time read back inside the same request; `loop`, `is_playing` and
     // `current_song_time` update asynchronously (~25 ms for `loop`).
+    this.setLog.push({ t: this.t, prop, value: Number(value) });
+    if (this.dropWrites.has(prop)) return;
     if (prop === 'loop_start' || prop === 'loop_length') {
       this.applySet(prop, Number(value));
       return;
@@ -120,6 +129,7 @@ class LiveSim {
       this.violations.push('call ' + fn + ' inside notification');
       throw new Error('Changes cannot be triggered by notifications');
     }
+    this.calls.push({ t: this.t, path, fn });
     const cue = /^live_set cue_points (\d+)$/.exec(path);
     if (cue && fn === 'jump') {
       const target = this.cues[+cue[1]].time;
@@ -237,16 +247,29 @@ class LiveSim {
     Task.prototype.repeat = function () { this._active = true; this._next = sim.t + this.interval; sim.tasks.push(this); };
     Task.prototype.cancel = function () { this._active = false; };
 
-    function File(path) {
-      this.path = path; this.isopen = true; this.position = 0; this.eof = 0; sim.files[path] = [];
+    function File(path, mode) {
+      this.path = path; this.isopen = true; this.position = 0;
+      if (mode === 'read') {
+        if (!(path in sim.files)) { this.isopen = false; this.eof = 0; return; }
+        this._lines = sim.files[path].slice(); this.eof = this._lines.length;
+      } else { this.eof = 0; sim.files[path] = []; }
     }
     File.prototype.writeline = function (s) { sim.files[this.path].push(String(s)); this.position += 1; };
+    File.prototype.readline = function () { if (this.position >= this._lines.length) return null; return this._lines[this.position++]; };
     File.prototype.close = function () { this.isopen = false; };
 
-    class FakeDate { getTime() { return sim.t; } static now() { return sim.t; } }
+    class FakeDate {
+      getTime() { return sim.t; } static now() { return sim.t; }
+      getFullYear() { return 2026; } getMonth() { return 10; } getDate() { return 20; }
+      getHours() { return 12; } getMinutes() { return 0; } toString() { return 'Fri Nov 20 2026 12:00 (sim)'; }
+    }
+    function Global(name) {
+      if (!sim.globals[name]) sim.globals[name] = {};
+      return sim.globals[name];
+    }
 
     const ctx = {
-      LiveAPI, Task, File, Date: FakeDate,
+      LiveAPI, Task, File, Global, Date: FakeDate,
       post: (...a) => sim.posts.push(a.join(' ')),
       outlet: (...a) => sim.outlets.push(a),
       arrayfromargs: (args) => Array.prototype.slice.call(args),
@@ -259,7 +282,7 @@ class LiveSim {
   }
 
   // Equivalent of live.thisdevice firing.
-  deviceReady() { this.loaded = true; this.ctx.init(); }
+  deviceReady(ctx) { this.loaded = true; (ctx || this.ctx).init(); }
 
   logs(re) { return this.posts.filter(p => re.test(p)); }
 }

@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [0.2.0-m1] — 2026-11-20 — UNVERIFIED (в Live не запускалась)
+
+### Добавлено
+- **FLOW device** `dist/FLOW.amxd` + `dist/flow.js` (генерируется `tools/build_flow.py` из `src/`).
+- `src/sections.js`: секции, сетлист с повторами, валидация, JSON (schemaVersion 1), хранение в Live Set (`FLOW1:` + URL-кодированный JSON), импорт локаторов с явным `END`, Digitone A01–H16 ↔ PC 0–127, undo/redo.
+- `src/engine.js`: состояния §5; HOLD (секция / последние N тактов), RELEASE с EXIT NEXT CYCLE, NEXT/PREV по сетлисту или координатам, механизмы LOOP WRAP / LOCATOR JUMP / LINEAR / TIMED SEEK (EXPERIMENTAL), авто-переход по сетлисту и PAUSE, STOP с подтверждением, CANCEL, MANUAL OVERRIDE, ERROR по тайм-ауту подтверждения, BACK TO ARRANGEMENT, debounce.
+- `src/selftest.js`: SELF-TEST одной кнопкой (S0–S8), калибровка `safeLeadMs`, отчёт рядом с `.als`.
+- `src/main.js`: мост LiveAPI, UI, хранение в pattr, JSON export/import, реестр мастер-экземпляра (READ-ONLY / TAKE OVER).
+- Панель: HOLD / RELEASE / PREV / NEXT / STOP / CANCEL (MIDI Map), 6 меню опций, служебные кнопки.
+- `docs/USER_GUIDE_RU.md`.
+- Тесты: 88 (модель, движок в собранном бандле, SELF-TEST, патч, spike).
+
+### Исправлено в ходе разработки (найдено тестами)
+- Обработчики RELEASE/NEXT получали позицию вместо операции.
+- Гонка: стоп транспорта, пока `loop=1` ещё не применён, оставлял петлю включённой.
+- CANCEL не отменял прыжок через петлю, хотя время до границы ещё было.
+- Авто-переход сетлиста блокировал ручной HOLD в конце секции.
+- Повторная запись уже установленного значения петли ждала подтверждения, которого Live не присылает, и вела в ERROR.
+
+
 ## [m0-spike 0.1.1] — 2026-11-20 — UNVERIFIED
 
 ### Изменено (по результатам изучения открытых проектов и эталонов Ableton)

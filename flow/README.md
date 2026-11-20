@@ -1,58 +1,53 @@
 # FLOW — Performance Arranger (Max for Live)
 
-Max for Live MIDI Effect для Ableton Live 12, который управляет структурой Arrangement на концерте: HOLD / RELEASE / NEXT / PREVIOUS / STOP. По желанию он отправляет Program Change в Elektron Digitone II. Полное ТЗ — [`docs/SPEC_RU.md`](docs/SPEC_RU.md).
+Max for Live MIDI Effect для Ableton Live 12: HOLD / RELEASE / NEXT / PREV / STOP по секциям Arrangement во время концерта. Полное ТЗ — [`docs/SPEC_RU.md`](docs/SPEC_RU.md).
 
-> **Текущий статус: Milestone 0 — UNVERIFIED.** В репозитории пока только измерительное spike-устройство. Это **не** FLOW и не инструмент для сцены. Его ни разу не запускали в Live: среда разработки не имеет Ableton/Max. Следующий шаг — прогон протокола на вашем Mac.
+> **Статус: Milestone 1, версия 0.2.0-m1 — UNVERIFIED.** Устройство и все функции движка написаны и проверены 88 автотестами на симуляторе Live. В самом Ableton FLOW ещё не запускался: среда разработки — Linux без Ableton. Следующий шаг — один прогон **SELF-TEST** на вашем Mac. До этого не используйте FLOW на концерте.
+
+## Начать (Mac + Ableton Live 12 Suite)
+
+1. Скачайте архив: `https://github.com/evsapelov-eng/2/archive/refs/heads/claude/relaxed-maxwell-e14m05.zip`
+2. Из папки `flow/dist/` скопируйте **оба** файла `FLOW.amxd` и `flow.js` в одну папку.
+3. Перетащите `FLOW.amxd` на MIDI-дорожку **копии** сета и сохраните сет.
+4. Нажмите `self_test` дважды, подождите 1,5–3 минуты.
+5. Пришлите файл `FLOW-SelfTest-*.txt`, который появится рядом с сетом.
+
+Подробно: [`docs/USER_GUIDE_RU.md`](docs/USER_GUIDE_RU.md).
 
 ## Структура
 
 ```text
 flow/
-├─ device/m0-spike/
-│   ├─ flow_spike.js        исходник устройства (Max js, ES5)
-│   └─ flow-spike.maxpat    патч (генерируется)
-├─ dist/
-│   ├─ FLOW-M0-Spike.amxd   Max MIDI Effect (генерируется; UNVERIFIED)
-│   └─ flow_spike.js        копия скрипта — должна лежать рядом с .amxd
-├─ tools/build_m0_spike.py  генератор .maxpat/.amxd
-├─ tests/                   симулятор Live + автотесты (Node)
-└─ docs/
-    ├─ M0_SPIKE_PROTOCOL.md  ← что сделать в Ableton (начните отсюда)
-    ├─ API_VERIFICATION.md   какие методы Live API подтверждены документацией/запуском
-    ├─ ARCHITECTURE.md       черновик архитектуры и гипотезы M0
-    ├─ TEST_PLAN.md / TEST_RESULTS.md
-    ├─ RISKS.md
-    └─ SPEC_RU.md            исходное ТЗ
+├─ src/                 исходники (ES5, работают и в Max, и в Node)
+│   sections.js         модель секций / сетлиста / JSON / локаторы
+│   engine.js           движок HOLD/RELEASE/NEXT/PREV/STOP
+│   selftest.js         SELF-TEST и калибровка
+│   main.js             связь с Live API, UI, хранение
+├─ device/flow/         сгенерированные flow.js (бандл) и FLOW.maxpat
+├─ dist/                FLOW.amxd + flow.js — то, что ставится в Live
+├─ device/m0-spike/, dist/FLOW-M0-Spike.amxd   диагностическое spike-устройство M0
+├─ tools/               build_flow.py, build_m0_spike.py
+├─ tests/               симулятор Live + 88 тестов
+└─ docs/                USER_GUIDE_RU, ARCHITECTURE, API_VERIFICATION, TEST_PLAN, TEST_RESULTS, RISKS, M0 protocol
 ```
-
-## Быстрый старт (Mac + Ableton Live 12 Suite)
-
-1. Скопируйте папку `flow/dist/` целиком (например, в User Library).
-2. Перетащите `FLOW-M0-Spike.amxd` на MIDI-дорожку.
-3. Если устройство не открылось, соберите его вручную (вариант B в [`docs/M0_SPIKE_PROTOCOL.md`](docs/M0_SPIKE_PROTOCOL.md#вариант-b--ручная-сборка-если-a-не-открылся-или-пишет-ошибку)).
-4. Выполните эксперименты E0–E13 из протокола, нажмите `save log` и передайте лог.
-
-Устройство пропускает MIDI дорожки насквозь. Транспорт и Loop оно меняет только по нажатию кнопок, при загрузке ничего не трогает.
 
 ## Разработка
 
-Требуются Python 3 и Node ≥ 20.
-
 ```bash
 cd flow
-npm run build   # пересобрать .maxpat и dist/*.amxd из исходников
-npm test        # сборка + 30 автотестов (логика на симуляторе, проверка патча)
+npm run build   # собрать оба устройства из исходников
+npm test        # сборка + 88 тестов
 ```
 
-Автотесты проверяют только собственную логику FLOW. Поведение Live они **не** доказывают. См. [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md).
+Автотесты проверяют логику FLOW. Поведение Live измеряет SELF-TEST на компьютере пользователя.
 
 ## Дорожная карта (§20 ТЗ)
 
 | Этап | Содержание | Статус |
 |---|---|---|
-| M0 | API feasibility spike | код готов, **UNVERIFIED** (ждёт прогона в Live) |
-| M1 | Engine: state machine, секции, HOLD/RELEASE/NEXT | не начат — зависит от результатов M0 |
-| M2 | ARRANGE UI, импорт локаторов, сохранение | не начат |
-| M3 | PERFORM, MIDI-контроллер, конфликты | не начат |
-| M4 | Digitone adapter | не начат |
-| M5 | Stage readiness | не начат |
+| M0 | Проверка Live API | заменена встроенным SELF-TEST (S1–S7); spike сохранён для диагностики |
+| M1 | Engine: состояния, секции, HOLD/RELEASE/NEXT/PREV, SELF-TEST | **код готов, UNVERIFIED** — ждёт отчёта SELF-TEST |
+| M2 | Графический редактор ARRANGE (таймлайн, drag-and-drop сетлиста) | не начат |
+| M3 | Окно PERFORM, MIDI Learn, LED-обратная связь | частично: MIDI Map, конфликты, READ-ONLY уже в M1 |
+| M4 | Digitone II Program Change | не начат (модель A01–H16 ↔ PC готова) |
+| M5 | Готовность к сцене, стресс-тест 60–90 мин | не начат |

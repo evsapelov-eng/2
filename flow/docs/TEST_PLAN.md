@@ -8,11 +8,20 @@
 
 Статусы: `PASS` / `FAIL` / `NOT RUN`. Статус «готово» без LIVE-прогона не ставится.
 
-## Milestone 0 (текущий)
+## Milestone 1 (текущий)
+
+| ID | Уровень | Что | Как |
+|---|---|---|---|
+| M1-A | AUTO | 88 тестов | `npm test` |
+| M1-ST | LIVE | SELF-TEST S0–S8 (S8 = T05–T09 на временной карте) | кнопка `self_test`, отчёт |
+| M1-SAVE | LIVE | T01/T12: сохранить сет, закрыть, открыть; секции на месте, транспорт не стартовал | вручную |
+| M1-MAP | LIVE | T10: MIDI Map кнопок | вручную |
+
+## Milestone 0
 
 | ID | Уровень | Что | Протокол |
 |---|---|---|---|
-| M0-A | AUTO | 30 тестов `tests/*.test.js` | `npm test` |
+| M0-A | AUTO | spike: `tests/m0-spike.test.js`, `tests/patch.test.js` | `npm test` |
 | M0-E0…E13 | LIVE | Эксперименты API/тайминга | `M0_SPIKE_PROTOCOL.md` §5 |
 | M0-INST | LIVE | `.amxd` открывается (вариант A) или собирается вручную (B) | §3 |
 
