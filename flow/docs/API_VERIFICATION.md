@@ -69,3 +69,18 @@
 | [Тот же вопрос, остановленный транспорт](https://cycling74.com/forums/how-to-set-the-live-arrangement-position-via-m4l) | При остановке задаётся точка старта; обходной путь — сначала play, потом прыжок | Учесть в M1 для NEXT при остановленном транспорте |
 | [«Changes cannot be triggered by notifications»](https://cycling74.com/forums/live-object-changes-cannot-be-triggered-by-notifications-2) | Изменения Live из уведомлений запрещены; помогает `deferlow` или JS `Task` | Совпадает с архитектурой spike (все команды из Task-тика) |
 | [Loop start/end через API](https://docs.cycling74.com/max7/vignettes/live_object_model) (пересказ форумной темы в поиске) | Значения брейса «ведут себя ожидаемо» только при включённом loop | Риск для гипотезы H-HOLD (брейс заранее при `loop=0`) — проверяется в E6; spike читает значения обратно после set |
+
+## Опыт открытых проектов на GitHub (2026-11-20)
+
+Найдено поиском кода GitHub по `current_song_time`, `loop_start`, `cue_points`, `back_to_arranger`. Это наблюдения других разработчиков, а не документация; их код в FLOW **не копируется**, используются только факты о поведении Live.
+
+| Факт | Источник | Что изменено во FLOW |
+|---|---|---|
+| `loop_start`, `loop_length`, `start_time` читаются обратно сразу после записи; **`loop` — ещё ~25 мс старое значение** | [adamjmurray/producer-pal](https://github.com/adamjmurray/producer-pal) `src/tools/session/helpers/playback/arrangement-playback.ts` | Spike: границы проверяются сразу, `loop` подтверждается уведомлением observer'а (раньше был бы ложный MISMATCH). Симулятор приведён к этому поведению |
+| `is_playing` и `current_song_time` обновляются асинхронно после команд | producer-pal `dev/specs/.../playback-and-sends.md`, `locator-updates.ts` | Подтверждает правило: состояние FLOW меняется только после подтверждения от observer'а |
+| Live хранит 32-битные float (0.123456789 → 0.12345699965953827) | producer-pal `mock-registry-helpers.ts`, `read-back-comparison.ts` | Допуск сравнения долей 1e-4 (`sameBeat`) |
+| `stop` при **уже остановленном** транспорте отправляет playhead и start marker в начало | producer-pal `playback-and-sends.md` | STOP во FLOW: сначала проверять `is_playing`, иначе ничего не делать |
+| Запись `start_time` во время игры не двигает playhead; `start_playing` всегда стартует с `start_time` | producer-pal `playback-and-sends.md` | Учесть при NEXT из остановленного состояния |
+| Playhead не может уйти дальше конца песни | producer-pal `locator-updates.ts` | NEXT/импорт: цель за `song_length` — ошибка валидации |
+| Прыжок сделан как stop → `set current_song_time` → 100 мс → start | [LFO-lab/SIGNe](https://github.com/LFO-lab/SIGNe) `JumpTransportToObject.maxpat` | Только как аварийный «SAFE JUMP» (звук прерывается); на сцене по умолчанию не используется |
+| `set current_song_time` во время игры для сетлиста без учёта квантизации; используется несуществующее свойство `is_arrangement_done_or_recording` | [Emmanuelakpadia/Abletrack-setlist-claude](https://github.com/Emmanuelakpadia/Abletrack-setlist-claude) | Пример того, как делать **не** надо; не используется |

@@ -63,6 +63,11 @@ function str(v) {
     return String(v);
 }
 
+// Live stores 32-bit floats (Producer Pal: 0.123456789 reads back 0.12345699965953827),
+// so beat comparisons need a tolerance far above 1e-6 but far below a tick (~0.002 b).
+var BEAT_EPS = 1e-4;
+function sameBeat(a, b) { return Math.abs(a - b) < BEAT_EPS; }
+
 function f2(x) { return (Math.round(x * 100) / 100).toFixed(2); }
 function f3(x) { return (Math.round(x * 1000) / 1000).toFixed(3); }
 
@@ -379,9 +384,13 @@ function exp_hold(bars, cycles) {
             apiSet("loop_start", L);
             apiSet("loop_length", len);
             apiSet("loop", 1);
+            // Producer Pal (adamjmurray/producer-pal) reports that loop_start/loop_length
+            // read back inside the same request, but `loop` itself reads stale for ~25 ms.
+            // So: bounds are checked now, `loop` is confirmed later by its observer.
             var rb = [apiGet("loop"), apiGet("loop_start"), apiGet("loop_length")];
-            var ok = rb[0] === 1 && Math.abs(rb[1] - L) < 1e-6 && Math.abs(rb[2] - len) < 1e-6;
-            log("HOLD readback loop=" + rb[0] + " start=" + f3(rb[1]) + " length=" + f3(rb[2]) + (ok ? " OK" : " MISMATCH"));
+            var ok = sameBeat(rb[1], L) && sameBeat(rb[2], len);
+            log("HOLD immediate readback start=" + f3(rb[1]) + " length=" + f3(rb[2]) + (ok ? " OK" : " MISMATCH") +
+                " loop=" + rb[0] + (rb[0] === 1 ? " (already on)" : " (not yet on - expected to be stale)"));
         },
         onProp: function (name, v, t) { if (name === "loop" && v === 1 && !loopObsT) { loopObsT = t; } },
         onPos: function (pos, t, prev, prevT) {
@@ -394,7 +403,7 @@ function exp_hold(bars, cycles) {
         tick: function () {
             if (missed) { endExp("MISSED: playhead passed loop end before the loop engaged", true); return; }
             if (wraps.length >= cycles) {
-                log("HOLD loop observer latency " + (loopObsT ? (loopObsT - setT) + "ms" : "n/a"));
+                log("HOLD loop=1 confirmed by observer after " + (loopObsT ? (loopObsT - setT) + "ms" : "n/a (no notification seen)"));
                 for (var i = 0; i < wraps.length; i++) { log("HOLD wrap " + (i + 1) + " " + wraps[i]); }
                 endExp("PASS " + wraps.length + " wraps observed; loop stays ON (use exp_release or loopoff)");
             }
@@ -627,7 +636,7 @@ function measureJump(name, target, fire) {
         },
         onPos: function (pos, t, prev, prevT) {
             if (done) { return; }
-            var k = G.st.playing ? jumpKind(pos, t, prev, prevT) : (Math.abs(pos - target) < 1e-6 ? "set" : null);
+            var k = G.st.playing ? jumpKind(pos, t, prev, prevT) : (sameBeat(pos, target) ? "set" : null);
             if (!k) { return; }
             done = true;
             var lat = t - setT;

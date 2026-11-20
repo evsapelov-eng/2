@@ -6,7 +6,7 @@
 
 Среда: Linux-контейнер (x86_64), Node v22.23.5, Python 3. **Ableton Live и Max недоступны**, Mac к сессии не подключён.
 
-### AUTO (`npm test`) — 28 / 28 PASS
+### AUTO (`npm test`) — 30 / 30 PASS
 
 Что подтверждено (только логика, на симуляторе):
 - скрипт не трогает LiveAPI в global code; инициализация только после `live.thisdevice`;

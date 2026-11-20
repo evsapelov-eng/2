@@ -221,3 +221,17 @@ test('restore puts back the loop state captured at init', () => {
   assert.equal(sim.loopStart, 0);
   assert.equal(sim.loopLength, 16);
 });
+
+test('HOLD readback: bounds verified immediately, stale `loop` is not reported as a mismatch', () => {
+  const { sim, js } = boot({ playing: true, pos: 5.3, setLatency: 25 });
+  js.exp_hold(1, 1);
+  runExp(sim, 'hold', 10000);
+  assert.ok(sim.logs(/immediate readback start=4\.000 length=4\.000 OK loop=0 \(not yet on/).length, sim.posts.join(''));
+  assert.ok(sim.logs(/loop=1 confirmed by observer after 25ms/).length);
+});
+
+test('beat comparisons tolerate Live 32-bit float storage', () => {
+  const { js } = boot();
+  assert.equal(js.sameBeat(0.12345699965953827, 0.123456789), true);
+  assert.equal(js.sameBeat(4, 4.01), false);
+});

@@ -77,6 +77,13 @@ class LiveSim {
       this.violations.push('set ' + prop + ' inside notification');
       throw new Error('Changes cannot be triggered by notifications');
     }
+    // Producer Pal (adamjmurray/producer-pal) observed: loop_start / loop_length /
+    // start_time read back inside the same request; `loop`, `is_playing` and
+    // `current_song_time` update asynchronously (~25 ms for `loop`).
+    if (prop === 'loop_start' || prop === 'loop_length') {
+      this.applySet(prop, Number(value));
+      return;
+    }
     this.pending.push({ due: this.t + this.setLatency, fn: () => this.applySet(prop, Number(value)) });
   }
 

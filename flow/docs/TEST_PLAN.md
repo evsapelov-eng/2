@@ -12,7 +12,7 @@
 
 | ID | Уровень | Что | Протокол |
 |---|---|---|---|
-| M0-A | AUTO | 28 тестов `tests/*.test.js` | `npm test` |
+| M0-A | AUTO | 30 тестов `tests/*.test.js` | `npm test` |
 | M0-E0…E13 | LIVE | Эксперименты API/тайминга | `M0_SPIKE_PROTOCOL.md` §5 |
 | M0-INST | LIVE | `.amxd` открывается (вариант A) или собирается вручную (B) | §3 |
 
