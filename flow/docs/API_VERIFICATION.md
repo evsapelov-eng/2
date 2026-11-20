@@ -52,3 +52,20 @@
 3. **H-WRAPJUMP**: прыжок назад на границе такта можно сделать нативно — петлёй `[target, boundary)` с последующим `loop=0` (E9).
 4. **H-CUEJUMP**: прыжок вперёд на границе такта нативно делает `CuePoint.jump`, если на цели стоит локатор (E8).
 5. **H-SEEK**: `current_song_time` при игре — мгновенный (тогда прыжок по JS-таймеру = джиттер, режим EXPERIMENTAL) или квантованный (E7).
+
+## Сверка формата `.amxd` с эталонами Ableton (2026-11-20)
+
+Источник: официальный репозиторий Ableton [`Ableton/maxdevtools`](https://github.com/Ableton/maxdevtools) (`maxdiff/amxd_textconv.py` и `.amxd`, сохранённые самим Max: `maxdiff/tests/test_files/Test.amxd`, `cpu-reporter/CPU Reporter.amxd`, `load-time-tester/DoneLoading.amxd`).
+
+- Контейнер: последовательность чанков `[4 байта ASCII id][uint32 little-endian длина][данные]`: `ampf` (4 байта, тип: `mmmm` = MIDI Effect), `meta` (4 байта), `ptch` (JSON патча, оканчивается `\n` + NUL). **Наш файл совпадает по структуре** (проверено побайтово по заголовкам и окончанию).
+- Поля верхнего уровня патча (`openrect`, `project.amxdtype` = 1835887981 для MIDI Effect, `latency`, `is_mpe` и др.) приведены к виду файлов, сохранённых Max 8.6/9.1.
+- Открытие в Live по-прежнему **не проверено** (нужен запуск), но риск R1 существенно снижен.
+
+## Опыт сообщества (форумы Cycling '74) — не официальная документация
+
+| Тема | Что сообщают | Как учтено |
+|---|---|---|
+| [Установка `current_song_time` во время игры](https://cycling74.com/forums/setting-cursorplaying-position-with-current_song_time-or-jump_by) | Прыжок происходит, но момент «непредсказуем»; иногда Live прыгает в последнюю точку клика мышью | Подтверждает решение: произвольный seek — EXPERIMENTAL; предпочтение нативным механизмам (wrap петли, `CuePoint.jump`). E7 всё равно нужен |
+| [Тот же вопрос, остановленный транспорт](https://cycling74.com/forums/how-to-set-the-live-arrangement-position-via-m4l) | При остановке задаётся точка старта; обходной путь — сначала play, потом прыжок | Учесть в M1 для NEXT при остановленном транспорте |
+| [«Changes cannot be triggered by notifications»](https://cycling74.com/forums/live-object-changes-cannot-be-triggered-by-notifications-2) | Изменения Live из уведомлений запрещены; помогает `deferlow` или JS `Task` | Совпадает с архитектурой spike (все команды из Task-тика) |
+| [Loop start/end через API](https://docs.cycling74.com/max7/vignettes/live_object_model) (пересказ форумной темы в поиске) | Значения брейса «ведут себя ожидаемо» только при включённом loop | Риск для гипотезы H-HOLD (брейс заранее при `loop=0`) — проверяется в E6; spike читает значения обратно после set |

@@ -30,7 +30,7 @@ test('box ids are unique and presentation rects fit the device height (169 px)',
     if (!box.presentation) continue;
     const [x, y, w, h] = box.presentation_rect;
     assert.ok(y + h <= 169, box.text + ' exceeds device height');
-    assert.ok(x + w <= patch.devicewidth, box.text + ' exceeds device width');
+    assert.ok(x + w <= patch.openrect[2], box.text + ' exceeds device width');
   }
 });
 

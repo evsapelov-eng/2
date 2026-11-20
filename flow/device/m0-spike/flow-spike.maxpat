@@ -4,7 +4,7 @@
 		"appversion": {
 			"major": 8,
 			"minor": 6,
-			"revision": 0,
+			"revision": 4,
 			"architecture": "x64",
 			"modernui": 1
 		},
@@ -15,17 +15,28 @@
 			1200.0,
 			640.0
 		],
+		"openrect": [
+			0.0,
+			0.0,
+			760.0,
+			169.0
+		],
+		"bglocked": 0,
 		"openinpresentation": 1,
 		"default_fontsize": 10.0,
 		"default_fontface": 0,
-		"default_fontname": "Arial",
+		"default_fontname": "Arial Bold",
 		"gridonopen": 1,
 		"gridsize": [
 			8.0,
 			8.0
 		],
-		"devicewidth": 760.0,
+		"boxanimatetime": 500,
+		"devicewidth": 0.0,
 		"description": "FLOW Milestone 0 Live API spike (UNVERIFIED)",
+		"digest": "",
+		"tags": "",
+		"style": "",
 		"boxes": [
 			{
 				"box": {
@@ -1834,7 +1845,42 @@
 				}
 			}
 		],
+		"parameters": {},
 		"dependency_cache": [],
+		"latency": 0,
+		"is_mpe": 0,
+		"external_mpe_tuning_enabled": 0,
+		"minimum_live_version": "",
+		"minimum_max_version": "",
+		"platform_compatibility": 0,
+		"project": {
+			"version": 1,
+			"creationdate": 3590052493,
+			"modificationdate": 3590052493,
+			"viewrect": [
+				0.0,
+				0.0,
+				300.0,
+				500.0
+			],
+			"autoorganize": 1,
+			"hideprojectwindow": 1,
+			"showdependencies": 1,
+			"autolocalize": 0,
+			"contents": {
+				"patchers": {}
+			},
+			"layout": {},
+			"searchpath": {},
+			"detailsvisible": 0,
+			"amxdtype": 1835887981,
+			"readonly": 0,
+			"devpathtype": 0,
+			"devpath": ".",
+			"sortmode": 0,
+			"viewmode": 0,
+			"includepackages": 0
+		},
 		"autosave": 0
 	}
 }
