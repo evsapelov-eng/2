@@ -1,0 +1,46 @@
+# Несекретные настройки PLUIT Assistent.
+# Переменные окружения с теми же именами (в верхнем регистре) имеют приоритет.
+# Настройки, изменённые владельцем через меню бота, хранятся в состоянии и
+# имеют приоритет над этим файлом.
+
+timezone: Europe/Moscow
+channel_username: pluit_club        # для прямых ссылок t.me/pluit_club/<пост>?comment=<id>
+
+# Gemini: только модели, доступные на бесплатном тарифе.
+gemini_model: gemini-3.7-flash
+gemini_fallback_model: gemini-3.8-flash   # вторая бесплатная модель; пусто — не использовать
+gemini_timeout_seconds: 60
+max_ai_requests_per_run: 10
+max_ai_requests_per_day: 18         # на одну модель; бесплатный лимит около 20 запросов в сутки
+max_comments_per_ai_request: 8      # несколько комментариев в одном запросе экономят квоту
+max_ai_retries: 1
+ai_fallback_after_hours: 6          # если AI недоступен дольше — анализ по правилам
+
+# Уведомления
+notification_mode: smart            # smart | digest | quiet
+notification_threshold: 70
+max_recommendations_per_run: 5
+recommendation_max_age_hours: 48    # более старые рекомендации не присылаются, но остаются во входящих
+daily_summary_enabled: false        # вечерняя сводка в умном режиме
+weekly_report_enabled: true
+evening_hour: 20                    # с этого часа проверка считается вечерней (сводка, дайджест)
+weekly_report_hour: 11              # понедельник, с этого часа
+quiet_hours_start: 23               # ночью уведомления не отправляются
+quiet_hours_end: 9
+remind_after_hours: 3
+
+# Копия расписания из .github/workflows/bot.yml (UTC). Используется только для подсказки
+# «следующая проверка» в меню. Само расписание меняется в bot.yml.
+schedule_cron: '7 6,9,12,15,18 * * *'
+
+# Данные
+data_retention_days: 90
+
+# Окно быстрых ответов: если владелец пользовался ботом в этом запуске,
+# бот ещё столько секунд принимает нажатия кнопок мгновенно. 0 — выключено.
+interactive_window_seconds: 90
+
+# Хранилище состояния
+state_backend: git                  # git | local
+state_branch: bot-state
+state_local_path: .state/state.enc
